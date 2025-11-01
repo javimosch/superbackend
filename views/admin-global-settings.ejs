@@ -148,7 +148,7 @@
   </div>
 
   <script>
-    const API_BASE = window.location.origin;
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
     let allSettings = [];
 
     function showToast(message, type = 'success') {

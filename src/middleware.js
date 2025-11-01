@@ -110,7 +110,7 @@ function createMiddleware(options = {}) {
         return res.status(500).send('Error loading page');
       }
       try {
-        const html = ejs.render(template, {});
+        const html = ejs.render(template, { baseUrl: req.baseUrl });
         res.send(html);
       } catch (renderErr) {
         console.error('Error rendering template:', renderErr);
@@ -128,7 +128,7 @@ function createMiddleware(options = {}) {
         return res.status(500).send('Error loading page');
       }
       try {
-        const html = ejs.render(template, {});
+        const html = ejs.render(template, { baseUrl: req.baseUrl });
         res.send(html);
       } catch (renderErr) {
         console.error('Error rendering template:', renderErr);

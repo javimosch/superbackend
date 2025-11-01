@@ -177,7 +177,7 @@
   <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
   <script>
-    const API_BASE = window.location.origin;
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
     
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
