@@ -2,6 +2,15 @@
 
 AI-powered Substack notes automation landing page built with Node.js, Express, and EJS.
 
+## 🎯 Usage Modes
+
+This application can run in two modes:
+
+1. **Standalone Server** (default) - Full application with landing page
+2. **Middleware Mode** - Integrate into existing Express.js apps
+
+📖 See [MIDDLEWARE-README.md](MIDDLEWARE-README.md) for middleware integration guide.
+
 ## Features
 
 - **Hero Section**: Eye-catching gradient background with animated SVG icons
