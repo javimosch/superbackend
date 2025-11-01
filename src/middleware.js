@@ -114,6 +114,7 @@ function createMiddleware(options = {}) {
   router.use("/api/billing", require("./routes/billing.routes"));
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
+  router.use("/api/settings", require("./routes/globalSettings.routes"));
   router.use("/api", require("./routes/notifications.routes"));
   router.use("/api/user", require("./routes/user.routes"));
 
