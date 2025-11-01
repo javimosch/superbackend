@@ -1,0 +1,15 @@
+http:
+  routers:
+    notesyncer:
+      entryPoints:
+        - https
+      service: notesyncer
+      rule: Host(`notesyncer.coolify.intrane.fr`)
+      tls:
+        certresolver: letsencrypt
+  services:
+    notesyncer:
+      loadBalancer:
+        servers:
+          -
+            url: 'http://notesyncer:3000'

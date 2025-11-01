@@ -1,0 +1,25 @@
+services:
+  app:
+    container_name: notesyncer
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: javimosch/notesyncer
+    environment:
+      - NODE_ENV=production
+    working_dir: /app
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    command: ["node", "server.js"]
+    networks:
+      - coolify-shared
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    restart: always
+
+networks:
+  coolify-shared:
+    external: true

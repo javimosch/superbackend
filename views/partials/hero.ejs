@@ -1,0 +1,107 @@
+<section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-b from-primary to-white">
+  <!-- Animated Background Icons -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div class="note-icon" style="left: 10%; animation-delay: 0s;">
+      <svg class="w-12 h-12 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+      </svg>
+    </div>
+    <div class="note-icon" style="left: 30%; animation-delay: 1.5s;">
+      <svg class="w-12 h-12 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+    </div>
+    <div class="note-icon" style="left: 50%; animation-delay: 3s;">
+      <svg class="w-12 h-12 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+      </svg>
+    </div>
+    <div class="note-icon" style="left: 70%; animation-delay: 4.5s;">
+      <svg class="w-12 h-12 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+      </svg>
+    </div>
+    <div class="note-icon" style="left: 90%; animation-delay: 6s;">
+      <svg class="w-12 h-12 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="container mx-auto px-6 py-20 relative z-10">
+    <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <!-- Left Column - Text Content -->
+      <div class="text-center lg:text-left fade-in">
+        <!-- Trust Badges -->
+        <div class="inline-flex items-center gap-2 bg-white/90 px-4 py-2 rounded-full mb-6 backdrop-blur-sm">
+          <svg class="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+          </svg>
+          <span class="text-sm text-primary font-medium">Built for Substack Creators</span>
+          <span class="text-sm text-gray-400">•</span>
+          <span class="text-sm text-primary font-medium">Powered by GPT-4</span>
+        </div>
+
+        <h1 class="text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+          Automate Your Substack Notes. Publish Smarter, Grow Faster.
+        </h1>
+
+        <h2 class="text-xl lg:text-2xl text-white/90 mb-8 leading-relaxed">
+          AI generates, schedules, and optimizes notes in minutes—reclaim 200+ hours/year for what matters: your writing.
+        </h2>
+
+        <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+          <a href="#pricing" class="cta-button bg-secondary hover:bg-green-600 text-white px-8 py-4 rounded-lg text-lg font-semibold shadow-lg transition-all duration-300 hover:shadow-xl hover:scale-105 inline-block text-center">
+            Start 14-Day Trial
+          </a>
+          <a href="#demo" class="inline-flex items-center justify-center border-2 border-white text-white hover:bg-white/10 px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300">
+            Watch Demo
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Column - Dashboard Mockup -->
+      <div class="relative fade-in-delayed">
+        <div class="relative rounded-2xl overflow-hidden shadow-2xl border-4 border-white/20">
+          <img 
+            src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format&fit=crop" 
+            alt="NoteSyncer Dashboard Preview" 
+            class="w-full h-auto"
+            loading="lazy"
+          >
+          <div class="absolute inset-0 bg-gradient-to-t from-primary/20 to-transparent"></div>
+        </div>
+
+        <!-- Floating Stats Cards -->
+        <div class="absolute -bottom-4 -left-4 bg-white rounded-lg shadow-xl p-4 hidden lg:block float-card">
+          <div class="flex items-center gap-3">
+            <div class="bg-secondary/10 p-2 rounded-lg">
+              <svg class="w-6 h-6 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">Notes Scheduled</p>
+              <p class="font-bold text-gray-900">50+ this week</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="absolute -top-4 -right-4 bg-white rounded-lg shadow-xl p-4 hidden lg:block float-card" style="animation-delay: 0.2s;">
+          <div class="flex items-center gap-3">
+            <div class="bg-primary/10 p-2 rounded-lg">
+              <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm text-gray-500">AI Accuracy</p>
+              <p class="font-bold text-gray-900">95% Voice Match</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
