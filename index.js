@@ -99,15 +99,6 @@ function startServer(options = {}) {
   app.use("/api", require("./src/routes/notifications.routes"));
   app.use("/api/user", require("./src/routes/user.routes"));
 
-  // Landing page route
-  app.get("/", (req, res) => {
-    res.render("index", {
-      title: "NoteSyncer: AI-Powered Substack Notes Automation",
-      description:
-        "Automate Your Substack Notes. Publish Smarter, Grow Faster. AI generates, schedules, and optimizes notes in minutes—reclaim 200+ hours/year.",
-    });
-  });
-
   // Admin test page (protected by basic auth)
   app.get("/admin/test", basicAuth, (req, res) => {
     res.render("admin-test");
@@ -138,7 +129,7 @@ function startServer(options = {}) {
 
   // Start server
   const server = app.listen(PORT, () => {
-    console.log(`🚀 NoteSyncer server running on http://localhost:${PORT}`);
+    console.log(`🚀 SaaSBackend server running on http://localhost:${PORT}`);
     console.log("📋 API Endpoints:");
     console.log("  POST /api/auth/register - Register user");
     console.log("  POST /api/auth/login - Login user");
