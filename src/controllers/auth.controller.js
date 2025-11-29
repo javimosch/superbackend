@@ -26,7 +26,7 @@ const register = asyncHandler(async (req, res) => {
 
   await user.save();
 
-  const token = generateAccessToken(user._id);
+  const token = generateAccessToken(user._id, user.role);
   const refreshToken = generateRefreshToken(user._id);
 
   res.status(201).json({
@@ -54,7 +54,7 @@ const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const token = generateAccessToken(user._id);
+  const token = generateAccessToken(user._id, user.role);
   const refreshToken = generateRefreshToken(user._id);
 
   res.json({
