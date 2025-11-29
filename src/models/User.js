@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     sparse: true
   },
+  currentPlan: {
+    type: String,
+    enum: ['free', 'creator', 'pro'],
+    default: 'free'
+  },
   settings: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
@@ -41,6 +46,11 @@ const userSchema = new mongoose.Schema({
   },
   passwordResetExpiry: {
     type: Date
+  },
+  role: {
+    type: String,
+    enum: ['user', 'admin'],
+    default: 'user'
   }
 }, {
   timestamps: true
