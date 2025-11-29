@@ -28,12 +28,25 @@ function createMiddleware(options = {}) {
       "⚠️  Warning: No MongoDB connection provided to middleware. Set MONGODB_URI in environment or pass mongodbUri/dbConnection option.",
     );
   } else if (mongoUri && mongoose.connection.readyState !== 1) {
-    mongoose
-      .connect(mongoUri)
-      .then(() => console.log("✅ Middleware: Connected to MongoDB"))
-      .catch((err) =>
-        console.error("❌ Middleware: MongoDB connection error:", err),
-      );
+    const connectionOptions = options.mongooseOptions || {
+      serverSelectionTimeoutMS: 5000,
+      maxPoolSize: 10,
+    };
+    
+    // Return a promise that resolves when connection is established
+    const connectionPromise = mongoose
+      .connect(mongoUri, connectionOptions)
+      .then(() => {
+        console.log("✅ Middleware: Connected to MongoDB");
+        return true;
+      })
+      .catch((err) => {
+        console.error("❌ Middleware: MongoDB connection error:", err);
+        return false;
+      });
+    
+    // Store the promise so it can be awaited if needed
+    router.connectionPromise = connectionPromise;
   } else if (mongoose.connection.readyState === 1) {
     console.log("✅ Middleware: Using existing MongoDB connection");
   }
@@ -112,6 +125,7 @@ function createMiddleware(options = {}) {
   // API Routes
   router.use("/api/auth", require("./routes/auth.routes"));
   router.use("/api/billing", require("./routes/billing.routes"));
+  router.use("/api/waiting-list", require("./routes/waitingList.routes"));
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
