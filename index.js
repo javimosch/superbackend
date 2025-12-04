@@ -21,7 +21,7 @@ function startServer(options = {}) {
   const mongoUri =
     options.mongodbUri ||
     process.env.MONGODB_URI ||
-    "mongodb://localhost:27017/notesyncer";
+    "mongodb://localhost:27017/saasbackend";
   mongoose
     .connect(mongoUri)
     .then(() => console.log("✅ Connected to MongoDB"))
@@ -221,4 +221,13 @@ const middleware = require("./src/middleware");
 module.exports = {
   server: startServer,
   middleware: middleware,
+  services: {
+    email: require("./src/services/email.service"),
+    storage: require("./src/services/storage"),
+  },
+  models: {
+    EmailLog: require("./src/models/EmailLog"),
+    GlobalSetting: require("./src/models/GlobalSetting"),
+    User: require("./src/models/User"),
+  },
 };
