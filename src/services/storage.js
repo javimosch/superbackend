@@ -77,7 +77,7 @@ async function saveBase64File(base64Data, options = {}) {
   
   // Get extension from mimetype
   const ext = mimetype.split('/')[1].replace('jpeg', 'jpg');
-  const filename = generateFilename(`.${ext}`, prefix);
+  const filename = generateFilename(`file.${ext}`, prefix);
   
   // Save file
   const dir = ensureUploadDir(subdir);
