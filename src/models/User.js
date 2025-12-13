@@ -10,9 +10,16 @@ const userSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
+  clerkUserId: {
+    type: String,
+    index: true,
+    sparse: true
+  },
   passwordHash: {
     type: String,
-    required: true
+    required: function () {
+      return !this.clerkUserId;
+    }
   },
   name: {
     type: String,
@@ -67,6 +74,7 @@ userSchema.pre('save', async function(next) {
 
 // Method to compare password
 userSchema.methods.comparePassword = async function(candidatePassword) {
+  if (!this.passwordHash) return false;
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
