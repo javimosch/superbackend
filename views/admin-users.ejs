@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Users</h1>
+            <p class="text-sm text-gray-600 mt-1">Manage system users</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/notifications" class="text-blue-600 hover:text-blue-800">Notifications</a>
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Total Users</p>
+          <p id="stat-total" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Admins</p>
+          <p id="stat-admins" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Active Subscriptions</p>
+          <p id="stat-subscriptions" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Disabled</p>
+          <p id="stat-disabled" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">User List</h2>
+            <p id="users-subtitle" class="text-sm text-gray-600">-</p>
+          </div>
+          <button id="btn-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Refresh</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input id="filter-q" type="text" class="w-full border rounded px-3 py-2" placeholder="email or name">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+            <select id="filter-role" class="w-full border rounded px-3 py-2">
+              <option value="">All</option>
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Subscription</label>
+            <select id="filter-subscription" class="w-full border rounded px-3 py-2">
+              <option value="">All</option>
+              <option value="none">none</option>
+              <option value="active">active</option>
+              <option value="cancelled">cancelled</option>
+              <option value="past_due">past_due</option>
+              <option value="trialing">trialing</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Plan</label>
+            <select id="filter-plan" class="w-full border rounded px-3 py-2">
+              <option value="">All</option>
+              <option value="free">free</option>
+              <option value="creator">creator</option>
+              <option value="pro">pro</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Limit</label>
+            <input id="filter-limit" type="number" min="1" max="500" class="w-full border rounded px-3 py-2" value="50">
+          </div>
+        </div>
+
+        <div class="flex gap-2 mb-4">
+          <button id="btn-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
+          <button id="btn-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+          <div class="flex-1"></div>
+          <button id="btn-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Prev</button>
+          <button id="btn-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Next</button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subscription</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-edit" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Edit User</h3>
+      <input type="hidden" id="edit-user-id">
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input id="edit-name" type="text" class="w-full border rounded px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <select id="edit-role" class="w-full border rounded px-3 py-2">
+            <option value="user">user</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Plan</label>
+          <input id="edit-plan" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g. free, pro, starter">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Subscription Status</label>
+          <select id="edit-subscription" class="w-full border rounded px-3 py-2">
+            <option value="none">none</option>
+            <option value="active">active</option>
+            <option value="cancelled">cancelled</option>
+            <option value="past_due">past_due</option>
+            <option value="trialing">trialing</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="btn-modal-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+        <button id="btn-modal-save" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-notify" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Send Notification</h3>
+      <input type="hidden" id="notify-user-id">
+      <p id="notify-user-email" class="text-sm text-gray-600 mb-4"></p>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+          <select id="notify-type" class="w-full border rounded px-3 py-2">
+            <option value="info">info</option>
+            <option value="success">success</option>
+            <option value="warning">warning</option>
+            <option value="error">error</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Channel</label>
+          <select id="notify-channel" class="w-full border rounded px-3 py-2">
+            <option value="in_app">In-App Only</option>
+            <option value="email">Email Only</option>
+            <option value="both">Both</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+          <input id="notify-title" type="text" class="w-full border rounded px-3 py-2" placeholder="Notification title">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Message *</label>
+          <textarea id="notify-message" class="w-full border rounded px-3 py-2" rows="3" placeholder="Notification message"></textarea>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="btn-notify-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+        <button id="btn-notify-send" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatDate(iso) {
+      try { return new Date(iso).toLocaleDateString(); } catch { return String(iso || ''); }
+    }
+
+    function qs(obj) {
+      const params = new URLSearchParams();
+      Object.entries(obj).forEach(([k, v]) => { if (v !== undefined && v !== null && String(v).trim()) params.set(k, String(v).trim()); });
+      const out = params.toString();
+      return out ? `?${out}` : '';
+    }
+
+    const state = { offset: 0, limit: 50, total: 0 };
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/stats`);
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('stat-total').textContent = data.total ?? '-';
+          document.getElementById('stat-admins').textContent = data.admins ?? '-';
+          document.getElementById('stat-subscriptions').textContent = data.activeSubscriptions ?? '-';
+          document.getElementById('stat-disabled').textContent = data.disabled ?? '-';
+        }
+      } catch (e) { console.error('Failed to load stats:', e); }
+    }
+
+    async function loadUsers() {
+      const q = document.getElementById('filter-q')?.value?.trim();
+      const role = document.getElementById('filter-role')?.value;
+      const subscriptionStatus = document.getElementById('filter-subscription')?.value;
+      const currentPlan = document.getElementById('filter-plan')?.value;
+      const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
+
+      state.limit = Math.min(500, Math.max(1, limit));
+
+      const subtitle = document.getElementById('users-subtitle');
+      const tbody = document.getElementById('users-tbody');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}/api/admin/users${qs({ q, role, subscriptionStatus, currentPlan, limit: state.limit, offset: state.offset })}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!res.ok) { showToast(data?.error || 'Failed to load users', 'error'); return; }
+
+        const users = Array.isArray(data?.users) ? data.users : [];
+        const pagination = data?.pagination || {};
+        state.total = pagination.total ?? 0;
+        state.limit = pagination.limit ?? state.limit;
+        state.offset = pagination.offset ?? state.offset;
+
+        if (subtitle) {
+          const from = state.total === 0 ? 0 : state.offset + 1;
+          const to = Math.min(state.offset + users.length, state.total);
+          subtitle.textContent = `${from}-${to} of ${state.total}`;
+        }
+
+        document.getElementById('btn-prev').disabled = state.offset <= 0;
+        document.getElementById('btn-next').disabled = state.offset + state.limit >= state.total;
+
+        if (tbody) {
+          if (users.length === 0) {
+            tbody.innerHTML = '<tr><td class="px-4 py-6 text-sm text-gray-600" colspan="6">No users found.</td></tr>';
+            return;
+          }
+
+          tbody.innerHTML = users.map(u => {
+            const disabled = u.disabled ? '<span class="text-xs text-red-500 ml-1">(disabled)</span>' : '';
+            return `
+              <tr>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${escapeHtml(u.email)}${disabled}</div>
+                  <div class="text-xs text-gray-500">${escapeHtml(u.name || '')}</div>
+                  <div class="text-xs text-gray-400">${escapeHtml(u._id)}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(u.role)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(u.currentPlan)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(u.subscriptionStatus)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${formatDate(u.createdAt)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <button class="text-blue-600 hover:text-blue-800 mr-2" data-edit="${escapeHtml(u._id)}" data-name="${escapeHtml(u.name || '')}" data-role="${escapeHtml(u.role)}" data-plan="${escapeHtml(u.currentPlan)}" data-subscription="${escapeHtml(u.subscriptionStatus)}">Edit</button>
+                  <button class="text-green-600 hover:text-green-800 mr-2" data-notify="${escapeHtml(u._id)}" data-email="${escapeHtml(u.email)}">Notify</button>
+                  ${u.disabled
+                    ? `<button class="text-green-600 hover:text-green-800" data-enable="${escapeHtml(u._id)}">Enable</button>`
+                    : `<button class="text-red-600 hover:text-red-800" data-disable="${escapeHtml(u._id)}">Disable</button>`
+                  }
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-edit]').forEach(btn => {
+            btn.addEventListener('click', () => openEditModal(btn.dataset.edit, btn.dataset.name, btn.dataset.role, btn.dataset.plan, btn.dataset.subscription));
+          });
+
+          tbody.querySelectorAll('[data-notify]').forEach(btn => {
+            btn.addEventListener('click', () => openNotifyModal(btn.dataset.notify, btn.dataset.email));
+          });
+
+          tbody.querySelectorAll('[data-disable]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Disable this user?')) return;
+              await toggleUser(btn.dataset.disable, 'disable');
+            });
+          });
+
+          tbody.querySelectorAll('[data-enable]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Enable this user?')) return;
+              await toggleUser(btn.dataset.enable, 'enable');
+            });
+          });
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load users', 'error');
+      }
+    }
+
+    async function toggleUser(userId, action) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) { showToast(data?.error || `Failed to ${action} user`, 'error'); return; }
+        showToast(`User ${action}d`, 'success');
+        await Promise.all([loadUsers(), loadStats()]);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function openEditModal(userId, name, role, plan, subscription) {
+      document.getElementById('edit-user-id').value = userId;
+      document.getElementById('edit-name').value = name || '';
+      document.getElementById('edit-role').value = role || 'user';
+      document.getElementById('edit-plan').value = plan || 'free';
+      document.getElementById('edit-subscription').value = subscription || 'none';
+      document.getElementById('modal-edit').classList.remove('hidden');
+    }
+
+    function closeEditModal() {
+      document.getElementById('modal-edit').classList.add('hidden');
+    }
+
+    async function saveUser() {
+      const userId = document.getElementById('edit-user-id').value;
+      const name = document.getElementById('edit-name').value.trim();
+      const role = document.getElementById('edit-role').value;
+      const currentPlan = document.getElementById('edit-plan').value;
+      const subscriptionStatus = document.getElementById('edit-subscription').value;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, role, currentPlan, subscriptionStatus }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data?.error || 'Failed to update user', 'error'); return; }
+        showToast('User updated', 'success');
+        closeEditModal();
+        await Promise.all([loadUsers(), loadStats()]);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function openNotifyModal(userId, email) {
+      document.getElementById('notify-user-id').value = userId;
+      document.getElementById('notify-user-email').textContent = `To: ${email}`;
+      document.getElementById('notify-type').value = 'info';
+      document.getElementById('notify-channel').value = 'in_app';
+      document.getElementById('notify-title').value = '';
+      document.getElementById('notify-message').value = '';
+      document.getElementById('modal-notify').classList.remove('hidden');
+    }
+
+    function closeNotifyModal() {
+      document.getElementById('modal-notify').classList.add('hidden');
+    }
+
+    async function sendNotification() {
+      const userId = document.getElementById('notify-user-id').value;
+      const type = document.getElementById('notify-type').value;
+      const channel = document.getElementById('notify-channel').value;
+      const title = document.getElementById('notify-title').value.trim();
+      const message = document.getElementById('notify-message').value.trim();
+
+      if (!title || !message) { showToast('Title and message are required', 'error'); return; }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/notifications/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userIds: [userId], type, channel, title, message }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data?.error || 'Failed to send notification', 'error'); return; }
+        showToast('Notification sent', 'success');
+        closeNotifyModal();
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function bindEvents() {
+      document.getElementById('btn-refresh').onclick = () => Promise.all([loadUsers(), loadStats()]);
+      document.getElementById('btn-apply').onclick = () => { state.offset = 0; loadUsers(); };
+      document.getElementById('btn-reset').onclick = () => {
+        document.getElementById('filter-q').value = '';
+        document.getElementById('filter-role').value = '';
+        document.getElementById('filter-subscription').value = '';
+        document.getElementById('filter-plan').value = '';
+        document.getElementById('filter-limit').value = '50';
+        state.offset = 0;
+        loadUsers();
+      };
+      document.getElementById('btn-prev').onclick = () => { state.offset = Math.max(0, state.offset - state.limit); loadUsers(); };
+      document.getElementById('btn-next').onclick = () => { state.offset += state.limit; loadUsers(); };
+      document.getElementById('btn-modal-cancel').onclick = closeEditModal;
+      document.getElementById('btn-modal-save').onclick = saveUser;
+      document.getElementById('btn-notify-cancel').onclick = closeNotifyModal;
+      document.getElementById('btn-notify-send').onclick = sendNotification;
+    }
+
+    bindEvents();
+    Promise.all([loadUsers(), loadStats()]);
+  </script>
+</body>
+</html>

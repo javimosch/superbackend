@@ -27,6 +27,26 @@ const notificationSchema = new mongoose.Schema({
   metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  channel: {
+    type: String,
+    enum: ['in_app', 'email', 'both'],
+    default: 'in_app'
+  },
+  emailStatus: {
+    type: String,
+    enum: ['pending', 'sent', 'failed', 'skipped'],
+    default: 'skipped'
+  },
+  emailSentAt: {
+    type: Date
+  },
+  sentByAdminId: {
+    type: String
+  },
+  broadcastId: {
+    type: String,
+    index: true
   }
 }, {
   timestamps: true
@@ -34,5 +54,7 @@ const notificationSchema = new mongoose.Schema({
 
 notificationSchema.index({ userId: 1, read: 1 });
 notificationSchema.index({ createdAt: -1 });
+notificationSchema.index({ sentByAdminId: 1, createdAt: -1 });
+notificationSchema.index({ channel: 1, emailStatus: 1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

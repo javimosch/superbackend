@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Notifications Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Notifications</h1>
+            <p class="text-sm text-gray-600 mt-1">Send and manage system notifications</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/users" class="text-blue-600 hover:text-blue-800">Users</a>
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Total Sent</p>
+          <p id="stat-total" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Unread</p>
+          <p id="stat-unread" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Email Pending</p>
+          <p id="stat-pending" class="text-2xl font-bold text-yellow-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Email Sent</p>
+          <p id="stat-sent" class="text-2xl font-bold text-green-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Email Failed</p>
+          <p id="stat-failed" class="text-2xl font-bold text-red-600">-</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1">
+          <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Send Notification</h2>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Recipient</label>
+                <select id="send-recipient-type" class="w-full border rounded px-3 py-2">
+                  <option value="user">Specific User</option>
+                  <option value="broadcast">All Users (Broadcast)</option>
+                </select>
+              </div>
+
+              <div id="send-user-container">
+                <label class="block text-sm font-medium text-gray-700 mb-1">User Email</label>
+                <input id="send-user-email" type="email" class="w-full border rounded px-3 py-2" placeholder="user@example.com">
+                <p class="text-xs text-gray-500 mt-1">Enter exact email address</p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select id="send-type" class="w-full border rounded px-3 py-2">
+                  <option value="info">Info</option>
+                  <option value="success">Success</option>
+                  <option value="warning">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Channel</label>
+                <select id="send-channel" class="w-full border rounded px-3 py-2">
+                  <option value="in_app">In-App Only</option>
+                  <option value="email">Email Only</option>
+                  <option value="both">Both (In-App + Email)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <input id="send-title" type="text" class="w-full border rounded px-3 py-2" placeholder="Notification title">
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Message *</label>
+                <textarea id="send-message" class="w-full border rounded px-3 py-2" rows="4" placeholder="Notification message..."></textarea>
+              </div>
+
+              <div class="flex gap-2">
+                <button id="btn-send" class="flex-1 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Send</button>
+                <button id="btn-clear" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Clear</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-2">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">Notification History</h2>
+                <p id="history-subtitle" class="text-sm text-gray-600">-</p>
+              </div>
+              <button id="btn-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Refresh</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select id="filter-type" class="w-full border rounded px-3 py-2">
+                  <option value="">All</option>
+                  <option value="info">info</option>
+                  <option value="success">success</option>
+                  <option value="warning">warning</option>
+                  <option value="error">error</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Channel</label>
+                <select id="filter-channel" class="w-full border rounded px-3 py-2">
+                  <option value="">All</option>
+                  <option value="in_app">in_app</option>
+                  <option value="email">email</option>
+                  <option value="both">both</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Email Status</label>
+                <select id="filter-email-status" class="w-full border rounded px-3 py-2">
+                  <option value="">All</option>
+                  <option value="pending">pending</option>
+                  <option value="sent">sent</option>
+                  <option value="failed">failed</option>
+                  <option value="skipped">skipped</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Limit</label>
+                <input id="filter-limit" type="number" min="1" max="500" class="w-full border rounded px-3 py-2" value="50">
+              </div>
+            </div>
+
+            <div class="flex gap-2 mb-4">
+              <button id="btn-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
+              <button id="btn-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+              <div class="flex-1"></div>
+              <button id="btn-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Prev</button>
+              <button id="btn-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Next</button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipient</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Channel</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="history-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => { toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300); }, 3000);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatDateTime(iso) {
+      try { return new Date(iso).toLocaleString(); } catch { return String(iso || ''); }
+    }
+
+    function qs(obj) {
+      const params = new URLSearchParams();
+      Object.entries(obj).forEach(([k, v]) => { if (v !== undefined && v !== null && String(v).trim()) params.set(k, String(v).trim()); });
+      const out = params.toString();
+      return out ? `?${out}` : '';
+    }
+
+    const state = { offset: 0, limit: 50, total: 0 };
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/notifications/stats`);
+        const data = await res.json();
+        if (res.ok) {
+          document.getElementById('stat-total').textContent = data.total ?? '-';
+          document.getElementById('stat-unread').textContent = data.unread ?? '-';
+          document.getElementById('stat-pending').textContent = data.emailPending ?? '-';
+          document.getElementById('stat-sent').textContent = data.emailSent ?? '-';
+          document.getElementById('stat-failed').textContent = data.emailFailed ?? '-';
+        }
+      } catch (e) { console.error('Failed to load stats:', e); }
+    }
+
+    async function loadHistory() {
+      const type = document.getElementById('filter-type')?.value;
+      const channel = document.getElementById('filter-channel')?.value;
+      const emailStatus = document.getElementById('filter-email-status')?.value;
+      const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
+
+      state.limit = Math.min(500, Math.max(1, limit));
+
+      const subtitle = document.getElementById('history-subtitle');
+      const tbody = document.getElementById('history-tbody');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}/api/admin/notifications${qs({ type, channel, emailStatus, limit: state.limit, offset: state.offset })}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!res.ok) { showToast(data?.error || 'Failed to load notifications', 'error'); return; }
+
+        const notifications = Array.isArray(data?.notifications) ? data.notifications : [];
+        const pagination = data?.pagination || {};
+        state.total = pagination.total ?? 0;
+        state.limit = pagination.limit ?? state.limit;
+        state.offset = pagination.offset ?? state.offset;
+
+        if (subtitle) {
+          const from = state.total === 0 ? 0 : state.offset + 1;
+          const to = Math.min(state.offset + notifications.length, state.total);
+          subtitle.textContent = `${from}-${to} of ${state.total}`;
+        }
+
+        document.getElementById('btn-prev').disabled = state.offset <= 0;
+        document.getElementById('btn-next').disabled = state.offset + state.limit >= state.total;
+
+        if (tbody) {
+          if (notifications.length === 0) {
+            tbody.innerHTML = '<tr><td class="px-4 py-6 text-sm text-gray-600" colspan="7">No notifications found.</td></tr>';
+            return;
+          }
+
+          const typeColors = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', warning: 'bg-yellow-100 text-yellow-800', error: 'bg-red-100 text-red-800' };
+          const emailColors = { pending: 'text-yellow-600', sent: 'text-green-600', failed: 'text-red-600', skipped: 'text-gray-400' };
+
+          tbody.innerHTML = notifications.map(n => {
+            const userEmail = n.userId?.email || 'Unknown';
+            const typeClass = typeColors[n.type] || 'bg-gray-100 text-gray-800';
+            const emailClass = emailColors[n.emailStatus] || 'text-gray-500';
+            const canRetry = (n.channel === 'email' || n.channel === 'both') && n.emailStatus === 'failed';
+
+            return `
+              <tr>
+                <td class="px-4 py-3 text-sm text-gray-700">${formatDateTime(n.createdAt)}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${escapeHtml(userEmail)}</div>
+                  ${n.broadcastId ? '<span class="text-xs text-gray-400">broadcast</span>' : ''}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${escapeHtml(n.title)}</div>
+                  <div class="text-xs text-gray-500 truncate max-w-xs">${escapeHtml(n.message)}</div>
+                </td>
+                <td class="px-4 py-3"><span class="px-2 py-1 text-xs rounded ${typeClass}">${escapeHtml(n.type)}</span></td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(n.channel)}</td>
+                <td class="px-4 py-3 text-sm ${emailClass}">${escapeHtml(n.emailStatus)}</td>
+                <td class="px-4 py-3 text-sm whitespace-nowrap">
+                  ${canRetry ? `<button class="text-blue-600 hover:text-blue-800 mr-2" data-retry="${escapeHtml(n._id)}">Retry</button>` : ''}
+                  <button class="text-red-600 hover:text-red-800" data-delete="${escapeHtml(n._id)}">Delete</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-retry]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              try {
+                const res = await fetch(`${API_BASE}/api/admin/notifications/${encodeURIComponent(btn.dataset.retry)}/retry-email`, { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) { showToast(data?.error || 'Retry failed', 'error'); return; }
+                showToast('Retry attempted', 'success');
+                await Promise.all([loadHistory(), loadStats()]);
+              } catch (e) { showToast(e.message, 'error'); }
+            });
+          });
+
+          tbody.querySelectorAll('[data-delete]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              if (!confirm('Delete this notification?')) return;
+              try {
+                const res = await fetch(`${API_BASE}/api/admin/notifications/${encodeURIComponent(btn.dataset.delete)}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { showToast(data?.error || 'Delete failed', 'error'); return; }
+                showToast('Notification deleted', 'success');
+                await Promise.all([loadHistory(), loadStats()]);
+              } catch (e) { showToast(e.message, 'error'); }
+            });
+          });
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load notifications', 'error');
+      }
+    }
+
+    async function sendNotification() {
+      const recipientType = document.getElementById('send-recipient-type').value;
+      const userEmail = document.getElementById('send-user-email').value.trim();
+      const type = document.getElementById('send-type').value;
+      const channel = document.getElementById('send-channel').value;
+      const title = document.getElementById('send-title').value.trim();
+      const message = document.getElementById('send-message').value.trim();
+
+      if (!title || !message) { showToast('Title and message are required', 'error'); return; }
+
+      if (recipientType === 'broadcast') {
+        if (!confirm('Send notification to ALL users?')) return;
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/notifications/broadcast`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, channel, title, message }),
+          });
+          const data = await res.json();
+          if (!res.ok) { showToast(data?.error || 'Broadcast failed', 'error'); return; }
+          showToast(`Broadcast sent to ${data.recipientCount} users`, 'success');
+          clearForm();
+          await Promise.all([loadHistory(), loadStats()]);
+        } catch (e) { showToast(e.message, 'error'); }
+        return;
+      }
+
+      if (!userEmail) { showToast('User email is required', 'error'); return; }
+
+      try {
+        const userRes = await fetch(`${API_BASE}/api/admin/users?q=${encodeURIComponent(userEmail)}&limit=1`);
+        const userData = await userRes.json();
+        if (!userRes.ok || !userData.users?.length) { showToast('User not found', 'error'); return; }
+
+        const userId = userData.users[0]._id;
+
+        const res = await fetch(`${API_BASE}/api/admin/notifications/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userIds: [userId], type, channel, title, message }),
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(data?.error || 'Send failed', 'error'); return; }
+        showToast('Notification sent', 'success');
+        clearForm();
+        await Promise.all([loadHistory(), loadStats()]);
+      } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    function clearForm() {
+      document.getElementById('send-recipient-type').value = 'user';
+      document.getElementById('send-user-email').value = '';
+      document.getElementById('send-type').value = 'info';
+      document.getElementById('send-channel').value = 'in_app';
+      document.getElementById('send-title').value = '';
+      document.getElementById('send-message').value = '';
+      toggleUserContainer();
+    }
+
+    function toggleUserContainer() {
+      const container = document.getElementById('send-user-container');
+      const recipientType = document.getElementById('send-recipient-type').value;
+      container.style.display = recipientType === 'broadcast' ? 'none' : 'block';
+    }
+
+    function bindEvents() {
+      document.getElementById('send-recipient-type').addEventListener('change', toggleUserContainer);
+      document.getElementById('btn-send').onclick = sendNotification;
+      document.getElementById('btn-clear').onclick = clearForm;
+      document.getElementById('btn-refresh').onclick = () => Promise.all([loadHistory(), loadStats()]);
+      document.getElementById('btn-apply').onclick = () => { state.offset = 0; loadHistory(); };
+      document.getElementById('btn-reset').onclick = () => {
+        document.getElementById('filter-type').value = '';
+        document.getElementById('filter-channel').value = '';
+        document.getElementById('filter-email-status').value = '';
+        document.getElementById('filter-limit').value = '50';
+        state.offset = 0;
+        loadHistory();
+      };
+      document.getElementById('btn-prev').onclick = () => { state.offset = Math.max(0, state.offset - state.limit); loadHistory(); };
+      document.getElementById('btn-next').onclick = () => { state.offset += state.limit; loadHistory(); };
+      toggleUserContainer();
+    }
+
+    bindEvents();
+    Promise.all([loadHistory(), loadStats()]);
+  </script>
+</body>
+</html>
