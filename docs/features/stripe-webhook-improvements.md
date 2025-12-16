@@ -1,85 +1,45 @@
-# Stripe Webhook Improvements
+# Stripe webhooks
 
-## Overview
-This document outlines the improvements made to the Stripe webhook handling system to make it more robust, maintainable, and observable.
+## What it is
 
-## Key Improvements
+This backend consumes Stripe webhook events to keep your local user/subscription state in sync.
 
-### 1. **Separated Business Logic into Service Layer**
-- Created `src/services/stripe.service.js` to handle all Stripe-related business logic
-- Moved subscription and event handling logic out of the controller
-- Easier to test and maintain
-- Consistent status mapping across all handlers
+This guide focuses on:
 
-### 2. **Added `checkout.session.completed` Handler**
-- Previously missing but critical for capturing subscription creation
-- Now properly handles the completion of checkout sessions
-- Links subscriptions to users immediately after successful payment
+- The expected event flow.
+- How to test locally.
+- How to debug failures and retry processing.
 
-### 3. **Enhanced Webhook Event Storage**
-- Added `previousAttributes` field to track what changed in update events
-- Added `retryCount` to track retry attempts
-- Improved `processingErrors` structure with timestamps
-- Added `skipped` status for events that don't need processing
-- Added compound indexes for better query performance
+## Prerequisites
 
-### 4. **Webhook Retry Mechanism**
-- Created `src/utils/webhookRetry.js` with automatic retry capability
-- Configurable maximum retry attempts (default: 3)
-- Batch retry of failed webhooks
-- Single webhook retry capability
-- Detailed error tracking with timestamps
+- Stripe webhook endpoint is configured in your Stripe dashboard (or via Stripe CLI).
+- `STRIPE_WEBHOOK_SECRET` is configured in your environment.
+- Stripe API access is configured (see `stripe-pricing-management` doc for `STRIPE_SECRET_KEY`).
 
-### 5. **Admin Endpoints for Webhook Management**
+## High-level flow
 
-#### View Webhooks
-```
-GET /api/admin/stripe-webhooks
-Query params: limit, offset, eventType, status
-```
+The webhook handler is idempotent: it stores incoming events and avoids processing the same `stripeEventId` twice.
 
-#### Get Single Webhook
-```
-GET /api/admin/stripe-webhooks/:id
-```
+On relevant events, it updates application state (for example the user’s subscription status and plan mapping).
 
-#### Retry Failed Webhooks
-```
-POST /api/admin/stripe-webhooks/retry
-Body: { limit: 10, maxRetries: 3 }
-```
+## Subscription lifecycle (typical)
 
-#### Retry Single Webhook
-```
-POST /api/admin/stripe-webhooks/:id/retry
-```
+In practice, creating a subscription via Checkout often produces several events.
 
-#### Get Webhook Statistics
-```
-GET /api/admin/stripe-webhooks-stats
-```
+Common sequence:
 
-### 6. **Better Error Handling**
-- Detailed error messages with timestamps
-- Failed events don't block webhook response
-- Graceful degradation when users not found
-- Console logging for debugging
+1. `checkout.session.completed`
+2. `customer.subscription.created` (often starts as `incomplete`)
+3. `customer.subscription.updated` (can transition to `active`)
+4. `invoice.payment_succeeded`
 
-### 7. **Idempotency**
-- Duplicate webhook detection using `stripeEventId`
-- Returns success for duplicate events instead of errors
-- Prevents processing the same event multiple times
+Your integration should treat this as eventual consistency: the “final” state may arrive a few seconds later.
 
-## Event Flow
+## Status mapping
 
-### Subscription Creation Flow
-1. `checkout.session.completed` - Captures initial subscription link
-2. `customer.subscription.created` - Sets initial status (often 'incomplete')
-3. `customer.subscription.updated` - Updates to 'active' after payment
-4. `invoice.payment_succeeded` - Confirms payment and activation
+Stripe subscription status is normalized into internal status strings.
 
-### Status Mapping
-```javascript
+```js
 {
   'active': 'active',
   'past_due': 'past_due',
@@ -91,19 +51,76 @@ GET /api/admin/stripe-webhooks-stats
 }
 ```
 
-## Monitoring and Debugging
+## Admin API for webhooks (basic auth)
 
-### Check Webhook Health
+These endpoints help you inspect webhook ingestion and recover from failures.
+
+### List webhook events
+
+```
+GET /api/admin/stripe-webhooks
+Query: limit, offset, eventType, status
+```
+
+### Fetch a single event
+
+```
+GET /api/admin/stripe-webhooks/:id
+```
+
+### Retry failed events (batch)
+
+```
+POST /api/admin/stripe-webhooks/retry
+Body: { limit: 10, maxRetries: 3 }
+```
+
+### Retry a single event
+
+```
+POST /api/admin/stripe-webhooks/:id/retry
+```
+
+### Webhook stats
+
+```
+GET /api/admin/stripe-webhooks-stats
+```
+
+## Local testing
+
+With Stripe CLI:
+
+```bash
+stripe login
+stripe listen --forward-to localhost:5000/api/billing/webhook
+```
+
+Trigger events:
+
+```bash
+stripe trigger checkout.session.completed
+stripe trigger customer.subscription.created
+stripe trigger customer.subscription.updated
+stripe trigger invoice.payment_failed
+```
+
+## Debugging & recovery
+
+### Check overall health
+
 ```bash
 curl -u admin:password http://localhost:5000/api/admin/stripe-webhooks-stats
 ```
 
-### View Failed Webhooks
+### Inspect failed events
+
 ```bash
 curl -u admin:password "http://localhost:5000/api/admin/stripe-webhooks?status=failed"
 ```
 
-### Retry Failed Webhooks
+### Retry failures
+
 ```bash
 curl -X POST -u admin:password \
   -H "Content-Type: application/json" \
@@ -111,46 +128,29 @@ curl -X POST -u admin:password \
   http://localhost:5000/api/admin/stripe-webhooks/retry
 ```
 
-### View Specific Event
-```bash
-curl -u admin:password http://localhost:5000/api/admin/stripe-webhooks/evt_xxx
-```
+### Understand what changed on update events
 
-## Best Practices
+Update events can include `previousAttributes`, which tells you what changed between the old and new object.
+This is useful when you see `customer.subscription.updated` and want to know which fields triggered the update.
 
-1. **Monitor webhook stats regularly** - Use the stats endpoint to track failures
-2. **Set up alerts** - Monitor failed webhook count and alert if > threshold
-3. **Review previous_attributes** - When debugging, check what changed in update events
-4. **Use retry mechanism** - Don't manually fix data; retry webhooks first
-5. **Check logs** - Service logs contain detailed event processing info
+## Common failure modes
 
-## Database Indexes
+### User not found
 
-The following indexes were added for performance:
-- `stripeEventId` (unique)
-- `eventType` 
-- `status`
-- `receivedAt`
-- Compound: `(status, receivedAt)`
-- Compound: `(eventType, createdAt)`
+This usually means the webhook references a Stripe customer/subscription that your DB doesn’t know about yet.
 
-## Testing
+Typical causes:
 
-Test the webhook improvements:
+- Checkout session didn’t include the metadata your backend uses to link the user.
+- The user was deleted or never existed.
+- You are replaying events from a different environment.
 
-1. Create a test subscription in Stripe
-2. Observe events being stored with all metadata
-3. Artificially mark an event as failed
-4. Use retry endpoint to reprocess
-5. Check stats to verify processing
+### Duplicate events
 
-## Future Enhancements
+Stripe retries delivery. Duplicate delivery should be expected.
+The handler treats duplicates as success and does not reprocess the event.
 
-Consider adding:
-- Dead letter queue for permanently failed events
-- Webhook event archival after X days
-- Real-time webhook status dashboard
-- Webhook replay functionality
-- Event sourcing pattern for subscription state
-- Webhook signature verification logging
-- Rate limiting and throttling
+## References
+
+- Admin endpoints above (`/api/admin/stripe-webhooks*`)
+- `docs/features/webhook-testing-guide.md`

@@ -1,164 +1,132 @@
-# Admin Users & Notifications Management
+# Admin users & notifications
 
-## Overview
+## What it provides
 
-This document describes the implementation of dedicated admin views for **User Management** and **Notifications**, including the enhancement of the notification system to support both in-app and email notifications with recipient targeting.
+This feature gives you:
 
-## Goals
+- A basic-auth protected admin UI to inspect and manage users.
+- A basic-auth protected admin UI to send notifications (in-app and/or email).
+- Admin APIs that you can call directly (useful for scripting or integrating with an internal admin tool).
 
-1. **User Management**: Provide admins with a comprehensive view to list, search, filter, and manage system users
-2. **Notification System**: Enable admins to send notifications to individual users or broadcast to all users
-3. **Dual Channel**: Support both in-app notifications and email notifications
+Admin UI:
+- `/admin/users`
+- `/admin/notifications`
 
----
+Admin API (basic auth):
+- `/api/admin/users/*`
+- `/api/admin/notifications/*`
 
-## Data Model Changes
+## When to use it
 
-### Enhanced Notification Model
+Use these endpoints/views when you need:
 
-The existing `Notification` model is extended with new fields:
+- Manual user support actions (disable/enable accounts, adjust plan/status fields).
+- A lightweight way to message users without building a separate back-office.
 
-```javascript
-{
-  userId: ObjectId,           // Target user (null for broadcasts stored per-user)
-  type: String,               // 'info' | 'success' | 'warning' | 'error'
-  title: String,
-  message: String,
-  read: Boolean,
-  metadata: Mixed,
-  // NEW FIELDS:
-  channel: String,            // 'in_app' | 'email' | 'both' (default: 'in_app')
-  emailStatus: String,        // 'pending' | 'sent' | 'failed' | 'skipped' (for email channel)
-  emailSentAt: Date,          // When email was sent
-  sentByAdminId: String,      // Admin username who sent it (from basicAuth)
-  broadcastId: String,        // Groups notifications from same broadcast
-}
-```
+## Admin API
 
----
-
-## API Endpoints
-
-### User Management (Basic Auth)
+### User management
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/api/admin/users` | List users with pagination, search, filters |
-| GET | `/api/admin/users/:id` | Get single user details |
-| PATCH | `/api/admin/users/:id` | Update user (role, name, subscriptionStatus) |
-| POST | `/api/admin/users/:id/disable` | Disable user account |
-| POST | `/api/admin/users/:id/enable` | Re-enable user account |
+| GET | `/api/admin/users/:id` | Get a single user |
+| PATCH | `/api/admin/users/:id` | Update user fields (role/name/subscription fields) |
+| POST | `/api/admin/users/:id/disable` | Disable a user (soft-disable) |
+| POST | `/api/admin/users/:id/enable` | Enable a user |
 
-#### Query Parameters for List
+List query params:
+- `q`: search by email or name (case-insensitive)
+- `role`: `user` | `admin`
+- `subscriptionStatus`: filter by subscription status
+- `currentPlan`: filter by current plan
+- `limit`: page size (default 50, max 500)
+- `offset`: pagination offset
 
-- `q` - Search by email or name (case-insensitive)
-- `role` - Filter by role (`user`, `admin`)
-- `subscriptionStatus` - Filter by subscription status
-- `currentPlan` - Filter by plan
-- `limit` - Page size (default 50, max 500)
-- `offset` - Pagination offset
+Example (list users):
 
-### Notification Management (Basic Auth)
+```bash
+curl -u admin:password "http://localhost:5000/api/admin/users?limit=50&offset=0&q=gmail"
+```
+
+Example (disable user):
+
+```bash
+curl -X POST -u admin:password "http://localhost:5000/api/admin/users/USER_ID/disable"
+```
+
+### Notifications
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/admin/notifications` | List all notifications (admin view) |
-| GET | `/api/admin/notifications/stats` | Get notification stats |
-| POST | `/api/admin/notifications/send` | Send notification to user(s) |
+| GET | `/api/admin/notifications` | List notifications (admin view) |
+| GET | `/api/admin/notifications/stats` | Aggregate stats (sent/pending/failed) |
+| POST | `/api/admin/notifications/send` | Send to one or more users |
 | POST | `/api/admin/notifications/broadcast` | Send to all users |
 | DELETE | `/api/admin/notifications/:id` | Delete a notification |
 
-#### Send Notification Body
+Send body:
 
 ```json
 {
-  "userIds": ["userId1", "userId2"],  // Target users (omit for broadcast)
-  "type": "info",                      // info | success | warning | error
+  "userIds": ["userId1", "userId2"],
+  "type": "info",
   "title": "Notification Title",
   "message": "Notification body text",
-  "channel": "both",                   // in_app | email | both
-  "metadata": {}                         // Optional extra data
+  "channel": "both",
+  "metadata": {}
 }
 ```
 
----
+Example (send in-app only):
 
-## Admin Views
+```bash
+curl -X POST -u admin:password \
+  -H "Content-Type: application/json" \
+  -d '{"userIds":["USER_ID"],"type":"info","title":"Hello","message":"Welcome","channel":"in_app"}' \
+  "http://localhost:5000/api/admin/notifications/send"
+```
 
-### `/admin/users`
+## Admin UI workflow
 
-- **Header**: Title, user count, search box
-- **Filters**: Role, subscription status, plan
-- **Table columns**: Email, Name, Role, Plan, Status, Created, Actions
-- **Actions per row**:
-  - View details
-  - Edit role
-  - Send notification
-  - Disable/Enable account
-- **Pagination**: Prev/Next with offset tracking
+### Manage users (`/admin/users`)
 
-### `/admin/notifications`
+Typical support flows:
 
-- **Header**: Title, stats cards (total sent, pending, failed)
-- **Send Form**:
-  - Recipient selector (specific user email or "broadcast")
-  - Type dropdown
-  - Title input
-  - Message textarea
-  - Channel selector (in-app, email, both)
-  - Send button
-- **History Table**:
-  - Columns: Date, Recipient, Title, Type, Channel, Status, Actions
-  - Filters: Type, channel, date range
-  - Pagination
+1. Find a user by email/name using search.
+2. Adjust user properties (role/status/plan).
+3. Disable/enable the user.
+4. Send a user-specific notification.
 
----
+### Send notifications (`/admin/notifications`)
 
-## Notification Service
+1. Choose recipient (a specific user or broadcast).
+2. Choose type (`info`, `success`, `warning`, `error`).
+3. Choose channel:
+   - `in_app`: persists a notification record for the user
+   - `email`: sends email via the configured email provider
+   - `both`: does both
+4. Send.
 
-A new `notification.service.js` handles:
+## Notification channels (developer notes)
 
-1. **createNotification**: Creates in-app notification record
-2. **sendEmailNotification**: Sends email via `email.service.js`
-3. **sendToUser**: Sends notification to single user (in-app and/or email)
-4. **broadcast**: Sends notification to all active users
+- In-app notifications are stored and later retrieved by the app.
+- Email delivery depends on the email provider configuration (see the email feature docs when added).
+- For email channels, delivery status is tracked on the notification record (`pending`, `sent`, `failed`, `skipped`).
 
----
+## Troubleshooting
 
-## Implementation Files
+### Email notifications are not delivered
 
-### New Files
+Common causes:
 
-- `src/services/notification.service.js` - Notification sending logic
-- `src/controllers/userAdmin.controller.js` - User management endpoints
-- `src/controllers/notificationAdmin.controller.js` - Notification admin endpoints
-- `src/routes/userAdmin.routes.js` - User admin routes
-- `src/routes/notificationAdmin.routes.js` - Notification admin routes
-- `views/admin-users.ejs` - User management UI
-- `views/admin-notifications.ejs` - Notification management UI
+- Email provider/env vars are not configured.
+- Provider is configured, but rate limiting or provider errors are occurring.
 
-### Modified Files
+If you need to confirm behavior quickly, send an `in_app` notification first to validate the pipeline end-to-end.
 
-- `src/models/Notification.js` - Add new fields
-- `src/middleware.js` - Mount new routes and views
-- `index.js` - Mount new routes and views (standalone)
-- `src/admin/endpointRegistry.js` - Register new endpoints
-- `views/partials/admin-test-sidebar.ejs` - Add navigation links
+### I can’t access the admin UI endpoints
 
----
+- Confirm basic auth credentials are set.
+- If you’re running in middleware mode, remember to include the mount prefix (for example `/saas/admin/users`).
 
-## Security Considerations
-
-- All admin endpoints protected by `basicAuth`
-- Admin actions logged via `audit.service.js`
-- Email sending uses existing rate-limited `email.service.js`
-- User disable is soft-disable (status field), not hard delete
-
----
-
-## Future Enhancements
-
-- Email templates stored in GlobalSettings
-- Scheduled notifications
-- Notification preferences per user
-- Push notifications via WebSocket
