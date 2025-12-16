@@ -99,6 +99,7 @@ function startServer(options = {}) {
     "/api/admin/waiting-list",
     require("./src/routes/waitingListAdmin.routes"),
   );
+  app.use("/api/admin/orgs", require("./src/routes/orgAdmin.routes"));
   app.use("/api/admin/settings", require("./src/routes/globalSettings.routes"));
   app.use("/api/admin/i18n", require("./src/routes/adminI18n.routes"));
   app.use("/api/settings", require("./src/routes/globalSettings.routes"));
@@ -121,6 +122,11 @@ function startServer(options = {}) {
   // Admin waiting list page (protected by basic auth)
   app.get("/admin/waiting-list", basicAuth, (req, res) => {
     res.render("admin-waiting-list", { baseUrl: "", endpointRegistry });
+  });
+
+  // Admin organizations page (protected by basic auth)
+  app.get("/admin/organizations", basicAuth, (req, res) => {
+    res.render("admin-organizations", { baseUrl: "", endpointRegistry });
   });
 
   // Admin metrics page (protected by basic auth)

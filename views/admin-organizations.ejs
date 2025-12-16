@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Organizations Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .fade-out {
+      animation: fadeOut 0.3s ease-out forwards;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Organizations</h1>
+            <p class="text-sm text-gray-600 mt-1">Browse orgs, members and invites</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <!-- Left: Orgs list -->
+        <div class="lg:col-span-2">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">Organizations</h2>
+                <p id="orgs-subtitle" class="text-sm text-gray-600 mt-1">-</p>
+              </div>
+              <button id="btn-orgs-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Refresh</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+                <input id="orgs-q" type="text" class="w-full border rounded px-3 py-2" placeholder="name or slug">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <select id="orgs-status" class="w-full border rounded px-3 py-2">
+                  <option value="">All</option>
+                  <option value="active">active</option>
+                  <option value="disabled">disabled</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Limit</label>
+                <input id="orgs-limit" type="number" min="1" max="500" class="w-full border rounded px-3 py-2" value="25">
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Owner userId</label>
+                <input id="orgs-owner" type="text" class="w-full border rounded px-3 py-2" placeholder="optional">
+              </div>
+            </div>
+
+            <div class="flex gap-2 mt-4">
+              <button id="btn-orgs-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
+              <button id="btn-orgs-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+              <div class="flex-1"></div>
+              <button id="btn-orgs-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Prev</button>
+              <button id="btn-orgs-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Next</button>
+            </div>
+
+            <div class="overflow-x-auto mt-4">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="orgs-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Selected org -->
+        <div class="lg:col-span-3">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">Selected Organization</h2>
+                <p id="selected-org-subtitle" class="text-sm text-gray-600 mt-1">Select an org from the list</p>
+              </div>
+              <button id="btn-selected-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200" disabled>Refresh</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              <div class="bg-gray-50 rounded-lg border p-4">
+                <p class="text-sm text-gray-500">Members (active)</p>
+                <p id="kpi-members" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+              </div>
+              <div class="bg-gray-50 rounded-lg border p-4">
+                <p class="text-sm text-gray-500">Invites (pending)</p>
+                <p id="kpi-invites" class="text-2xl font-bold text-gray-900 mt-1">-</p>
+              </div>
+              <div class="bg-gray-50 rounded-lg border p-4">
+                <p class="text-sm text-gray-500">Org status</p>
+                <p id="kpi-org-status" class="text-sm font-medium text-gray-900 mt-2">-</p>
+              </div>
+            </div>
+
+            <div class="border-b border-gray-200 mt-6">
+              <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                <button id="tab-members" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Members</button>
+                <button id="tab-invites" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Invites</button>
+              </nav>
+            </div>
+
+            <div id="panel-members" class="mt-6">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-md font-semibold text-gray-900">Members</h3>
+                  <p id="members-subtitle" class="text-sm text-gray-600 mt-1">-</p>
+                </div>
+                <button id="btn-members-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200" disabled>Refresh</button>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <select id="members-role" class="w-full border rounded px-3 py-2">
+                    <option value="">All</option>
+                    <option value="owner">owner</option>
+                    <option value="admin">admin</option>
+                    <option value="member">member</option>
+                    <option value="viewer">viewer</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select id="members-status" class="w-full border rounded px-3 py-2">
+                    <option value="">All</option>
+                    <option value="active">active</option>
+                    <option value="removed">removed</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input id="members-email" type="text" class="w-full border rounded px-3 py-2" placeholder="exact match">
+                </div>
+              </div>
+
+              <div class="flex gap-2 mt-4">
+                <button id="btn-members-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" disabled>Apply</button>
+                <button id="btn-members-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Reset</button>
+                <div class="flex-1"></div>
+                <button id="btn-members-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Prev</button>
+                <button id="btn-members-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Next</button>
+              </div>
+
+              <div class="overflow-x-auto mt-4">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Added</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="members-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div id="panel-invites" class="mt-6 hidden">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h3 class="text-md font-semibold text-gray-900">Invites</h3>
+                  <p id="invites-subtitle" class="text-sm text-gray-600 mt-1">-</p>
+                </div>
+                <button id="btn-invites-refresh" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200" disabled>Refresh</button>
+              </div>
+
+              <div class="bg-gray-50 rounded-lg border p-4 mt-4">
+                <h4 class="font-semibold text-gray-900">Create invite</h4>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input id="invite-email" type="email" class="w-full border rounded px-3 py-2" placeholder="invitee@example.com">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <select id="invite-role" class="w-full border rounded px-3 py-2">
+                      <option value="member">member</option>
+                      <option value="admin">admin</option>
+                      <option value="viewer">viewer</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Expires (days)</label>
+                    <input id="invite-expires" type="number" min="1" max="365" class="w-full border rounded px-3 py-2" value="7">
+                  </div>
+                </div>
+                <div class="mt-3 flex gap-2">
+                  <button id="btn-invite-create" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600" disabled>Create Invite</button>
+                  <button id="btn-invite-clear" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Clear</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select id="invites-status" class="w-full border rounded px-3 py-2">
+                    <option value="">All</option>
+                    <option value="pending">pending</option>
+                    <option value="accepted">accepted</option>
+                    <option value="revoked">revoked</option>
+                    <option value="expired">expired</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input id="invites-email" type="text" class="w-full border rounded px-3 py-2" placeholder="exact match">
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Limit</label>
+                  <input id="invites-limit" type="number" min="1" max="500" class="w-full border rounded px-3 py-2" value="50">
+                </div>
+              </div>
+
+              <div class="flex gap-2 mt-4">
+                <button id="btn-invites-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600" disabled>Apply</button>
+                <button id="btn-invites-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Reset</button>
+                <div class="flex-1"></div>
+                <button id="btn-invites-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Prev</button>
+                <button id="btn-invites-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200" disabled>Next</button>
+              </div>
+
+              <div class="overflow-x-auto mt-4">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                      <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="invites-tbody" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const ORGS_ADMIN_PATH = '/api/admin/orgs';
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function qs(obj) {
+      const params = new URLSearchParams();
+      Object.entries(obj).forEach(([k, v]) => {
+        if (v === undefined || v === null) return;
+        const s = String(v).trim();
+        if (!s) return;
+        params.set(k, s);
+      });
+      const out = params.toString();
+      return out ? `?${out}` : '';
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function formatDateTime(iso) {
+      try {
+        return new Date(iso).toLocaleString();
+      } catch {
+        return String(iso || '');
+      }
+    }
+
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Copied to clipboard', 'success');
+      } catch (e) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.left = '-9999px';
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          showToast('Copied to clipboard', 'success');
+        } catch (err) {
+          showToast('Failed to copy', 'error');
+        }
+      }
+    }
+
+    function setActiveTab(which) {
+      const tabMembers = document.getElementById('tab-members');
+      const tabInvites = document.getElementById('tab-invites');
+      const panelMembers = document.getElementById('panel-members');
+      const panelInvites = document.getElementById('panel-invites');
+
+      const activeClass = 'border-blue-500 text-blue-600';
+      const inactiveClass = 'border-transparent text-gray-500';
+
+      if (which === 'invites') {
+        tabInvites.className = tabInvites.className.replace(inactiveClass, '').trim();
+        tabMembers.className = tabMembers.className.replace(activeClass, '').trim();
+        tabInvites.className = `tab-btn ${activeClass} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`;
+        tabMembers.className = `tab-btn ${inactiveClass} hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`;
+        panelInvites.classList.remove('hidden');
+        panelMembers.classList.add('hidden');
+        return;
+      }
+
+      tabMembers.className = tabMembers.className.replace(inactiveClass, '').trim();
+      tabInvites.className = tabInvites.className.replace(activeClass, '').trim();
+      tabMembers.className = `tab-btn ${activeClass} whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`;
+      tabInvites.className = `tab-btn ${inactiveClass} hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`;
+      panelMembers.classList.remove('hidden');
+      panelInvites.classList.add('hidden');
+    }
+
+    const state = {
+      orgs: { offset: 0, limit: 25, total: 0, selectedOrgId: null },
+      members: { offset: 0, limit: 50, total: 0 },
+      invites: { offset: 0, limit: 50, total: 0 },
+    };
+
+    async function loadOrgs() {
+      const q = document.getElementById('orgs-q')?.value?.trim();
+      const status = document.getElementById('orgs-status')?.value?.trim();
+      const ownerUserId = document.getElementById('orgs-owner')?.value?.trim();
+      const limit = parseInt(document.getElementById('orgs-limit')?.value || '25', 10);
+
+      const subtitle = document.getElementById('orgs-subtitle');
+      const tbody = document.getElementById('orgs-tbody');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}${ORGS_ADMIN_PATH}${qs({
+          q: q || undefined,
+          status: status || undefined,
+          ownerUserId: ownerUserId || undefined,
+          limit,
+          offset: state.orgs.offset,
+        })}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load orgs', 'error');
+          if (subtitle) subtitle.textContent = 'Failed to load.';
+          return;
+        }
+
+        const orgs = Array.isArray(data?.orgs) ? data.orgs : [];
+        const pagination = data?.pagination || {};
+        const total = Number.isFinite(pagination.total) ? pagination.total : 0;
+        const usedLimit = Number.isFinite(pagination.limit) ? pagination.limit : limit;
+        const usedOffset = Number.isFinite(pagination.offset) ? pagination.offset : state.orgs.offset;
+
+        state.orgs.limit = usedLimit;
+        state.orgs.offset = usedOffset;
+        state.orgs.total = total;
+
+        if (subtitle) {
+          const from = total === 0 ? 0 : usedOffset + 1;
+          const to = Math.min(usedOffset + orgs.length, total);
+          subtitle.textContent = `${from}-${to} of ${total}`;
+        }
+
+        const prevBtn = document.getElementById('btn-orgs-prev');
+        const nextBtn = document.getElementById('btn-orgs-next');
+        if (prevBtn) prevBtn.disabled = usedOffset <= 0;
+        if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
+
+        if (tbody) {
+          if (orgs.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td class="px-4 py-6 text-sm text-gray-600" colspan="3">No organizations found.</td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = orgs.map((o) => {
+            const isSelected = state.orgs.selectedOrgId && String(o?._id) === String(state.orgs.selectedOrgId);
+            const rowClass = isSelected ? 'bg-blue-50' : 'bg-white';
+
+            return `
+              <tr class="${rowClass} hover:bg-gray-50 cursor-pointer" data-org-id="${escapeHtml(o?._id)}">
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${escapeHtml(o?.name)}</div>
+                  <div class="text-xs text-gray-500">${escapeHtml(o?.ownerUserId)}</div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(o?.slug)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(o?.status)}</td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-org-id]').forEach((row) => {
+            row.addEventListener('click', async () => {
+              const orgId = row.getAttribute('data-org-id');
+              if (!orgId) return;
+              await selectOrg(orgId);
+            });
+          });
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load orgs', 'error');
+        if (subtitle) subtitle.textContent = 'Failed to load.';
+      }
+    }
+
+    function setSelectedControlsEnabled(enabled) {
+      const ids = [
+        'btn-selected-refresh',
+        'btn-members-refresh',
+        'btn-members-apply',
+        'btn-members-reset',
+        'btn-members-prev',
+        'btn-members-next',
+        'btn-invites-refresh',
+        'btn-invites-apply',
+        'btn-invites-reset',
+        'btn-invites-prev',
+        'btn-invites-next',
+        'btn-invite-create',
+        'btn-invite-clear',
+      ];
+      ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+      });
+    }
+
+    async function selectOrg(orgId) {
+      state.orgs.selectedOrgId = String(orgId);
+      state.members.offset = 0;
+      state.invites.offset = 0;
+
+      setSelectedControlsEnabled(true);
+      await Promise.all([loadSelectedOrg(), loadMembers(), loadInvites()]);
+      await loadOrgs();
+    }
+
+    async function loadSelectedOrg() {
+      const orgId = state.orgs.selectedOrgId;
+      const subtitle = document.getElementById('selected-org-subtitle');
+      if (!orgId) {
+        if (subtitle) subtitle.textContent = 'Select an org from the list';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}`, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load org', 'error');
+          return;
+        }
+
+        const org = data?.org;
+        const counts = data?.counts || {};
+
+        if (subtitle) {
+          subtitle.innerHTML = `${escapeHtml(org?.name)} <span class="text-xs text-gray-500">(${escapeHtml(org?.slug)})</span>`;
+        }
+
+        const membersCount = counts?.membersActive ?? '-';
+        const invitesPending = counts?.invitesPending ?? '-';
+
+        const kpiMembers = document.getElementById('kpi-members');
+        const kpiInvites = document.getElementById('kpi-invites');
+        const kpiStatus = document.getElementById('kpi-org-status');
+
+        if (kpiMembers) kpiMembers.textContent = String(membersCount);
+        if (kpiInvites) kpiInvites.textContent = String(invitesPending);
+        if (kpiStatus) kpiStatus.textContent = escapeHtml(org?.status);
+      } catch (e) {
+        showToast(e.message || 'Failed to load org', 'error');
+      }
+    }
+
+    async function loadMembers() {
+      const orgId = state.orgs.selectedOrgId;
+      if (!orgId) return;
+
+      const role = document.getElementById('members-role')?.value?.trim();
+      const status = document.getElementById('members-status')?.value?.trim();
+      const email = document.getElementById('members-email')?.value?.trim();
+
+      const subtitle = document.getElementById('members-subtitle');
+      const tbody = document.getElementById('members-tbody');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/members${qs({
+          role: role || undefined,
+          status: status || undefined,
+          email: email || undefined,
+          limit: state.members.limit,
+          offset: state.members.offset,
+        })}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load members', 'error');
+          if (subtitle) subtitle.textContent = 'Failed to load.';
+          return;
+        }
+
+        const members = Array.isArray(data?.members) ? data.members : [];
+        const pagination = data?.pagination || {};
+        const total = Number.isFinite(pagination.total) ? pagination.total : 0;
+        const usedLimit = Number.isFinite(pagination.limit) ? pagination.limit : state.members.limit;
+        const usedOffset = Number.isFinite(pagination.offset) ? pagination.offset : state.members.offset;
+
+        state.members.limit = usedLimit;
+        state.members.offset = usedOffset;
+        state.members.total = total;
+
+        if (subtitle) {
+          const from = total === 0 ? 0 : usedOffset + 1;
+          const to = Math.min(usedOffset + members.length, total);
+          subtitle.textContent = `${from}-${to} of ${total}`;
+        }
+
+        const prevBtn = document.getElementById('btn-members-prev');
+        const nextBtn = document.getElementById('btn-members-next');
+        if (prevBtn) prevBtn.disabled = usedOffset <= 0;
+        if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
+
+        if (tbody) {
+          if (members.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td class="px-4 py-6 text-sm text-gray-600" colspan="5">No members found.</td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = members.map((m) => {
+            const userEmail = escapeHtml(m?.user?.email || '');
+            const userName = escapeHtml(m?.user?.name || '');
+            const roleVal = escapeHtml(m?.role);
+            const statusVal = escapeHtml(m?.status);
+            const createdAt = escapeHtml(formatDateTime(m?.createdAt));
+            const memberId = escapeHtml(m?._id);
+
+            const roleOptions = ['owner', 'admin', 'member', 'viewer'].map((r) => {
+              const selected = String(m?.role) === r ? 'selected' : '';
+              return `<option value="${r}" ${selected}>${r}</option>`;
+            }).join('');
+
+            const isOwner = String(m?.role) === 'owner';
+
+            return `
+              <tr>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${userEmail}</div>
+                  <div class="text-xs text-gray-500">${userName}</div>
+                  <div class="text-xs text-gray-500">memberId: <button class="text-blue-600 hover:text-blue-800" data-copy="${memberId}">copy</button></div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">
+                  <select class="border rounded px-2 py-1" data-member-role="${memberId}" ${isOwner ? 'disabled' : ''}>
+                    ${roleOptions}
+                  </select>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">${statusVal}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${createdAt}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <button class="text-blue-600 hover:text-blue-800 mr-3" data-member-save="${memberId}" ${isOwner ? 'disabled' : ''}>Save</button>
+                  <button class="text-red-600 hover:text-red-800" data-member-remove="${memberId}" ${isOwner ? 'disabled' : ''}>Remove</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-copy]').forEach((btn) => {
+            btn.addEventListener('click', () => copyText(btn.getAttribute('data-copy') || ''));
+          });
+
+          tbody.querySelectorAll('[data-member-save]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const memberId = btn.getAttribute('data-member-save');
+              const select = tbody.querySelector(`[data-member-role="${CSS.escape(memberId)}"]`);
+              const role = select?.value;
+              if (!memberId || !role) return;
+              if (!confirm(`Update member role to ${role}?`)) return;
+
+              try {
+                const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/members/${encodeURIComponent(memberId)}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  body: JSON.stringify({ role }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  showToast(data?.error || 'Failed to update role', 'error');
+                  return;
+                }
+                showToast('Member updated', 'success');
+                await Promise.all([loadMembers(), loadSelectedOrg()]);
+              } catch (e) {
+                showToast(e.message || 'Failed to update role', 'error');
+              }
+            });
+          });
+
+          tbody.querySelectorAll('[data-member-remove]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const memberId = btn.getAttribute('data-member-remove');
+              if (!memberId) return;
+              if (!confirm('Remove this member?')) return;
+
+              try {
+                const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/members/${encodeURIComponent(memberId)}`, {
+                  method: 'DELETE',
+                  headers: { 'Accept': 'application/json' },
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  showToast(data?.error || 'Failed to remove member', 'error');
+                  return;
+                }
+                showToast('Member removed', 'success');
+                await Promise.all([loadMembers(), loadSelectedOrg()]);
+              } catch (e) {
+                showToast(e.message || 'Failed to remove member', 'error');
+              }
+            });
+          });
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load members', 'error');
+        if (subtitle) subtitle.textContent = 'Failed to load.';
+      }
+    }
+
+    async function loadInvites() {
+      const orgId = state.orgs.selectedOrgId;
+      if (!orgId) return;
+
+      const status = document.getElementById('invites-status')?.value?.trim();
+      const email = document.getElementById('invites-email')?.value?.trim();
+      const limit = parseInt(document.getElementById('invites-limit')?.value || '50', 10);
+
+      state.invites.limit = Number.isFinite(limit) ? limit : state.invites.limit;
+
+      const subtitle = document.getElementById('invites-subtitle');
+      const tbody = document.getElementById('invites-tbody');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites${qs({
+          status: status || undefined,
+          email: email || undefined,
+          limit: state.invites.limit,
+          offset: state.invites.offset,
+        })}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load invites', 'error');
+          if (subtitle) subtitle.textContent = 'Failed to load.';
+          return;
+        }
+
+        const invites = Array.isArray(data?.invites) ? data.invites : [];
+        const pagination = data?.pagination || {};
+        const total = Number.isFinite(pagination.total) ? pagination.total : 0;
+        const usedLimit = Number.isFinite(pagination.limit) ? pagination.limit : state.invites.limit;
+        const usedOffset = Number.isFinite(pagination.offset) ? pagination.offset : state.invites.offset;
+
+        state.invites.limit = usedLimit;
+        state.invites.offset = usedOffset;
+        state.invites.total = total;
+
+        if (subtitle) {
+          const from = total === 0 ? 0 : usedOffset + 1;
+          const to = Math.min(usedOffset + invites.length, total);
+          subtitle.textContent = `${from}-${to} of ${total}`;
+        }
+
+        const prevBtn = document.getElementById('btn-invites-prev');
+        const nextBtn = document.getElementById('btn-invites-next');
+        if (prevBtn) prevBtn.disabled = usedOffset <= 0;
+        if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
+
+        if (tbody) {
+          if (invites.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td class="px-4 py-6 text-sm text-gray-600" colspan="6">No invites found.</td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = invites.map((i) => {
+            const inviteId = escapeHtml(i?._id);
+            const emailCell = escapeHtml(i?.email);
+            const roleCell = escapeHtml(i?.role);
+            const statusCell = escapeHtml(i?.status);
+            const expiresAt = escapeHtml(formatDateTime(i?.expiresAt));
+            const createdAt = escapeHtml(formatDateTime(i?.createdAt));
+
+            const isPending = String(i?.status) === 'pending';
+
+            return `
+              <tr>
+                <td class="px-4 py-3 text-sm text-gray-900">
+                  <div class="font-medium">${emailCell}</div>
+                  <div class="text-xs text-gray-500">inviteId: <button class="text-blue-600 hover:text-blue-800" data-copy="${inviteId}">copy</button></div>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700">${roleCell}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${statusCell}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${expiresAt}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${createdAt}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <button class="text-blue-600 hover:text-blue-800 mr-3" data-invite-resend="${inviteId}" ${isPending ? '' : 'disabled'}>Resend</button>
+                  <button class="text-red-600 hover:text-red-800" data-invite-revoke="${inviteId}" ${isPending ? '' : 'disabled'}>Revoke</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-copy]').forEach((btn) => {
+            btn.addEventListener('click', () => copyText(btn.getAttribute('data-copy') || ''));
+          });
+
+          tbody.querySelectorAll('[data-invite-revoke]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const inviteId = btn.getAttribute('data-invite-revoke');
+              if (!inviteId) return;
+              if (!confirm('Revoke this invite?')) return;
+
+              try {
+                const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}`, {
+                  method: 'DELETE',
+                  headers: { 'Accept': 'application/json' },
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  showToast(data?.error || 'Failed to revoke invite', 'error');
+                  return;
+                }
+                showToast('Invite revoked', 'success');
+                await Promise.all([loadInvites(), loadSelectedOrg()]);
+              } catch (e) {
+                showToast(e.message || 'Failed to revoke invite', 'error');
+              }
+            });
+          });
+
+          tbody.querySelectorAll('[data-invite-resend]').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const inviteId = btn.getAttribute('data-invite-resend');
+              if (!inviteId) return;
+              if (!confirm('Resend this invite? (rotates token)')) return;
+
+              try {
+                const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}/resend`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  body: JSON.stringify({}),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                  showToast(data?.error || 'Failed to resend invite', 'error');
+                  return;
+                }
+                showToast('Invite resent', 'success');
+                await Promise.all([loadInvites(), loadSelectedOrg()]);
+              } catch (e) {
+                showToast(e.message || 'Failed to resend invite', 'error');
+              }
+            });
+          });
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load invites', 'error');
+        if (subtitle) subtitle.textContent = 'Failed to load.';
+      }
+    }
+
+    async function createInvite() {
+      const orgId = state.orgs.selectedOrgId;
+      if (!orgId) return;
+
+      const email = document.getElementById('invite-email')?.value?.trim();
+      const role = document.getElementById('invite-role')?.value;
+      const expiresInDays = parseInt(document.getElementById('invite-expires')?.value || '7', 10);
+
+      if (!email) {
+        showToast('Email is required', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email, role, expiresInDays }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to create invite', 'error');
+          return;
+        }
+        showToast('Invite created', 'success');
+        document.getElementById('invite-email').value = '';
+        await Promise.all([loadInvites(), loadSelectedOrg()]);
+      } catch (e) {
+        showToast(e.message || 'Failed to create invite', 'error');
+      }
+    }
+
+    function bindEvents() {
+      setActiveTab('members');
+
+      const tabMembers = document.getElementById('tab-members');
+      const tabInvites = document.getElementById('tab-invites');
+      if (tabMembers) tabMembers.onclick = () => setActiveTab('members');
+      if (tabInvites) tabInvites.onclick = () => setActiveTab('invites');
+
+      const refreshOrgsBtn = document.getElementById('btn-orgs-refresh');
+      if (refreshOrgsBtn) refreshOrgsBtn.onclick = () => loadOrgs();
+
+      const applyOrgsBtn = document.getElementById('btn-orgs-apply');
+      if (applyOrgsBtn) applyOrgsBtn.onclick = () => { state.orgs.offset = 0; loadOrgs(); };
+
+      const resetOrgsBtn = document.getElementById('btn-orgs-reset');
+      if (resetOrgsBtn) resetOrgsBtn.onclick = () => {
+        document.getElementById('orgs-q').value = '';
+        document.getElementById('orgs-status').value = '';
+        document.getElementById('orgs-owner').value = '';
+        document.getElementById('orgs-limit').value = '25';
+        state.orgs.offset = 0;
+        loadOrgs();
+      };
+
+      const prevOrgsBtn = document.getElementById('btn-orgs-prev');
+      if (prevOrgsBtn) prevOrgsBtn.onclick = () => { state.orgs.offset = Math.max(0, state.orgs.offset - state.orgs.limit); loadOrgs(); };
+
+      const nextOrgsBtn = document.getElementById('btn-orgs-next');
+      if (nextOrgsBtn) nextOrgsBtn.onclick = () => { state.orgs.offset = Math.max(0, state.orgs.offset + state.orgs.limit); loadOrgs(); };
+
+      const selectedRefreshBtn = document.getElementById('btn-selected-refresh');
+      if (selectedRefreshBtn) selectedRefreshBtn.onclick = () => Promise.all([loadSelectedOrg(), loadMembers(), loadInvites()]);
+
+      const membersRefreshBtn = document.getElementById('btn-members-refresh');
+      if (membersRefreshBtn) membersRefreshBtn.onclick = () => loadMembers();
+
+      const membersApplyBtn = document.getElementById('btn-members-apply');
+      if (membersApplyBtn) membersApplyBtn.onclick = () => { state.members.offset = 0; loadMembers(); };
+
+      const membersResetBtn = document.getElementById('btn-members-reset');
+      if (membersResetBtn) membersResetBtn.onclick = () => {
+        document.getElementById('members-role').value = '';
+        document.getElementById('members-status').value = '';
+        document.getElementById('members-email').value = '';
+        state.members.offset = 0;
+        loadMembers();
+      };
+
+      const membersPrevBtn = document.getElementById('btn-members-prev');
+      if (membersPrevBtn) membersPrevBtn.onclick = () => { state.members.offset = Math.max(0, state.members.offset - state.members.limit); loadMembers(); };
+
+      const membersNextBtn = document.getElementById('btn-members-next');
+      if (membersNextBtn) membersNextBtn.onclick = () => { state.members.offset = Math.max(0, state.members.offset + state.members.limit); loadMembers(); };
+
+      const invitesRefreshBtn = document.getElementById('btn-invites-refresh');
+      if (invitesRefreshBtn) invitesRefreshBtn.onclick = () => loadInvites();
+
+      const invitesApplyBtn = document.getElementById('btn-invites-apply');
+      if (invitesApplyBtn) invitesApplyBtn.onclick = () => { state.invites.offset = 0; loadInvites(); };
+
+      const invitesResetBtn = document.getElementById('btn-invites-reset');
+      if (invitesResetBtn) invitesResetBtn.onclick = () => {
+        document.getElementById('invites-status').value = '';
+        document.getElementById('invites-email').value = '';
+        document.getElementById('invites-limit').value = '50';
+        state.invites.offset = 0;
+        loadInvites();
+      };
+
+      const invitesPrevBtn = document.getElementById('btn-invites-prev');
+      if (invitesPrevBtn) invitesPrevBtn.onclick = () => { state.invites.offset = Math.max(0, state.invites.offset - state.invites.limit); loadInvites(); };
+
+      const invitesNextBtn = document.getElementById('btn-invites-next');
+      if (invitesNextBtn) invitesNextBtn.onclick = () => { state.invites.offset = Math.max(0, state.invites.offset + state.invites.limit); loadInvites(); };
+
+      const inviteCreateBtn = document.getElementById('btn-invite-create');
+      if (inviteCreateBtn) inviteCreateBtn.onclick = () => createInvite();
+
+      const inviteClearBtn = document.getElementById('btn-invite-clear');
+      if (inviteClearBtn) inviteClearBtn.onclick = () => {
+        document.getElementById('invite-email').value = '';
+        document.getElementById('invite-role').value = 'member';
+        document.getElementById('invite-expires').value = '7';
+      };
+
+      setSelectedControlsEnabled(false);
+    }
+
+    bindEvents();
+    loadOrgs();
+  </script>
+</body>
+</html>
