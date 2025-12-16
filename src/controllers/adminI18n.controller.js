@@ -2,6 +2,7 @@ const I18nLocale = require('../models/I18nLocale');
 const I18nEntry = require('../models/I18nEntry');
 
 const { clearI18nCache } = require('../services/i18n.service');
+const { getInferredI18nKeys } = require('../services/i18nInferredKeys.service');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
 const { getSettingValue } = require('../services/globalSettings.service');
 
@@ -135,10 +136,12 @@ exports.updateLocale = async (req, res) => {
 
 exports.listEntries = async (req, res) => {
   try {
-    const { locale, search, missing } = req.query;
+    const { locale, search, missing, includeInferred } = req.query;
     if (!locale) {
       return res.status(400).json({ error: 'locale is required' });
     }
+
+    const wantsInferred = includeInferred === 'true' || includeInferred === '1';
 
     const query = { locale };
     if (search) {
@@ -150,24 +153,56 @@ exports.listEntries = async (req, res) => {
       .limit(2000)
       .lean();
 
+    const existingKeys = new Set(entries.map((e) => e.key));
+
+    const inferredKeys = wantsInferred ? getInferredI18nKeys() : [];
+    const filteredInferredKeys = search
+      ? inferredKeys.filter((k) => String(k).toLowerCase().includes(String(search).toLowerCase()))
+      : inferredKeys;
+
     if (missing === 'true') {
-      const allKeys = await I18nEntry.distinct('key');
-      const existingKeys = new Set(entries.map((e) => e.key));
+      const allDbKeys = await I18nEntry.distinct('key');
+      const keySet = new Set(allDbKeys);
+      for (const k of filteredInferredKeys) keySet.add(k);
+
+      const allKeys = Array.from(keySet).sort();
       const missingKeys = allKeys.filter((k) => !existingKeys.has(k));
+
       const missingEntries = missingKeys.map((k) => ({
         _id: null,
         key: k,
         locale,
         value: '',
         valueFormat: 'text',
-        source: 'admin',
+        source: wantsInferred && filteredInferredKeys.includes(k) ? 'inferred' : 'admin',
         seeded: false,
         edited: false,
       }));
+
       return res.json({ entries: [...entries, ...missingEntries] });
     }
 
-    res.json({ entries });
+    if (!wantsInferred) {
+      return res.json({ entries });
+    }
+
+    const inferredMissingEntries = filteredInferredKeys
+      .filter((k) => !existingKeys.has(k))
+      .map((k) => ({
+        _id: null,
+        key: k,
+        locale,
+        value: '',
+        valueFormat: 'text',
+        source: 'inferred',
+        seeded: false,
+        edited: false,
+      }));
+
+    const merged = [...entries, ...inferredMissingEntries]
+      .sort((a, b) => String(a.key).localeCompare(String(b.key)));
+
+    res.json({ entries: merged });
   } catch (error) {
     console.error('Error listing entries:', error);
     res.status(500).json({ error: 'Failed to list entries' });

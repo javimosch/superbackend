@@ -45,6 +45,10 @@
               <input id="missingOnly" type="checkbox" onchange="loadEntries()" />
               <label for="missingOnly" class="text-sm">Missing only</label>
             </div>
+            <div class="flex items-center gap-2 pb-2">
+              <input id="includeInferred" type="checkbox" onchange="loadEntries()" />
+              <label for="includeInferred" class="text-sm">Include inferred keys</label>
+            </div>
           </div>
           <div class="flex gap-2">
             <button onclick="loadEntries()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
@@ -223,10 +227,12 @@
         const locale = document.getElementById('locale').value;
         const search = document.getElementById('search').value;
         const missingOnly = document.getElementById('missingOnly').checked;
+        const includeInferred = document.getElementById('includeInferred').checked;
 
         const params = new URLSearchParams({ locale });
         if (search) params.set('search', search);
         if (missingOnly) params.set('missing', 'true');
+        if (includeInferred) params.set('includeInferred', 'true');
 
         const res = await fetch(`${API_BASE}/api/admin/i18n/entries?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to load entries');
