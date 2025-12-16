@@ -4,7 +4,7 @@ const generateAccessToken = (userId, role = 'user') => {
   return jwt.sign(
     { userId, role },
     process.env.JWT_ACCESS_SECRET || 'access-secret-change-me',
-    { expiresIn: '15m' }
+    { expiresIn: '30d' }
   );
 };
 
@@ -12,7 +12,7 @@ const generateRefreshToken = (userId) => {
   return jwt.sign(
     { userId },
     process.env.JWT_REFRESH_SECRET || 'refresh-secret-change-me',
-    { expiresIn: '7d' }
+    { expiresIn: '30d' }
   );
 };
 
