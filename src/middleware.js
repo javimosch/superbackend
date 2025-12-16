@@ -5,6 +5,7 @@ const cors = require("cors");
 const fs = require("fs");
 const ejs = require("ejs");
 const { basicAuth } = require("./middleware/auth");
+const endpointRegistry = require("./admin/endpointRegistry");
 
 /**
  * Creates and configures the SaaS backend middleware
@@ -126,7 +127,10 @@ function createMiddleware(options = {}) {
   router.use("/api/auth", require("./routes/auth.routes"));
   router.use("/api/billing", require("./routes/billing.routes"));
   router.use("/api/waiting-list", require("./routes/waitingList.routes"));
+  router.use("/api/metrics", require("./routes/metrics.routes"));
+  router.use("/api/forms", require("./routes/forms.routes"));
   router.use("/api/admin", require("./routes/admin.routes"));
+  router.use("/api/admin/forms", require("./routes/formsAdmin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use("/api/admin/i18n", require("./routes/adminI18n.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
@@ -145,7 +149,10 @@ function createMiddleware(options = {}) {
         return res.status(500).send("Error loading page");
       }
       try {
-        const html = ejs.render(template, { baseUrl: req.baseUrl });
+        const html = ejs.render(template, {
+          baseUrl: req.baseUrl,
+          endpointRegistry,
+        });
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);
@@ -185,6 +192,79 @@ function createMiddleware(options = {}) {
       }
       try {
         const html = ejs.render(template, { baseUrl: req.baseUrl });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin forms page (protected by basic auth)
+  router.get("/admin/forms", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-forms.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, {
+          baseUrl: req.baseUrl,
+          endpointRegistry,
+        });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin waiting list page (protected by basic auth)
+  router.get("/admin/waiting-list", basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-waiting-list.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, {
+          baseUrl: req.baseUrl,
+          endpointRegistry,
+        });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin metrics page (protected by basic auth)
+  router.get("/admin/metrics", basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-metrics.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, {
+          baseUrl: req.baseUrl,
+          endpointRegistry,
+        });
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);

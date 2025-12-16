@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Waiting List Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .fade-out {
+      animation: fadeOut 0.3s ease-out forwards;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Waiting List</h1>
+            <p class="text-sm text-gray-600 mt-1">Stats + subscription tester</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Total Subscribers</p>
+          <p id="kpi-total" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Growth This Week</p>
+          <p id="kpi-growth" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Last Updated</p>
+          <p id="kpi-updated" class="text-sm font-medium text-gray-900 mt-2">-</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Breakdown by Type</h2>
+            <p class="text-sm text-gray-600 mt-1">Auto-generated from current data</p>
+          </div>
+        </div>
+        <div id="type-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-4"></div>
+      </div>
+
+      <div class="flex gap-2 mb-8">
+        <button id="btn-refresh-stats" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh Stats</button>
+      </div>
+
+      <!-- Subscribe tester -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <div>
+          <h2 class="text-xl font-bold text-gray-900">Subscribe Test</h2>
+          <p class="text-sm text-gray-600 mt-1">POST /api/waiting-list/subscribe</p>
+        </div>
+
+        <form id="subscribe-form" class="mt-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+              <input id="sub-email" type="email" class="w-full border rounded px-3 py-2" placeholder="user@example.com" required>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+              <input id="sub-type" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g., buyer" required>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Referral Source</label>
+              <input id="sub-ref" type="text" class="w-full border rounded px-3 py-2" placeholder="website">
+            </div>
+          </div>
+
+          <div class="mt-4 flex gap-2">
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Subscribe</button>
+            <button type="button" id="btn-sub-clear" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Clear</button>
+          </div>
+        </form>
+
+        <div class="mt-6">
+          <h3 class="font-semibold mb-2">Response</h3>
+          <pre id="subscribe-response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const WAITING_LIST_STATS_PATH = '/api/waiting-list/stats';
+    const WAITING_LIST_SUBSCRIBE_PATH = '/api/waiting-list/subscribe';
+    
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    async function makeRequest(endpoint, method, body = null, requiresJWT = false) {
+      const headers = { 'Content-Type': 'application/json' };
+      
+      if (requiresJWT) {
+        const token = document.getElementById('jwt-input')?.value;
+        if (!token) {
+          showToast('JWT token required', 'error');
+          return;
+        }
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const options = { method, headers };
+      if (body) options.body = JSON.stringify(body);
+      
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, options);
+        const data = await response.json();
+        
+        const responseEl = document.querySelector('#content pre#response');
+        if (response.ok) {
+          showToast('Request successful!', 'success');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        } else {
+          showToast(data.error || 'Request failed', 'error');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        showToast(error.message, 'error');
+        const responseEl = document.querySelector('#content pre#response');
+        if (responseEl) responseEl.textContent = error.message;
+      }
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = value;
+    }
+
+    function formatDateTime(iso) {
+      try {
+        return new Date(iso).toLocaleString();
+      } catch {
+        return String(iso || '');
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}${WAITING_LIST_STATS_PATH}`, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load stats', 'error');
+          return;
+        }
+
+        setText('kpi-total', String(data?.totalSubscribers ?? '-'));
+        setText('kpi-growth', String(data?.growthThisWeek ?? '-'));
+        setText('kpi-updated', data?.lastUpdated ? formatDateTime(data.lastUpdated) : '-');
+
+        const typeCounts = data?.typeCounts && typeof data.typeCounts === 'object' ? data.typeCounts : {};
+        const entries = Object.entries(typeCounts)
+          .filter(([k]) => k && String(k).trim())
+          .sort((a, b) => (b[1] || 0) - (a[1] || 0));
+
+        const container = document.getElementById('type-cards');
+        if (container) {
+          if (entries.length === 0) {
+            container.innerHTML = '<div class="text-sm text-gray-600">No types found.</div>';
+          } else {
+            container.innerHTML = entries.map(([type, count]) => {
+              const safeType = String(type)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+
+              return `
+                <div class="bg-gray-50 rounded-lg border p-4">
+                  <p class="text-sm text-gray-500">${safeType}</p>
+                  <p class="text-2xl font-bold text-gray-900 mt-2">${count ?? 0}</p>
+                </div>
+              `;
+            }).join('');
+          }
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to load stats', 'error');
+      }
+    }
+
+    function bindEvents() {
+      const refreshBtn = document.getElementById('btn-refresh-stats');
+      if (refreshBtn) refreshBtn.onclick = loadStats;
+
+      const clearBtn = document.getElementById('btn-sub-clear');
+      if (clearBtn) {
+        clearBtn.onclick = () => {
+          document.getElementById('sub-email').value = '';
+          document.getElementById('sub-type').value = '';
+          document.getElementById('sub-ref').value = '';
+          const out = document.getElementById('subscribe-response');
+          if (out) out.textContent = '';
+        };
+      }
+
+      const form = document.getElementById('subscribe-form');
+      if (form) {
+        form.onsubmit = async (event) => {
+          event.preventDefault();
+
+          const email = document.getElementById('sub-email')?.value?.trim();
+          const type = document.getElementById('sub-type')?.value;
+          const referralSource = document.getElementById('sub-ref')?.value?.trim();
+
+          if (!email) {
+            showToast('Email is required', 'error');
+            return;
+          }
+
+          const body = { email, type, referralSource };
+
+          try {
+            const res = await fetch(`${API_BASE}${WAITING_LIST_SUBSCRIBE_PATH}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            const out = document.getElementById('subscribe-response');
+            if (out) out.textContent = JSON.stringify(data, null, 2);
+
+            if (!res.ok) {
+              showToast(data?.error || 'Subscribe failed', 'error');
+              return;
+            }
+
+            showToast('Subscribed!', 'success');
+            loadStats();
+          } catch (e) {
+            showToast(e.message || 'Subscribe failed', 'error');
+          }
+        };
+      }
+    }
+
+    bindEvents();
+    loadStats();
+  </script>
+</body>
+</html>

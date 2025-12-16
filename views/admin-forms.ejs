@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forms Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .fade-out {
+      animation: fadeOut 0.3s ease-out forwards;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Forms</h1>
+            <p class="text-sm text-gray-600 mt-1">Browse and filter form submissions</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Filters -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Form Key</label>
+              <input id="filter-formKey" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g., contact">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Page Size</label>
+              <select id="filter-limit" class="w-full border rounded px-3 py-2">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Offset</label>
+              <input id="filter-offset" type="number" class="w-full border rounded px-3 py-2" value="0" min="0">
+            </div>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
+            <button id="btn-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Submissions</h2>
+            <p id="table-subtitle" class="text-sm text-gray-600 mt-1">Loading...</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-prev" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Prev</button>
+            <button id="btn-next" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Next</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actor</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body" class="bg-white divide-y divide-gray-200"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const FORMS_ADMIN_LIST_PATH = '/api/admin/forms';
+    
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    async function makeRequest(endpoint, method, body = null, requiresJWT = false) {
+      const headers = { 'Content-Type': 'application/json' };
+      
+      if (requiresJWT) {
+        const token = document.getElementById('jwt-input')?.value;
+        if (!token) {
+          showToast('JWT token required', 'error');
+          return;
+        }
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const options = { method, headers };
+      if (body) options.body = JSON.stringify(body);
+      
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, options);
+        const data = await response.json();
+        
+        const responseEl = document.querySelector('#content pre#response');
+        if (response.ok) {
+          showToast('Request successful!', 'success');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        } else {
+          showToast(data.error || 'Request failed', 'error');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        showToast(error.message, 'error');
+        const responseEl = document.querySelector('#content pre#response');
+        if (responseEl) responseEl.textContent = error.message;
+      }
+    }
+
+    function qs(obj) {
+      const params = new URLSearchParams();
+      Object.entries(obj).forEach(([k, v]) => {
+        if (v === undefined || v === null) return;
+        const s = String(v);
+        if (!s) return;
+        params.set(k, s);
+      });
+      const out = params.toString();
+      return out ? `?${out}` : '';
+    }
+
+    function formatDate(iso) {
+      try {
+        return new Date(iso).toLocaleString();
+      } catch {
+        return String(iso || '');
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function toggleDetails(id) {
+      const row = document.getElementById(`details-${id}`);
+      if (!row) return;
+      row.classList.toggle('hidden');
+    }
+
+    async function loadSubmissions() {
+      const formKey = document.getElementById('filter-formKey')?.value?.trim() || '';
+      const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
+      const offset = parseInt(document.getElementById('filter-offset')?.value || '0', 10);
+
+      const subtitle = document.getElementById('table-subtitle');
+      const tbody = document.getElementById('table-body');
+      if (subtitle) subtitle.textContent = 'Loading...';
+      if (tbody) tbody.innerHTML = '';
+
+      try {
+        const url = `${API_BASE}${FORMS_ADMIN_LIST_PATH}${qs({ formKey: formKey || undefined, limit, offset })}`;
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load submissions', 'error');
+          if (subtitle) subtitle.textContent = 'Failed to load.';
+          return;
+        }
+
+        const submissions = Array.isArray(data?.submissions) ? data.submissions : [];
+        const pagination = data?.pagination || {};
+        const total = Number.isFinite(pagination.total) ? pagination.total : 0;
+        const usedLimit = Number.isFinite(pagination.limit) ? pagination.limit : limit;
+        const usedOffset = Number.isFinite(pagination.offset) ? pagination.offset : offset;
+
+        if (subtitle) {
+          const from = total === 0 ? 0 : usedOffset + 1;
+          const to = Math.min(usedOffset + submissions.length, total);
+          subtitle.textContent = `${from}-${to} of ${total}`;
+        }
+
+        if (tbody) {
+          if (submissions.length === 0) {
+            tbody.innerHTML = `
+              <tr>
+                <td class="px-6 py-6 text-sm text-gray-600" colspan="5">No submissions found.</td>
+              </tr>
+            `;
+            return;
+          }
+
+          tbody.innerHTML = submissions.map((s) => {
+            const id = escapeHtml(s?._id);
+            const createdAt = escapeHtml(formatDate(s?.createdAt));
+            const formKeyCell = escapeHtml(s?.formKey);
+            const actor = escapeHtml(`${s?.actorType || ''}:${s?.actorId || ''}`);
+            const userId = escapeHtml(s?.userId || '');
+            const fieldsJson = escapeHtml(JSON.stringify(s?.fields || {}, null, 2));
+            const metaJson = escapeHtml(JSON.stringify(s?.meta || {}, null, 2));
+
+            return `
+              <tr>
+                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">${createdAt}</td>
+                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">${formKeyCell}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${actor}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">${userId}</td>
+                <td class="px-6 py-4 text-sm">
+                  <button class="text-blue-600 hover:text-blue-800" onclick="toggleDetails('${id}')">Details</button>
+                </td>
+              </tr>
+              <tr id="details-${id}" class="hidden bg-gray-50">
+                <td class="px-6 py-4" colspan="5">
+                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                      <h3 class="text-sm font-semibold text-gray-800 mb-2">Fields</h3>
+                      <pre class="bg-white border rounded p-3 text-xs overflow-auto max-h-80">${fieldsJson}</pre>
+                    </div>
+                    <div>
+                      <h3 class="text-sm font-semibold text-gray-800 mb-2">Meta</h3>
+                      <pre class="bg-white border rounded p-3 text-xs overflow-auto max-h-80">${metaJson}</pre>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        }
+
+        const prevBtn = document.getElementById('btn-prev');
+        const nextBtn = document.getElementById('btn-next');
+        if (prevBtn) prevBtn.disabled = usedOffset <= 0;
+        if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
+      } catch (e) {
+        showToast(e.message || 'Failed to load submissions', 'error');
+        const subtitle = document.getElementById('table-subtitle');
+        if (subtitle) subtitle.textContent = 'Failed to load.';
+      }
+    }
+
+    function bindEvents() {
+      const applyBtn = document.getElementById('btn-apply');
+      const resetBtn = document.getElementById('btn-reset');
+      const prevBtn = document.getElementById('btn-prev');
+      const nextBtn = document.getElementById('btn-next');
+
+      if (applyBtn) {
+        applyBtn.onclick = () => {
+          document.getElementById('filter-offset').value = '0';
+          loadSubmissions();
+        };
+      }
+
+      if (resetBtn) {
+        resetBtn.onclick = () => {
+          document.getElementById('filter-formKey').value = '';
+          document.getElementById('filter-limit').value = '50';
+          document.getElementById('filter-offset').value = '0';
+          loadSubmissions();
+        };
+      }
+
+      if (prevBtn) {
+        prevBtn.onclick = () => {
+          const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
+          const offsetEl = document.getElementById('filter-offset');
+          const current = parseInt(offsetEl?.value || '0', 10);
+          const nextOffset = Math.max(0, current - limit);
+          if (offsetEl) offsetEl.value = String(nextOffset);
+          loadSubmissions();
+        };
+      }
+
+      if (nextBtn) {
+        nextBtn.onclick = () => {
+          const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
+          const offsetEl = document.getElementById('filter-offset');
+          const current = parseInt(offsetEl?.value || '0', 10);
+          const nextOffset = Math.max(0, current + limit);
+          if (offsetEl) offsetEl.value = String(nextOffset);
+          loadSubmissions();
+        };
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const active = document.activeElement;
+          if (active && (active.id === 'filter-formKey' || active.id === 'filter-offset')) {
+            e.preventDefault();
+            document.getElementById('btn-apply')?.click();
+          }
+        }
+      });
+    }
+
+    bindEvents();
+    loadSubmissions();
+  </script>
+</body>
+</html>

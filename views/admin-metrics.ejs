@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Metrics Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .fade-out {
+      animation: fadeOut 0.3s ease-out forwards;
+    }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <!-- Header -->
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Metrics</h1>
+            <p class="text-sm text-gray-600 mt-1">Impact KPIs + event tracking tester</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Active Users (month)</p>
+          <p id="kpi-activeUsers" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Services Consulted (month)</p>
+          <p id="kpi-services" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Newsletter Subscribers</p>
+          <p id="kpi-newsletter" class="text-3xl font-bold text-gray-900 mt-2">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-6">
+          <p class="text-sm text-gray-500">Range</p>
+          <p id="kpi-range" class="text-sm font-medium text-gray-900 mt-2">-</p>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mb-8">
+        <button id="btn-refresh-impact" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh Impact</button>
+      </div>
+
+      <!-- Track tester -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">Track Event</h2>
+            <p class="text-sm text-gray-600 mt-1">POST /api/metrics/track</p>
+          </div>
+        </div>
+
+        <form id="track-form" class="mt-6">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Action *</label>
+              <input id="track-action" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g., service_view" required>
+              <p class="text-xs text-gray-500 mt-1">Tip: Impact uses action="service_view" for servicesConsulted.</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">JWT (optional)</label>
+              <textarea id="track-jwt" class="w-full border rounded px-3 py-2" rows="3" placeholder="Bearer token without 'Bearer ' prefix"></textarea>
+              <p class="text-xs text-gray-500 mt-1">If provided, request will include Authorization: Bearer ...</p>
+            </div>
+          </div>
+          <div class="mt-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Meta (JSON, optional)</label>
+            <textarea id="track-meta" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="6">{
+  "source": "admin",
+  "note": "manual test"
+}</textarea>
+          </div>
+          <div class="mt-4 flex gap-2">
+            <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Send Track</button>
+            <button type="button" id="btn-track-clear" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Clear</button>
+          </div>
+        </form>
+
+        <div class="mt-6">
+          <h3 class="font-semibold mb-2">Response</h3>
+          <pre id="track-response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const METRICS_IMPACT_PATH = '/api/metrics/impact';
+    const METRICS_TRACK_PATH = '/api/metrics/track';
+    
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    async function makeRequest(endpoint, method, body = null, requiresJWT = false) {
+      const headers = { 'Content-Type': 'application/json' };
+      
+      if (requiresJWT) {
+        const token = document.getElementById('jwt-input')?.value;
+        if (!token) {
+          showToast('JWT token required', 'error');
+          return;
+        }
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const options = { method, headers };
+      if (body) options.body = JSON.stringify(body);
+      
+      try {
+        const response = await fetch(`${API_BASE}${endpoint}`, options);
+        const data = await response.json();
+        
+        const responseEl = document.querySelector('#content pre#response');
+        if (response.ok) {
+          showToast('Request successful!', 'success');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        } else {
+          showToast(data.error || 'Request failed', 'error');
+          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (error) {
+        showToast(error.message, 'error');
+        const responseEl = document.querySelector('#content pre#response');
+        if (responseEl) responseEl.textContent = error.message;
+      }
+    }
+
+    function setText(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = value;
+    }
+
+    async function loadImpact() {
+      try {
+        const res = await fetch(`${API_BASE}${METRICS_IMPACT_PATH}`, { headers: { 'Accept': 'application/json' } });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to load impact', 'error');
+          return;
+        }
+
+        setText('kpi-activeUsers', String(data?.activeUsers ?? '-'));
+        setText('kpi-services', String(data?.servicesConsulted ?? '-'));
+        setText('kpi-newsletter', String(data?.newsletterSubscribers ?? '-'));
+
+        const start = data?.range?.start ? new Date(data.range.start).toLocaleDateString() : '-';
+        const end = data?.range?.end ? new Date(data.range.end).toLocaleDateString() : '-';
+        setText('kpi-range', `${start} → ${end}`);
+      } catch (e) {
+        showToast(e.message || 'Failed to load impact', 'error');
+      }
+    }
+
+    function bindEvents() {
+      const refreshBtn = document.getElementById('btn-refresh-impact');
+      if (refreshBtn) refreshBtn.onclick = loadImpact;
+
+      const clearBtn = document.getElementById('btn-track-clear');
+      if (clearBtn) {
+        clearBtn.onclick = () => {
+          document.getElementById('track-action').value = '';
+          document.getElementById('track-jwt').value = '';
+          document.getElementById('track-meta').value = '{\n  "source": "admin",\n  "note": "manual test"\n}';
+          const out = document.getElementById('track-response');
+          if (out) out.textContent = '';
+        };
+      }
+
+      const form = document.getElementById('track-form');
+      if (form) {
+        form.onsubmit = async (event) => {
+          event.preventDefault();
+
+          const action = document.getElementById('track-action')?.value?.trim();
+          const jwt = document.getElementById('track-jwt')?.value?.trim();
+          const metaRaw = document.getElementById('track-meta')?.value;
+
+          if (!action) {
+            showToast('Action is required', 'error');
+            return;
+          }
+
+          let meta = null;
+          if (metaRaw && metaRaw.trim()) {
+            try {
+              meta = JSON.parse(metaRaw);
+            } catch (e) {
+              showToast(`Invalid meta JSON: ${e.message}`, 'error');
+              return;
+            }
+          }
+
+          const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' };
+          if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
+
+          try {
+            const res = await fetch(`${API_BASE}${METRICS_TRACK_PATH}`, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ action, meta }),
+            });
+            const data = await res.json();
+
+            const out = document.getElementById('track-response');
+            if (out) out.textContent = JSON.stringify(data, null, 2);
+
+            if (!res.ok) {
+              showToast(data?.error || 'Track failed', 'error');
+              return;
+            }
+
+            showToast('Tracked!', 'success');
+            loadImpact();
+          } catch (e) {
+            showToast(e.message || 'Track failed', 'error');
+          }
+        };
+      }
+    }
+
+    bindEvents();
+    loadImpact();
+  </script>
+</body>
+</html>

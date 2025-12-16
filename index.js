@@ -4,6 +4,7 @@ const path = require("path");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const { basicAuth } = require("./src/middleware/auth");
+const endpointRegistry = require("./src/admin/endpointRegistry");
 
 /**
  * Creates and starts a standalone SaaS backend server
@@ -105,7 +106,22 @@ function startServer(options = {}) {
 
   // Admin test page (protected by basic auth)
   app.get("/admin/test", basicAuth, (req, res) => {
-    res.render("admin-test");
+    res.render("admin-test", { baseUrl: "", endpointRegistry });
+  });
+
+  // Admin forms page (protected by basic auth)
+  app.get("/admin/forms", basicAuth, (req, res) => {
+    res.render("admin-forms", { baseUrl: "", endpointRegistry });
+  });
+
+  // Admin waiting list page (protected by basic auth)
+  app.get("/admin/waiting-list", basicAuth, (req, res) => {
+    res.render("admin-waiting-list", { baseUrl: "", endpointRegistry });
+  });
+
+  // Admin metrics page (protected by basic auth)
+  app.get("/admin/metrics", basicAuth, (req, res) => {
+    res.render("admin-metrics", { baseUrl: "", endpointRegistry });
   });
 
   // Admin global settings page (protected by basic auth)

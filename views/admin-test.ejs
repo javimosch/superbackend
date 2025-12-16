@@ -28,138 +28,7 @@
     <div class="w-80 bg-gray-800 text-white p-4 overflow-y-auto">
       <h1 class="text-2xl font-bold mb-6">API Testing</h1>
       
-      <div class="space-y-2">
-        <!-- Auth Endpoints -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Authentication</h2>
-          <button onclick="showEndpoint('register')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/auth/register
-          </button>
-          <button onclick="showEndpoint('login')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/auth/login
-          </button>
-          <button onclick="showEndpoint('refresh')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/auth/refresh-token
-          </button>
-          <button onclick="showEndpoint('me')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/auth/me
-          </button>
-        </div>
-
-        <!-- Billing Endpoints -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Billing</h2>
-          <button onclick="showEndpoint('checkout')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/billing/create-checkout-session
-          </button>
-          <button onclick="showEndpoint('portal')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/billing/create-portal-session
-          </button>
-          <button onclick="showEndpoint('reconcile-sub')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/billing/reconcile-subscription
-          </button>
-        </div>
-
-        <!-- Admin Endpoints -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Admin</h2>
-          <button onclick="showEndpoint('admin-users')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/users
-          </button>
-          <button onclick="showEndpoint('admin-user')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/users/:id
-          </button>
-          <button onclick="showEndpoint('admin-update-sub')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/admin/users/:id/subscription
-          </button>
-          <button onclick="showEndpoint('admin-reconcile')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/admin/users/:id/reconcile
-          </button>
-          <button onclick="showEndpoint('generate-token')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/admin/generate-token
-          </button>
-        </div>
-
-        <!-- Stripe Webhooks -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Stripe Webhooks</h2>
-          <button onclick="showEndpoint('webhooks-list')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/stripe-webhooks
-          </button>
-          <button onclick="showEndpoint('webhook-detail')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/stripe-webhooks/:id
-          </button>
-        </div>
-
-        <!-- Notifications & Activity -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Notifications & Activity</h2>
-          <button onclick="showEndpoint('notifications')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/notifications
-          </button>
-          <button onclick="showEndpoint('notification-read')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/notifications/:id/read
-          </button>
-          <button onclick="showEndpoint('activity-log')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/activity-log
-          </button>
-          <button onclick="showEndpoint('activity-log-create')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/activity-log
-          </button>
-        </div>
-
-        <!-- User Management -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">User Management</h2>
-          <button onclick="showEndpoint('user-profile')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/user/profile
-          </button>
-          <button onclick="showEndpoint('user-password')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/user/password
-          </button>
-          <button onclick="showEndpoint('password-reset-request')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/user/password-reset-request
-          </button>
-          <button onclick="showEndpoint('password-reset-confirm')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/user/password-reset-confirm
-          </button>
-          <button onclick="showEndpoint('user-account-delete')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            DELETE /api/user/account
-          </button>
-          <button onclick="showEndpoint('user-settings-get')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/user/settings
-          </button>
-          <button onclick="showEndpoint('user-settings-update')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/user/settings
-          </button>
-        </div>
-
-        <!-- Global Settings -->
-        <div class="mb-4">
-          <h2 class="text-sm font-semibold text-gray-400 mb-2">Global Settings</h2>
-          <a href="/admin/global-settings" class="block w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition text-green-400">
-            🔧 Settings Manager UI →
-          </a>
-          <button onclick="showEndpoint('global-settings-public')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition text-green-300">
-            GET /api/admin/settings/public
-          </button>
-          <button onclick="showEndpoint('global-settings-list')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/settings
-          </button>
-          <button onclick="showEndpoint('global-setting-get')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            GET /api/admin/settings/:key
-          </button>
-          <button onclick="showEndpoint('global-setting-update')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            PUT /api/admin/settings/:key
-          </button>
-          <button onclick="showEndpoint('global-setting-create')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            POST /api/admin/settings
-          </button>
-          <button onclick="showEndpoint('global-setting-delete')" class="w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition">
-            DELETE /api/admin/settings/:key
-          </button>
-        </div>
-      </div>
+      <div class="space-y-2" id="endpoint-sidebar"></div>
     </div>
 
     <!-- Content Area -->
@@ -178,6 +47,7 @@
 
   <script>
     const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const ENDPOINT_REGISTRY = <%- JSON.stringify(endpointRegistry || []) %>;
     
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
@@ -228,880 +98,137 @@
       }
     }
 
-    function showEndpoint(endpoint) {
-      const content = document.getElementById('content');
-      const forms = {
-        'register': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/auth/register</h2>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/auth/register', 'POST', {
-              email: document.getElementById('reg-email').value,
-              password: document.getElementById('reg-password').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Email</label>
-                <input type="email" id="reg-email" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Password</label>
-                <input type="password" id="reg-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'login': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/auth/login</h2>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/auth/login', 'POST', {
-              email: document.getElementById('login-email').value,
-              password: document.getElementById('login-password').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Email</label>
-                <input type="email" id="login-email" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Password</label>
-                <input type="password" id="login-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'refresh': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/auth/refresh-token</h2>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/auth/refresh-token', 'POST', {
-              refreshToken: document.getElementById('refresh-token').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Refresh Token</label>
-                <textarea id="refresh-token" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'me': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/auth/me</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/auth/me', 'GET', null, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'checkout': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/billing/create-checkout-session</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/billing/create-checkout-session', 'POST', {
-              priceId: document.getElementById('price-id').value
-            }, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Price ID</label>
-                <input type="text" id="price-id" class="w-full border rounded px-3 py-2" placeholder="price_xxx" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'portal': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/billing/create-portal-session</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/billing/create-portal-session', 'POST', {}, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'reconcile-sub': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/billing/reconcile-subscription</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/billing/reconcile-subscription', 'POST', {}, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'admin-users': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/users</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <button onclick="makeRequest('/api/admin/users', 'GET')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'admin-user': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/users/:id</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/users/' + document.getElementById('user-id').value, 'GET')">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">User ID</label>
-                <input type="text" id="user-id" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'admin-update-sub': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/admin/users/:id/subscription</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/users/' + document.getElementById('user-id-update').value + '/subscription', 'PUT', {
-              subscriptionStatus: document.getElementById('sub-status').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">User ID</label>
-                <input type="text" id="user-id-update" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Subscription Status</label>
-                <select id="sub-status" class="w-full border rounded px-3 py-2" required>
-                  <option value="none">none</option>
-                  <option value="active">active</option>
-                  <option value="cancelled">cancelled</option>
-                  <option value="past_due">past_due</option>
-                </select>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'admin-reconcile': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/admin/users/:id/reconcile</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/users/' + document.getElementById('user-id-reconcile').value + '/reconcile', 'POST')">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">User ID</label>
-                <input type="text" id="user-id-reconcile" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'generate-token': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/admin/generate-token</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Generate JWT tokens for testing protected endpoints</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/generate-token', 'POST', {
-              userId: document.getElementById('gen-user-id').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">User ID</label>
-                <input type="text" id="gen-user-id" class="w-full border rounded px-3 py-2" placeholder="Enter user ID" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Generate Token</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'webhooks-list': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/stripe-webhooks</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">List all Stripe webhook events with optional filters</p>
-            <form onsubmit="event.preventDefault(); 
-              const limit = document.getElementById('wh-limit').value;
-              const offset = document.getElementById('wh-offset').value;
-              const eventType = document.getElementById('wh-event-type').value;
-              const status = document.getElementById('wh-status').value;
-              let url = '/api/admin/stripe-webhooks?';
-              if (limit) url += 'limit=' + limit + '&';
-              if (offset) url += 'offset=' + offset + '&';
-              if (eventType) url += 'eventType=' + eventType + '&';
-              if (status) url += 'status=' + status;
-              makeRequest(url, 'GET')
-            ">
-              <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2">Limit</label>
-                  <input type="number" id="wh-limit" class="w-full border rounded px-3 py-2" placeholder="50" value="50">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Offset</label>
-                  <input type="number" id="wh-offset" class="w-full border rounded px-3 py-2" placeholder="0" value="0">
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2">Event Type (optional)</label>
-                  <input type="text" id="wh-event-type" class="w-full border rounded px-3 py-2" placeholder="e.g., customer.subscription.updated">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Status (optional)</label>
-                  <select id="wh-status" class="w-full border rounded px-3 py-2">
-                    <option value="">All</option>
-                    <option value="received">Received</option>
-                    <option value="processed">Processed</option>
-                    <option value="failed">Failed</option>
-                  </select>
-                </div>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">List Webhooks</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'webhook-detail': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/stripe-webhooks/:id</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Get detailed information about a specific webhook event</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/stripe-webhooks/' + document.getElementById('webhook-id').value, 'GET')">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Stripe Event ID</label>
-                <input type="text" id="webhook-id" class="w-full border rounded px-3 py-2" placeholder="evt_..." required>
-                <p class="text-xs text-gray-500 mt-1">Enter the Stripe event ID (e.g., evt_1234567890)</p>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get Webhook Details</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'notifications': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/notifications</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Retrieve user's notifications with pagination and filters</p>
-            <form onsubmit="event.preventDefault(); 
-              const limit = document.getElementById('notif-limit').value;
-              const offset = document.getElementById('notif-offset').value;
-              const unreadOnly = document.getElementById('notif-unread').checked;
-              let url = '/api/notifications?';
-              if (limit) url += 'limit=' + limit + '&';
-              if (offset) url += 'offset=' + offset + '&';
-              if (unreadOnly) url += 'unreadOnly=true';
-              makeRequest(url, 'GET', null, true)
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2">Limit</label>
-                  <input type="number" id="notif-limit" class="w-full border rounded px-3 py-2" placeholder="50" value="50">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Offset</label>
-                  <input type="number" id="notif-offset" class="w-full border rounded px-3 py-2" placeholder="0" value="0">
-                </div>
-              </div>
-              <div class="mb-4">
-                <label class="flex items-center">
-                  <input type="checkbox" id="notif-unread" class="mr-2">
-                  <span class="text-sm font-medium">Show unread only</span>
-                </label>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get Notifications</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'notification-read': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/notifications/:id/read</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Mark a notification as read</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/notifications/' + document.getElementById('notif-id').value + '/read', 'PUT', null, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Notification ID</label>
-                <input type="text" id="notif-id" class="w-full border rounded px-3 py-2" placeholder="Enter notification ID" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Mark as Read</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'activity-log': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/activity-log</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Retrieve user activity log with filters</p>
-            <form onsubmit="event.preventDefault(); 
-              const limit = document.getElementById('act-limit').value;
-              const offset = document.getElementById('act-offset').value;
-              const category = document.getElementById('act-category').value;
-              const action = document.getElementById('act-action').value;
-              let url = '/api/activity-log?';
-              if (limit) url += 'limit=' + limit + '&';
-              if (offset) url += 'offset=' + offset + '&';
-              if (category) url += 'category=' + category + '&';
-              if (action) url += 'action=' + action;
-              makeRequest(url, 'GET', null, true)
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2">Limit</label>
-                  <input type="number" id="act-limit" class="w-full border rounded px-3 py-2" placeholder="50" value="50">
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Offset</label>
-                  <input type="number" id="act-offset" class="w-full border rounded px-3 py-2" placeholder="0" value="0">
-                </div>
-              </div>
-              <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                  <label class="block text-sm font-medium mb-2">Category (optional)</label>
-                  <select id="act-category" class="w-full border rounded px-3 py-2">
-                    <option value="">All</option>
-                    <option value="auth">Auth</option>
-                    <option value="billing">Billing</option>
-                    <option value="content">Content</option>
-                    <option value="settings">Settings</option>
-                    <option value="admin">Admin</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium mb-2">Action (optional)</label>
-                  <input type="text" id="act-action" class="w-full border rounded px-3 py-2" placeholder="e.g., login">
-                </div>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get Activity Log</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'activity-log-create': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/activity-log</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Create a new activity log entry</p>
-            <form onsubmit="event.preventDefault(); 
-              const metadata = document.getElementById('act-metadata').value;
-              const body = {
-                action: document.getElementById('act-create-action').value,
-                category: document.getElementById('act-create-category').value,
-                description: document.getElementById('act-create-description').value
-              };
-              if (metadata) {
-                try {
-                  body.metadata = JSON.parse(metadata);
-                } catch (e) {
-                  showToast('Invalid JSON in metadata', 'error');
-                  return;
-                }
-              }
-              makeRequest('/api/activity-log', 'POST', body, true)
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Action</label>
-                <input type="text" id="act-create-action" class="w-full border rounded px-3 py-2" placeholder="e.g., update_profile" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Category</label>
-                <select id="act-create-category" class="w-full border rounded px-3 py-2" required>
-                  <option value="">Select category</option>
-                  <option value="auth">Auth</option>
-                  <option value="billing">Billing</option>
-                  <option value="content">Content</option>
-                  <option value="settings">Settings</option>
-                  <option value="admin">Admin</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Description</label>
-                <textarea id="act-create-description" class="w-full border rounded px-3 py-2" rows="2" placeholder="Describe the action" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Metadata (optional JSON)</label>
-                <textarea id="act-metadata" class="w-full border rounded px-3 py-2" rows="3" placeholder='{"key": "value"}'></textarea>
-                <p class="text-xs text-gray-500 mt-1">Optional: Add additional metadata as JSON</p>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Create Activity Log</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'user-profile': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/user/profile</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Update user profile information (name, email)</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/user/profile', 'PUT', {
-              name: document.getElementById('profile-name').value,
-              email: document.getElementById('profile-email').value
-            }, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Name</label>
-                <input type="text" id="profile-name" class="w-full border rounded px-3 py-2" placeholder="John Doe">
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Email</label>
-                <input type="email" id="profile-email" class="w-full border rounded px-3 py-2" placeholder="user@example.com">
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Update Profile</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'user-password': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/user/password</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Change user password (requires current password)</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/user/password', 'PUT', {
-              currentPassword: document.getElementById('current-password').value,
-              newPassword: document.getElementById('new-password').value
-            }, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Current Password</label>
-                <input type="password" id="current-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">New Password (min 8 characters)</label>
-                <input type="password" id="new-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Change Password</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'password-reset-request': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/user/password-reset-request</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ No authentication required. Always returns success to prevent email enumeration.</p>
-            </div>
-            <p class="text-gray-600 mb-4">Request a password reset email with a secure token</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/user/password-reset-request', 'POST', {
-              email: document.getElementById('reset-email').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Email</label>
-                <input type="email" id="reset-email" class="w-full border rounded px-3 py-2" placeholder="user@example.com" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Request Reset</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'password-reset-confirm': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/user/password-reset-confirm</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ No authentication required. Requires token from reset email.</p>
-            </div>
-            <p class="text-gray-600 mb-4">Confirm password reset with token and set new password</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/user/password-reset-confirm', 'POST', {
-              token: document.getElementById('reset-token').value,
-              newPassword: document.getElementById('reset-new-password').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Reset Token</label>
-                <input type="text" id="reset-token" class="w-full border rounded px-3 py-2" placeholder="Token from email" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">New Password (min 8 characters)</label>
-                <input type="password" id="reset-new-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Confirm Reset</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'user-account-delete': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">DELETE /api/user/account</h2>
-            <div class="bg-red-100 border-l-4 border-red-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication and password confirmation</p>
-              <p class="text-sm mt-2"><strong>Warning:</strong> This action is irreversible!</p>
-            </div>
-            <p class="text-gray-600 mb-4">Permanently delete user account (requires password for confirmation)</p>
-            <form onsubmit="event.preventDefault(); 
-              if (!confirm('Are you sure you want to delete this account? This action cannot be undone!')) return;
-              makeRequest('/api/user/account', 'DELETE', {
-                password: document.getElementById('delete-password').value
-              }, true)
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Password (for confirmation)</label>
-                <input type="password" id="delete-password" class="w-full border rounded px-3 py-2" required>
-              </div>
-              <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Delete Account</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'user-settings-get': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/user/settings</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Retrieve user-specific settings and preferences</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/user/settings', 'GET', null, true)">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get Settings</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'user-settings-update': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/user/settings</h2>
-            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
-              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
-            </div>
-            <p class="text-gray-600 mb-4">Update user-specific settings (provide as JSON object)</p>
-            <form onsubmit="event.preventDefault(); 
-              const settings = document.getElementById('settings-json').value;
-              try {
-                const settingsObj = JSON.parse(settings);
-                makeRequest('/api/user/settings', 'PUT', settingsObj, true);
-              } catch (e) {
-                showToast('Invalid JSON in settings', 'error');
-              }
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">JWT Token</label>
-                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Settings (JSON)</label>
-                <textarea id="settings-json" class="w-full border rounded px-3 py-2" rows="6" placeholder='{"theme": "dark", "notifications": true, "language": "en"}' required></textarea>
-                <p class="text-xs text-gray-500 mt-1">Provide settings as a JSON object</p>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Update Settings</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-settings-public': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/settings/public</h2>
-            <div class="bg-green-100 border-l-4 border-green-500 p-4 mb-4">
-              <p class="text-sm">✅ This endpoint is PUBLIC - no authentication required</p>
-            </div>
-            <p class="text-gray-600 mb-4">Retrieve all public global settings (settings marked as public)</p>
-            <button onclick="makeRequest('/api/admin/settings/public', 'GET')" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Get Public Settings</button>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-settings-list': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/settings</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Retrieve all global settings</p>
-            <button onclick="makeRequest('/api/admin/settings', 'GET')" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get All Settings</button>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-setting-get': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">GET /api/admin/settings/:key</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Get a specific global setting by key</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/settings/' + document.getElementById('setting-key-get').value, 'GET')">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Setting Key</label>
-                <input type="text" id="setting-key-get" class="w-full border rounded px-3 py-2" placeholder="e.g., EMAIL_FROM" required>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Get Setting</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-setting-update': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">PUT /api/admin/settings/:key</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Update a global setting's value</p>
-            <form onsubmit="event.preventDefault(); makeRequest('/api/admin/settings/' + document.getElementById('setting-key-update').value, 'PUT', {
-              value: document.getElementById('setting-value-update').value
-            })">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Setting Key</label>
-                <input type="text" id="setting-key-update" class="w-full border rounded px-3 py-2" placeholder="e.g., EMAIL_FROM" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">New Value</label>
-                <textarea id="setting-value-update" class="w-full border rounded px-3 py-2" rows="6" required></textarea>
-              </div>
-              <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Update Setting</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-setting-create': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">POST /api/admin/settings</h2>
-            <div class="bg-blue-100 border-l-4 border-blue-500 p-4 mb-4">
-              <p class="text-sm">ℹ️ Uses Basic Auth from this page</p>
-            </div>
-            <p class="text-gray-600 mb-4">Create a new global setting</p>
-            <form onsubmit="event.preventDefault(); 
-              const templateVars = document.getElementById('setting-template-vars').value
-                .split(',')
-                .map(v => v.trim())
-                .filter(v => v);
-              const isPublic = document.getElementById('setting-public').checked;
-              makeRequest('/api/admin/settings', 'POST', {
-                key: document.getElementById('setting-key-create').value,
-                value: document.getElementById('setting-value-create').value,
-                type: document.getElementById('setting-type-create').value,
-                description: document.getElementById('setting-desc-create').value,
-                templateVariables: templateVars,
-                public: isPublic
-              })
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Key *</label>
-                <input type="text" id="setting-key-create" class="w-full border rounded px-3 py-2" placeholder="e.g., NEW_FEATURE_FLAG" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Value *</label>
-                <textarea id="setting-value-create" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Type *</label>
-                <select id="setting-type-create" class="w-full border rounded px-3 py-2" required>
-                  <option value="string">String</option>
-                  <option value="html">HTML</option>
-                  <option value="boolean">Boolean</option>
-                  <option value="json">JSON</option>
-                  <option value="number">Number</option>
-                </select>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Description *</label>
-                <input type="text" id="setting-desc-create" class="w-full border rounded px-3 py-2" placeholder="Describe this setting" required>
-              </div>
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Template Variables (comma-separated, optional)</label>
-                <input type="text" id="setting-template-vars" class="w-full border rounded px-3 py-2" placeholder="e.g., resetUrl, username">
-                <p class="text-xs text-gray-500 mt-1">For HTML templates, specify available variables</p>
-              </div>
-              <div class="mb-4">
-                <label class="flex items-center">
-                  <input type="checkbox" id="setting-public" class="mr-2">
-                  <span class="text-sm font-medium">Public (accessible without authentication)</span>
-                </label>
-                <p class="text-xs text-gray-500 mt-1">Public settings can be accessed via GET /api/admin/settings/public</p>
-              </div>
-              <button type="submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Create Setting</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `,
-        'global-setting-delete': `
-          <div class="bg-white rounded-lg shadow p-6">
-            <h2 class="text-2xl font-bold mb-4">DELETE /api/admin/settings/:key</h2>
-            <div class="bg-red-100 border-l-4 border-red-500 p-4 mb-4">
-              <p class="text-sm">⚠️ Uses Basic Auth from this page</p>
-              <p class="text-sm mt-2"><strong>Warning:</strong> This action is irreversible!</p>
-            </div>
-            <p class="text-gray-600 mb-4">Delete a global setting</p>
-            <form onsubmit="event.preventDefault(); 
-              if (!confirm('Are you sure you want to delete this setting? This action cannot be undone!')) return;
-              makeRequest('/api/admin/settings/' + document.getElementById('setting-key-delete').value, 'DELETE')
-            ">
-              <div class="mb-4">
-                <label class="block text-sm font-medium mb-2">Setting Key</label>
-                <input type="text" id="setting-key-delete" class="w-full border rounded px-3 py-2" placeholder="e.g., OLD_SETTING" required>
-              </div>
-              <button type="submit" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">Delete Setting</button>
-            </form>
-            <div class="mt-6">
-              <h3 class="font-semibold mb-2">Response:</h3>
-              <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
-            </div>
-          </div>
-        `
-      };
-      
-      content.innerHTML = forms[endpoint] || '<div class="bg-white rounded-lg shadow p-6"><p>Endpoint not found</p></div>';
+    function getPathParams(pathTemplate) {
+      const matches = pathTemplate.match(/:[^/]+/g);
+      if (!matches) return [];
+      return matches.map((m) => m.substring(1));
     }
+
+    function applyPathParams(pathTemplate, params) {
+      let path = pathTemplate;
+      Object.entries(params).forEach(([key, value]) => {
+        path = path.replace(`:${key}`, encodeURIComponent(value));
+      });
+      return path;
+    }
+
+    function renderSidebar() {
+      const sidebar = document.getElementById('endpoint-sidebar');
+      if (!sidebar) return;
+
+      sidebar.innerHTML = '';
+
+      ENDPOINT_REGISTRY.forEach((group) => {
+        const groupEl = document.createElement('div');
+        groupEl.className = 'mb-4';
+
+        const title = document.createElement('h2');
+        title.className = 'text-sm font-semibold text-gray-400 mb-2';
+        title.textContent = group.title;
+        groupEl.appendChild(title);
+
+        const dedicatedPages = {
+          'global-settings': { href: '/admin/global-settings', label: '🔧 Settings Manager UI →' },
+          'forms': { href: '/admin/forms', label: '📝 Forms Admin UI →' },
+          'waiting-list': { href: '/admin/waiting-list', label: '📋 Waiting List UI →' },
+          'metrics': { href: '/admin/metrics', label: '📊 Metrics UI →' },
+          'i18n': { href: '/admin/i18n', label: '🌐 i18n Manager UI →' },
+        };
+
+        if (dedicatedPages[group.id]) {
+          const link = document.createElement('a');
+          link.href = dedicatedPages[group.id].href;
+          link.className = 'block w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition text-green-400';
+          link.textContent = dedicatedPages[group.id].label;
+          groupEl.appendChild(link);
+        }
+
+        group.endpoints.forEach((ep) => {
+          const btn = document.createElement('button');
+          btn.className = 'w-full text-left px-4 py-2 rounded hover:bg-gray-700 transition';
+          btn.textContent = `${ep.method} ${ep.path}`;
+          btn.onclick = () => showEndpoint(group.id, ep.id);
+          groupEl.appendChild(btn);
+        });
+
+        sidebar.appendChild(groupEl);
+      });
+    }
+
+    function showEndpoint(groupId, endpointId) {
+      const content = document.getElementById('content');
+      const group = ENDPOINT_REGISTRY.find((g) => g.id === groupId);
+      const ep = group?.endpoints?.find((e) => e.id === endpointId);
+      if (!content || !ep) return;
+
+      const requiresJWT = ep.auth === 'jwt';
+      const pathParams = getPathParams(ep.path);
+
+      content.innerHTML = `
+        <div class="bg-white rounded-lg shadow p-6">
+          <h2 class="text-2xl font-bold mb-4">${ep.method} ${ep.path}</h2>
+          ${requiresJWT ? `
+            <div class="bg-yellow-100 border-l-4 border-yellow-500 p-4 mb-4">
+              <p class="text-sm">⚠️ This endpoint requires JWT authentication</p>
+            </div>
+          ` : ''}
+          <form id="endpoint-form">
+            ${requiresJWT ? `
+              <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">JWT Token</label>
+                <textarea id="jwt-input" class="w-full border rounded px-3 py-2" rows="4" required></textarea>
+              </div>
+            ` : ''}
+            ${pathParams.map((p) => `
+              <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">Path param: ${p}</label>
+                <input type="text" id="param-${p}" class="w-full border rounded px-3 py-2" required>
+              </div>
+            `).join('')}
+            ${ep.method !== 'GET' && ep.method !== 'DELETE' ? `
+              <div class="mb-4">
+                <label class="block text-sm font-medium mb-2">JSON Body</label>
+                <textarea id="json-body" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="8">${JSON.stringify(ep.bodyExample || {}, null, 2)}</textarea>
+              </div>
+            ` : ''}
+            <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Send Request</button>
+          </form>
+          <div class="mt-6">
+            <h3 class="font-semibold mb-2">Response:</h3>
+            <pre id="response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
+          </div>
+        </div>
+      `;
+
+      const form = document.getElementById('endpoint-form');
+      if (!form) return;
+
+      form.onsubmit = (event) => {
+        event.preventDefault();
+
+        const params = {};
+        pathParams.forEach((p) => {
+          params[p] = document.getElementById(`param-${p}`)?.value;
+        });
+
+        const resolvedPath = applyPathParams(ep.path, params);
+
+        let body = null;
+        if (ep.method !== 'GET' && ep.method !== 'DELETE') {
+          const rawBody = document.getElementById('json-body')?.value;
+          try {
+            body = rawBody ? JSON.parse(rawBody) : {};
+          } catch (e) {
+            showToast(`Invalid JSON body: ${e.message}`, 'error');
+            return;
+          }
+        }
+
+        makeRequest(resolvedPath, ep.method, body, requiresJWT);
+      };
+    }
+
+    renderSidebar();
   </script>
 </body>
 </html>
