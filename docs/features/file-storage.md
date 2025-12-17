@@ -135,30 +135,246 @@ Notes:
 - If `enforceVisibility=false`, `visibility` is used when provided, otherwise `defaultVisibility` is applied.
 ```
 
-Example:
+### Advanced upload examples
 
+**1. Upload with progress tracking:**
 ```bash
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  -F "file=@photo.jpg" \
+  -F "file=@large-video.mp4" \
+  -F "namespace=marketing" \
+  -F "visibility=private" \
+  -F "orgId=60f7b3b3b3b3b3b3b3b3b3b3" \
+  "http://localhost:5000/api/assets/upload" \
+  --progress-bar
+```
+
+**2. Upload with custom namespace:**
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@document.pdf" \
+  -F "namespace=invoices" \
+  -F "visibility=private" \
+  "http://localhost:5000/api/assets/upload"
+```
+
+**3. Upload multiple files:**
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@image1.jpg" \
+  -F "namespace=avatars" \
+  -F "visibility=public" \
+  "http://localhost:5000/api/assets/upload" && \
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@image2.png" \
   -F "namespace=avatars" \
   -F "visibility=public" \
   "http://localhost:5000/api/assets/upload"
 ```
 
-Response:
+**4. JavaScript upload with FormData:**
+```javascript
+async function uploadFile(file, namespace = 'default', visibility = 'private', orgId = null) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('namespace', namespace);
+  formData.append('visibility', visibility);
+  if (orgId) formData.append('orgId', orgId);
 
+  const response = await fetch('/api/assets/upload', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    },
+    body: formData
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Upload failed');
+  }
+
+  return await response.json();
+}
+
+// Usage
+const fileInput = document.getElementById('file-input');
+fileInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  try {
+    const result = await uploadFile(file, 'avatars', 'public');
+    console.log('Upload successful:', result.asset);
+  } catch (error) {
+    console.error('Upload failed:', error.message);
+  }
+});
+```
+
+**5. Upload with error handling:**
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@test-file.jpg" \
+  -F "namespace=avatars" \
+  -F "visibility=public" \
+  "http://localhost:5000/api/assets/upload" \
+  -w "\nHTTP Status: %{http_code}\nResponse Time: %{time_total}s\n" \
+  -s
+```
+
+**6. Upload with custom metadata:**
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  -F "file=@screenshot.png;type=image/png" \
+  -F "namespace=marketing" \
+  -F "visibility=public" \
+  "http://localhost:5000/api/assets/upload"
+```
+
+### Response examples
+
+**Successful upload response:**
 ```json
 {
   "asset": {
-    "_id": "...",
+    "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
     "key": "assets/2024/01/abc123.jpg",
     "originalName": "photo.jpg",
     "contentType": "image/jpeg",
     "sizeBytes": 102400,
     "visibility": "public",
     "namespace": "avatars",
-    "publicUrl": "/public/assets/assets/2024/01/abc123.jpg"
+    "publicUrl": "/public/assets/assets/2024/01/abc123.jpg",
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
   }
+}
+```
+
+**Error responses:**
+
+**File too large:**
+```json
+{
+  "error": "File too large",
+  "code": "FILE_TOO_LARGE",
+  "maxSize": 10485760
+}
+```
+
+**Invalid file type:**
+```json
+{
+  "error": "Invalid file type",
+  "code": "INVALID_FILE_TYPE",
+  "allowedTypes": ["image/jpeg", "image/png", "image/gif"]
+}
+```
+
+**Missing namespace:**
+```json
+{
+  "error": "Namespace not found",
+  "code": "NAMESPACE_NOT_FOUND",
+  "namespace": "invalid-namespace"
+}
+```
+
+**Unauthorized:**
+```json
+{
+  "error": "Unauthorized",
+  "code": "UNAUTHORIZED"
+}
+```
+
+### Download examples
+
+**Download private file:**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3/download" \
+  -o downloaded-file.jpg
+```
+
+**Get asset details:**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
+```
+
+**Response:**
+```json
+{
+  "asset": {
+    "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+    "key": "assets/2024/01/abc123.jpg",
+    "originalName": "photo.jpg",
+    "contentType": "image/jpeg",
+    "sizeBytes": 102400,
+    "visibility": "private",
+    "namespace": "avatars",
+    "publicUrl": null,
+    "createdAt": "2024-01-15T10:30:00.000Z",
+    "updatedAt": "2024-01-15T10:30:00.000Z"
+  }
+}
+```
+
+### List assets examples
+
+**List all assets:**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets"
+```
+
+**List with pagination:**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets?page=2&limit=10"
+```
+
+**Filter by visibility:**
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets?visibility=public"
+```
+
+**Response:**
+```json
+{
+  "assets": [
+    {
+      "_id": "60f7b3b3b3b3b3b3b3b3b3b3",
+      "key": "assets/2024/01/abc123.jpg",
+      "originalName": "photo.jpg",
+      "contentType": "image/jpeg",
+      "sizeBytes": 102400,
+      "visibility": "public",
+      "namespace": "avatars",
+      "publicUrl": "/public/assets/assets/2024/01/abc123.jpg"
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 1,
+    "totalPages": 1
+  }
+}
+```
+
+### Delete examples
+
+**Delete asset:**
+```bash
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
+```
+
+**Response:**
+```json
+{
+  "message": "Asset deleted successfully"
 }
 ```
 
