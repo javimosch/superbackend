@@ -37,7 +37,6 @@ const inviteSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['admin', 'member', 'viewer'],
     default: 'member'
   },
   metadata: {

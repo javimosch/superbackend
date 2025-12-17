@@ -2,6 +2,7 @@ const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
 const User = require('../models/User');
 const emailService = require('../services/email.service');
+const { isValidOrgRole, getAllowedOrgRoles, getDefaultOrgRole } = require('../utils/orgRoles');
 
 const generateSlug = (name) => {
   return name
@@ -164,14 +165,16 @@ exports.listMembers = async (req, res) => {
 
 exports.addMember = async (req, res) => {
   try {
-    const { email, role = 'member', sendNotification = false } = req.body;
+    const defaultRole = await getDefaultOrgRole();
+    const { email, role = defaultRole, sendNotification = false } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    if (!['admin', 'member', 'viewer'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+    if (!(await isValidOrgRole(role))) {
+      const allowed = await getAllowedOrgRoles();
+      return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
     }
 
     const user = await User.findOne({ email: email.toLowerCase() });
@@ -230,8 +233,9 @@ exports.updateMemberRole = async (req, res) => {
     const { userId } = req.params;
     const { role } = req.body;
 
-    if (!['admin', 'member', 'viewer'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+    if (!(await isValidOrgRole(role))) {
+      const allowed = await getAllowedOrgRoles();
+      return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
     }
 
     const member = await OrganizationMember.findOne({
@@ -296,6 +300,8 @@ exports.joinOrg = async (req, res) => {
       return res.status(403).json({ error: 'This organization does not allow public join' });
     }
 
+    const defaultRole = await getDefaultOrgRole();
+
     const existingMember = await OrganizationMember.findOne({
       orgId: req.org._id,
       userId: req.user._id
@@ -306,19 +312,19 @@ exports.joinOrg = async (req, res) => {
         return res.status(409).json({ error: 'You are already a member' });
       }
       existingMember.status = 'active';
-      existingMember.role = 'member';
+      existingMember.role = defaultRole;
       await existingMember.save();
     } else {
       await OrganizationMember.create({
         orgId: req.org._id,
         userId: req.user._id,
-        role: 'member'
+        role: defaultRole
       });
     }
 
     res.status(201).json({
       message: 'Successfully joined organization',
-      org: { ...req.org.toJSON(), myRole: 'member' }
+      org: { ...req.org.toJSON(), myRole: defaultRole }
     });
   } catch (error) {
     console.error('Error joining org:', error);

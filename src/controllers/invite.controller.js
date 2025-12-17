@@ -4,19 +4,22 @@ const OrganizationMember = require('../models/OrganizationMember');
 const User = require('../models/User');
 const emailService = require('../services/email.service');
 const bcrypt = require('bcryptjs');
+const { isValidOrgRole, getAllowedOrgRoles, getDefaultOrgRole } = require('../utils/orgRoles');
 
 const INVITE_EXPIRY_DAYS = 7;
 
 exports.createInvite = async (req, res) => {
   try {
-    const { email, role = 'member' } = req.body;
+    const defaultRole = await getDefaultOrgRole();
+    const { email, role = defaultRole } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    if (!['admin', 'member', 'viewer'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
+    if (!(await isValidOrgRole(role))) {
+      const allowed = await getAllowedOrgRoles();
+      return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
     }
 
     const normalizedEmail = email.toLowerCase().trim();

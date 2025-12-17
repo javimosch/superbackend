@@ -7,7 +7,7 @@ router.get('/', async (req, res) => {
   try {
     const {
       actorType,
-      actorId,
+      actorUserId,
       action,
       outcome,
       targetType,
@@ -21,12 +21,15 @@ router.get('/', async (req, res) => {
 
     const filter = {};
 
-    if (actorType && ['admin', 'user', 'system'].includes(actorType)) {
+    if (actorType && ['user', 'admin_basic', 'system', 'anonymous'].includes(actorType)) {
       filter.actorType = actorType;
     }
 
-    if (actorId) {
-      filter.actorId = String(actorId);
+    if (actorUserId) {
+      if (!mongoose.Types.ObjectId.isValid(String(actorUserId))) {
+        return res.status(400).json({ error: 'Invalid actorUserId' });
+      }
+      filter.actorUserId = String(actorUserId);
     }
 
     if (action) {
@@ -38,7 +41,7 @@ router.get('/', async (req, res) => {
     }
 
     if (targetType) {
-      filter.targetType = { $regex: String(targetType), $options: 'i' };
+      filter.targetType = String(targetType);
     }
 
     if (targetId) {
@@ -75,12 +78,27 @@ router.get('/', async (req, res) => {
     const limit = Math.min(100, Math.max(1, parseInt(pageSize, 10)));
 
     const [events, total] = await Promise.all([
-      AuditEvent.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      AuditEvent.find(filter)
+        .populate('actorUserId', 'email')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
       AuditEvent.countDocuments(filter),
     ]);
 
+    const normalizedEvents = (events || []).map((evt) => {
+      const normalizedActorType = evt.actorType === 'admin' ? 'admin_basic' : evt.actorType;
+      return {
+        ...evt,
+        actorType: normalizedActorType,
+        at: evt.createdAt,
+        details: evt.details || evt.meta,
+      };
+    });
+
     res.json({
-      events,
+      events: normalizedEvents,
       total,
       page: parseInt(page, 10),
       pageSize: limit,
@@ -98,17 +116,23 @@ router.get('/stats', async (req, res) => {
     const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const last7d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+    const last24hDateFilter = { createdAt: { $gte: last24h } };
+    const last7dDateFilter = { createdAt: { $gte: last7d } };
+
     const [total, last24hCount, last7dCount, failures24h, byActorType, topActions] = await Promise.all([
       AuditEvent.countDocuments({}),
-      AuditEvent.countDocuments({ createdAt: { $gte: last24h } }),
-      AuditEvent.countDocuments({ createdAt: { $gte: last7d } }),
-      AuditEvent.countDocuments({ createdAt: { $gte: last24h }, outcome: 'failure' }),
+      AuditEvent.countDocuments(last24hDateFilter),
+      AuditEvent.countDocuments(last7dDateFilter),
+      AuditEvent.countDocuments({
+        ...last24hDateFilter,
+        outcome: 'failure',
+      }),
       AuditEvent.aggregate([
-        { $match: { createdAt: { $gte: last24h } } },
+        { $match: last24hDateFilter },
         { $group: { _id: '$actorType', count: { $sum: 1 } } },
       ]),
       AuditEvent.aggregate([
-        { $match: { createdAt: { $gte: last24h } } },
+        { $match: last24hDateFilter },
         { $group: { _id: '$action', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 10 },
@@ -148,12 +172,21 @@ router.get('/:id', async (req, res) => {
       return res.status(400).json({ error: 'Invalid id' });
     }
 
-    const event = await AuditEvent.findById(req.params.id).lean();
+    const event = await AuditEvent.findById(req.params.id)
+      .populate('actorUserId', 'email')
+      .lean();
     if (!event) {
       return res.status(404).json({ error: 'Audit event not found' });
     }
 
-    res.json(event);
+    const normalizedEvent = {
+      ...event,
+      actorType: event.actorType === 'admin' ? 'admin_basic' : event.actorType,
+      at: event.createdAt,
+      details: event.details || event.meta,
+    };
+
+    res.json(normalizedEvent);
   } catch (err) {
     console.error('[AdminAudit] Failed to get audit event:', err);
     res.status(500).json({ error: 'Failed to get audit event' });

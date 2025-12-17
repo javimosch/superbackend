@@ -1,12 +1,6 @@
 const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
-
-const ROLE_HIERARCHY = {
-  owner: 4,
-  admin: 3,
-  member: 2,
-  viewer: 1
-};
+const { getOrgRoleLevel, getOrgRoleHierarchy } = require('../utils/orgRoles');
 
 const loadOrgContext = async (req, res, next) => {
   try {
@@ -50,34 +44,56 @@ const requireOrgMember = (req, res, next) => {
 };
 
 const requireOrgRoleAtLeast = (minRole) => {
-  return (req, res, next) => {
-    if (!req.orgMember) {
-      return res.status(403).json({ error: 'You are not a member of this organization' });
+  return async (req, res, next) => {
+    try {
+      if (!req.orgMember) {
+        return res.status(403).json({ error: 'You are not a member of this organization' });
+      }
+
+      const hierarchy = await getOrgRoleHierarchy();
+      if (!hierarchy[minRole]) {
+        return res.status(500).json({ error: `Server misconfiguration: unknown role ${minRole}` });
+      }
+
+      const userLevel = await getOrgRoleLevel(req.orgMember.role);
+      const requiredLevel = await getOrgRoleLevel(minRole);
+
+      if (userLevel < requiredLevel) {
+        return res.status(403).json({ error: `Requires ${minRole} role or higher` });
+      }
+
+      return next();
+    } catch (error) {
+      console.error('Error evaluating org role:', error);
+      return res.status(500).json({ error: 'Failed to evaluate organization role' });
     }
-
-    const userLevel = ROLE_HIERARCHY[req.orgMember.role] || 0;
-    const requiredLevel = ROLE_HIERARCHY[minRole] || 0;
-
-    if (userLevel < requiredLevel) {
-      return res.status(403).json({ error: `Requires ${minRole} role or higher` });
-    }
-
-    next();
   };
 };
 
 const requireOrgRole = (roles) => {
   const allowedRoles = Array.isArray(roles) ? roles : [roles];
-  return (req, res, next) => {
-    if (!req.orgMember) {
-      return res.status(403).json({ error: 'You are not a member of this organization' });
-    }
+  return async (req, res, next) => {
+    try {
+      if (!req.orgMember) {
+        return res.status(403).json({ error: 'You are not a member of this organization' });
+      }
 
-    if (!allowedRoles.includes(req.orgMember.role)) {
-      return res.status(403).json({ error: `Requires one of: ${allowedRoles.join(', ')}` });
-    }
+      // Fail closed if a route is configured with roles unknown to the registry
+      const hierarchy = await getOrgRoleHierarchy();
+      const unknown = allowedRoles.filter((r) => !hierarchy[r]);
+      if (unknown.length) {
+        return res.status(500).json({ error: `Server misconfiguration: unknown roles ${unknown.join(', ')}` });
+      }
 
-    next();
+      if (!allowedRoles.includes(req.orgMember.role)) {
+        return res.status(403).json({ error: `Requires one of: ${allowedRoles.join(', ')}` });
+      }
+
+      return next();
+    } catch (error) {
+      console.error('Error evaluating org role:', error);
+      return res.status(500).json({ error: 'Failed to evaluate organization role' });
+    }
   };
 };
 
@@ -86,5 +102,7 @@ module.exports = {
   requireOrgMember,
   requireOrgRoleAtLeast,
   requireOrgRole,
-  ROLE_HIERARCHY
+  // Deprecated export kept for backward compatibility with any internal imports.
+  // Use ../utils/orgRoles instead.
+  ROLE_HIERARCHY: undefined
 };

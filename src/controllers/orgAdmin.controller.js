@@ -4,6 +4,7 @@ const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
 const Invite = require('../models/Invite');
 const emailService = require('../services/email.service');
+const { isValidOrgRole, getAllowedOrgRoles, getDefaultOrgRole } = require('../utils/orgRoles');
 
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
@@ -209,13 +210,15 @@ exports.updateMember = async (req, res) => {
     }
 
     if (role !== undefined) {
-      if (!['owner', 'admin', 'member', 'viewer'].includes(String(role))) {
-        return res.status(400).json({ error: 'Invalid role' });
+      const nextRole = String(role);
+      if (!(await isValidOrgRole(nextRole))) {
+        const allowed = await getAllowedOrgRoles();
+        return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
       }
-      if (member.role === 'owner' && String(role) !== 'owner') {
+      if (member.role === 'owner' && nextRole !== 'owner') {
         return res.status(403).json({ error: 'Cannot change owner role' });
       }
-      member.role = String(role);
+      member.role = nextRole;
     }
 
     if (status !== undefined) {
@@ -306,7 +309,8 @@ exports.listInvites = async (req, res) => {
 exports.createInvite = async (req, res) => {
   try {
     const { orgId } = req.params;
-    const { email, role = 'member', expiresInDays } = req.body;
+    const defaultRole = await getDefaultOrgRole();
+    const { email, role = defaultRole, expiresInDays } = req.body;
 
     if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
       return res.status(400).json({ error: 'Invalid organization ID' });
@@ -314,8 +318,11 @@ exports.createInvite = async (req, res) => {
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
-    if (!['admin', 'member', 'viewer'].includes(String(role))) {
-      return res.status(400).json({ error: 'Invalid role' });
+
+    const nextRole = String(role);
+    if (!(await isValidOrgRole(nextRole))) {
+      const allowed = await getAllowedOrgRoles();
+      return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
     }
 
     const org = await Organization.findById(orgId).lean();
@@ -349,7 +356,7 @@ exports.createInvite = async (req, res) => {
       status: 'pending',
       createdByUserId: org.ownerUserId,
       orgId: org._id,
-      role: String(role),
+      role: nextRole,
     });
 
     const inviteLink = buildInviteLink(token);
@@ -358,7 +365,7 @@ exports.createInvite = async (req, res) => {
       await emailService.sendEmail({
         to: normalizedEmail,
         subject: `You're invited to join ${org.name}`,
-        html: `<p>You've been invited to join <strong>${org.name}</strong> as a ${role}.</p>
+        html: `<p>You've been invited to join <strong>${org.name}</strong> as a ${nextRole}.</p>
           <p><a href="${inviteLink}">Click here to accept the invitation</a></p>
           <p>This invite expires in ${expiresDaysParsed} days.</p>
           <p>If you didn't expect this invitation, you can ignore this email.</p>`,

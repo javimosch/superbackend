@@ -1,6 +1,7 @@
 const GlobalSetting = require('../models/GlobalSetting');
 const { encryptString, decryptString } = require('../utils/encryption');
 const globalSettingsService = require('../services/globalSettings.service');
+const { clearOrgRolesCache } = require('../utils/orgRoles');
 
 const redactSetting = (setting) => {
   if (!setting) return setting;
@@ -92,6 +93,9 @@ exports.updateSetting = async (req, res) => {
     await setting.save();
 
     globalSettingsService.clearSettingsCache();
+    if (key === 'ORG_ROLES_JSON') {
+      clearOrgRolesCache();
+    }
     
     res.json(redactSetting(setting.toObject()));
   } catch (error) {
@@ -136,6 +140,9 @@ exports.createSetting = async (req, res) => {
     });
 
     globalSettingsService.clearSettingsCache();
+    if (key === 'ORG_ROLES_JSON') {
+      clearOrgRolesCache();
+    }
     
     res.status(201).json(redactSetting(setting.toObject()));
   } catch (error) {
@@ -158,6 +165,9 @@ exports.deleteSetting = async (req, res) => {
     }
 
     globalSettingsService.clearSettingsCache();
+    if (key === 'ORG_ROLES_JSON') {
+      clearOrgRolesCache();
+    }
     
     res.status(204).send();
   } catch (error) {

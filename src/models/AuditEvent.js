@@ -5,7 +5,17 @@ const auditEventSchema = new mongoose.Schema(
     actorType: {
       type: String,
       required: true,
-      enum: ['admin', 'user', 'system'],
+      enum: ['admin', 'admin_basic', 'user', 'system', 'anonymous'],
+    },
+    actorUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
+    actorRole: {
+      type: String,
+      default: null,
     },
     actorId: {
       type: String,
@@ -18,7 +28,7 @@ const auditEventSchema = new mongoose.Schema(
     },
     entityType: {
       type: String,
-      required: true,
+      required: false,
       index: true,
     },
     entityId: {
@@ -75,7 +85,6 @@ auditEventSchema.index({ targetType: 1, targetId: 1, createdAt: -1 });
 auditEventSchema.set('toJSON', {
   transform: (doc, ret) => {
     ret.id = ret._id;
-    delete ret._id;
     delete ret.__v;
     return ret;
   },
