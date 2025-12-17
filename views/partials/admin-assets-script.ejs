@@ -1118,7 +1118,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
                     : '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">unknown</span>';
 
                 return `
-                  <tr class="hover:bg-gray-50 cursor-pointer" onclick="selectAsset('${escapeJs(asset._id)}')">
+                  <tr class="hover:bg-gray-50 cursor-pointer" onclick="selectAsset('${escapeJs(asset._id)}')" ondblclick="event.stopPropagation(); showPreview('${escapeJs(asset._id)}')">
                     <td class="px-4 py-2 text-sm max-w-xs truncate" title="${escapeHtml(asset.originalName)}">${escapeHtml(asset.originalName)}</td>
                     <td class="px-4 py-2 text-sm font-mono">${escapeHtml(asset.namespace || 'default')}</td>
                     <td class="px-4 py-2 text-sm">${escapeHtml(asset.contentType || '')}</td>
