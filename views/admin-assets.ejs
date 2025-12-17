@@ -46,6 +46,9 @@
 
       <div class="mb-6 flex flex-wrap justify-between items-center gap-4">
         <div class="flex flex-wrap gap-2">
+          <select id="filter-namespace" class="border rounded px-3 py-2 text-sm">
+            <option value="">All namespaces</option>
+          </select>
           <select id="filter-visibility" class="border rounded px-3 py-2 text-sm">
             <option value="">All visibility</option>
             <option value="public">Public</option>
@@ -64,12 +67,17 @@
             Refresh
           </button>
         </div>
-        <button onclick="showUploadModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center text-sm">
-          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-          </svg>
-          Upload Asset
-        </button>
+        <div class="flex gap-2">
+          <button onclick="showNamespacesModal()" class="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-900 flex items-center text-sm">
+            Manage Namespaces
+          </button>
+          <button onclick="showUploadModal()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center text-sm">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+            </svg>
+            Upload Asset
+          </button>
+        </div>
       </div>
 
       <div id="assets-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -78,11 +86,134 @@
         </div>
       </div>
 
+      <div id="namespaces-summary" class="mt-8">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3">Namespaces</h3>
+        <div id="namespaces-summary-content" class="text-sm text-gray-600">Loading namespaces...</div>
+      </div>
+
       <div id="pagination" class="mt-6 flex justify-center gap-2"></div>
     </div>
   </div>
 
   <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <div id="namespaces-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">Upload Namespaces</h3>
+        <button onclick="closeNamespacesModal()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="flex justify-between items-center mb-4">
+        <p class="text-sm text-gray-600">Namespaces control max file size, allowed content types, and visibility policy.</p>
+        <button onclick="openNamespaceEditor('create')" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">New Namespace</button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Key</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Max size</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Allowed types</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
+              <th class="px-4 py-2"></th>
+            </tr>
+          </thead>
+          <tbody id="namespaces-table" class="bg-white divide-y divide-gray-200"></tbody>
+        </table>
+      </div>
+
+      <div class="mt-4 flex justify-end">
+        <button onclick="closeNamespacesModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="namespace-editor-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold" id="namespace-editor-title">Namespace</h3>
+        <button onclick="closeNamespaceEditor()" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form id="namespace-editor-form" onsubmit="saveNamespace(event)">
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Key *</label>
+          <input id="ns-key" class="w-full border rounded px-3 py-2" placeholder="avatars" required>
+          <p class="text-xs text-gray-500 mt-1">Use a stable identifier. The key is used in uploads as `namespace`.</p>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Enabled</label>
+          <select id="ns-enabled" class="w-full border rounded px-3 py-2">
+            <option value="true">true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Max file size (bytes)</label>
+          <input id="ns-max" type="number" class="w-full border rounded px-3 py-2" placeholder="2097152">
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceMaxSizePresetMb(5)">5mb</button>
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceMaxSizePresetMb(10)">10mb</button>
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceMaxSizePresetMb(30)">30mb</button>
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceMaxSizePresetMb(50)">50mb</button>
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceMaxSizePresetMb(100)">100mb</button>
+            <button type="button" class="text-xs text-gray-600 hover:text-gray-800 underline" onclick="clearNamespaceMaxSize()">clear</button>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Allowed content types (comma separated)</label>
+          <input id="ns-types" class="w-full border rounded px-3 py-2" placeholder="image/png,image/jpeg">
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceAllowedTypesPreset('media')">media</button>
+            <button type="button" class="text-xs text-blue-700 hover:text-blue-900 underline" onclick="setNamespaceAllowedTypesPreset('documents')">documents</button>
+            <button type="button" class="text-xs text-gray-600 hover:text-gray-800 underline" onclick="setNamespaceAllowedTypesPreset('allDefault')">default</button>
+            <button type="button" class="text-xs text-gray-600 hover:text-gray-800 underline" onclick="clearNamespaceAllowedTypes()">clear</button>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Key prefix</label>
+          <input id="ns-prefix" class="w-full border rounded px-3 py-2" placeholder="assets/avatars">
+        </div>
+
+        <div class="mb-3">
+          <label class="block text-sm font-medium mb-1">Default visibility</label>
+          <select id="ns-default-vis" class="w-full border rounded px-3 py-2">
+            <option value="private">private</option>
+            <option value="public">public</option>
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-1">Enforce visibility</label>
+          <select id="ns-enforce-vis" class="w-full border rounded px-3 py-2">
+            <option value="false">false</option>
+            <option value="true">true</option>
+          </select>
+          <p class="text-xs text-gray-500 mt-1">If true, uploaded assets in this namespace always use the default visibility.</p>
+        </div>
+
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeNamespaceEditor()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+          <button type="submit" id="ns-save-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="upload-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
     <div class="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
@@ -102,11 +233,18 @@
         </div>
 
         <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">Namespace</label>
+          <select id="upload-namespace" class="w-full border rounded px-3 py-2"></select>
+          <p class="text-xs text-gray-500 mt-1" id="upload-namespace-hint"></p>
+        </div>
+
+        <div class="mb-4">
           <label class="block text-sm font-medium mb-2">Visibility</label>
           <select id="upload-visibility" class="w-full border rounded px-3 py-2">
             <option value="private">Private</option>
             <option value="public">Public</option>
           </select>
+          <p class="text-xs text-gray-500 mt-1" id="upload-visibility-hint"></p>
         </div>
 
         <div class="flex justify-end space-x-2">
@@ -134,8 +272,12 @@
   <script>
     const API_BASE = window.location.origin + "<%= baseUrl %>";
     let allAssets = [];
+    let namespaces = [];
     let currentPage = 1;
     let totalPages = 1;
+
+    let namespaceEditorMode = 'create';
+    let namespaceEditorOriginalKey = null;
 
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
@@ -160,6 +302,58 @@
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    function setNamespaceMaxSizePresetMb(mb) {
+      const input = document.getElementById('ns-max');
+      const parsedMb = Number(mb);
+      if (!Number.isFinite(parsedMb) || parsedMb <= 0) return;
+      input.value = String(Math.round(parsedMb * 1024 * 1024));
+    }
+
+    function clearNamespaceMaxSize() {
+      document.getElementById('ns-max').value = '';
+    }
+
+    function setNamespaceAllowedTypesPreset(preset) {
+      const input = document.getElementById('ns-types');
+
+      const media = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'video/mp4',
+        'video/webm',
+      ];
+
+      const documents = [
+        'application/pdf',
+        'text/plain',
+        'text/csv',
+        'application/json',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ];
+
+      if (preset === 'media') {
+        input.value = media.join(',');
+        return;
+      }
+
+      if (preset === 'documents') {
+        input.value = documents.join(',');
+        return;
+      }
+
+      if (preset === 'allDefault') {
+        input.value = '';
+        return;
+      }
+    }
+
+    function clearNamespaceAllowedTypes() {
+      document.getElementById('ns-types').value = '';
+    }
+
     async function loadStorageInfo() {
       try {
         const response = await fetch(`${API_BASE}/api/admin/assets/info`);
@@ -168,24 +362,208 @@
         if (!response.ok) throw new Error(data?.error || 'Failed to load storage info');
 
         document.getElementById('storage-info-content').innerHTML = `
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div><strong>Provider:</strong> ${data.s3Enabled ? 'S3' : 'Filesystem'}</div>
             <div><strong>Bucket:</strong> ${data.bucket}</div>
-            <div><strong>Max size:</strong> ${formatBytes(data.maxFileSize)}</div>
-            <div><strong>Types:</strong> ${data.allowedContentTypes.length} allowed</div>
+            ${data.hardCapMaxFileSizeBytes ? `<div><strong>Hard cap:</strong> ${formatBytes(data.hardCapMaxFileSizeBytes)}</div>` : ''}
+          </div>
+          <div class="mt-3">
+            <div class="text-xs text-blue-900 font-semibold mb-2">Set hard cap (GlobalSetting: MAX_FILE_SIZE_HARD_CAP)</div>
+            <div class="flex flex-wrap gap-2 items-center">
+              <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('10mb')">10mb</button>
+              <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('30mb')">30mb</button>
+              <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('50mb')">50mb</button>
+              <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('100mb')">100mb</button>
+              <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('1gb')">1gb</button>
+              <span class="text-xs text-blue-900">or</span>
+              <input id="hard-cap-input" class="border rounded px-2 py-1 text-xs" placeholder="e.g. 10mb, 1gb" style="width: 150px;" />
+              <button type="button" class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700" onclick="applyHardCapFromInput()">Set</button>
+            </div>
+            <div class="mt-1 text-xs text-blue-900" id="hard-cap-hint"></div>
           </div>
         `;
+
+        const input = document.getElementById('hard-cap-input');
+        if (input) {
+          input.value = data.hardCapMaxFileSizeBytes ? bytesToHumanInput(data.hardCapMaxFileSizeBytes) : '';
+        }
       } catch (error) {
         document.getElementById('storage-info-content').innerHTML = `<p class="text-red-600">Error: ${error.message}</p>`;
       }
     }
 
+    function bytesToHumanInput(bytes) {
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) return '';
+      const mb = n / (1024 * 1024);
+      if (mb >= 1024) return `${Math.round(mb / 1024)}gb`;
+      if (mb >= 1) return `${Math.round(mb)}mb`;
+      const kb = n / 1024;
+      if (kb >= 1) return `${Math.round(kb)}kb`;
+      return `${Math.round(n)}b`;
+    }
+
+    function parseHumanBytes(input) {
+      const raw = String(input || '').trim().toLowerCase();
+      if (!raw) return null;
+
+      const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)\s*(b|kb|mb|gb)$/);
+      if (!match) return null;
+
+      const value = Number(match[1]);
+      if (!Number.isFinite(value) || value <= 0) return null;
+
+      const unit = match[2];
+      const multipliers = {
+        b: 1,
+        kb: 1024,
+        mb: 1024 * 1024,
+        gb: 1024 * 1024 * 1024,
+      };
+
+      return Math.round(value * multipliers[unit]);
+    }
+
+    function setHardCapPreset(text) {
+      const input = document.getElementById('hard-cap-input');
+      if (input) input.value = text;
+      applyHardCapFromInput();
+    }
+
+    async function persistHardCapSetting(bytes) {
+      const hint = document.getElementById('hard-cap-hint');
+      try {
+        if (hint) hint.textContent = 'Saving...';
+
+        const putRes = await fetch(`${API_BASE}/api/admin/settings/MAX_FILE_SIZE_HARD_CAP`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: String(bytes) }),
+        });
+
+        if (putRes.status === 404) {
+          const postRes = await fetch(`${API_BASE}/api/admin/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'MAX_FILE_SIZE_HARD_CAP',
+              value: String(bytes),
+              type: 'number',
+              description: 'Global multipart hard cap for uploads (bytes)',
+              public: false,
+            }),
+          });
+
+          const postData = await postRes.json().catch(() => ({}));
+          if (!postRes.ok) throw new Error(postData?.error || 'Failed to create setting');
+        } else {
+          const putData = await putRes.json().catch(() => ({}));
+          if (!putRes.ok) throw new Error(putData?.error || 'Failed to update setting');
+        }
+
+        if (hint) hint.textContent = `Saved: ${formatBytes(bytes)}. Note: cannot exceed env hard cap enforced by multer.`;
+        await loadStorageInfo();
+        await loadNamespaces();
+        await loadNamespacesSummary();
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Failed to save hard cap', 'error');
+      }
+    }
+
+    function applyHardCapFromInput() {
+      const input = document.getElementById('hard-cap-input');
+      const hint = document.getElementById('hard-cap-hint');
+      const bytes = parseHumanBytes(input?.value);
+      if (!bytes) {
+        if (hint) hint.textContent = 'Enter a value like 10mb, 1gb, 500kb.';
+        return;
+      }
+      if (hint) hint.textContent = `Will set hard cap to ${formatBytes(bytes)}.`;
+      persistHardCapSetting(bytes);
+    }
+
+    function renderNamespacesSummaryCards(items) {
+      const container = document.getElementById('namespaces-summary-content');
+
+      if (!Array.isArray(items) || items.length === 0) {
+        container.innerHTML = '<div class="text-gray-500">No namespaces found.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${items.map((ns) => {
+            const types = Array.isArray(ns.allowedContentTypes) ? ns.allowedContentTypes : [];
+            const typesText = types.length ? `${types.length} types` : 'default types';
+            const maxSizeText = ns.maxFileSizeBytes ? formatBytes(ns.maxFileSizeBytes) : 'default max size';
+            const visText = ns.enforceVisibility
+              ? `${ns.defaultVisibility || 'private'} (enforced)`
+              : `${ns.defaultVisibility || 'private'} (default)`;
+
+            const statsFiles = ns.stats?.totalFiles || 0;
+            const statsBytes = ns.stats?.totalBytes || 0;
+
+            return `
+              <button
+                type="button"
+                class="text-left bg-white rounded-lg border hover:border-blue-400 hover:shadow-sm p-4"
+                onclick="selectNamespaceFromCard('${escapeJs(ns.key)}')"
+                title="Filter assets by namespace: ${escapeHtml(ns.key)}"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="font-mono text-sm font-semibold text-gray-900">${escapeHtml(ns.key)}</div>
+                  <div class="text-xs ${ns.enabled ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'} px-2 py-1 rounded">${ns.enabled ? 'enabled' : 'disabled'}</div>
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <div class="text-gray-500 text-xs">Files</div>
+                    <div class="font-semibold">${statsFiles}</div>
+                  </div>
+                  <div>
+                    <div class="text-gray-500 text-xs">Estimated size</div>
+                    <div class="font-semibold">${formatBytes(statsBytes)}</div>
+                  </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-600 space-y-1">
+                  <div><strong>Max upload:</strong> ${escapeHtml(maxSizeText)}</div>
+                  <div><strong>Visibility:</strong> ${escapeHtml(visText)}</div>
+                  <div><strong>Allowed types:</strong> ${escapeHtml(typesText)}</div>
+                </div>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function selectNamespaceFromCard(key) {
+      const filter = document.getElementById('filter-namespace');
+      filter.value = key;
+      currentPage = 1;
+      loadAssets();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function loadNamespacesSummary() {
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces/summary`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to load namespaces summary');
+        renderNamespacesSummaryCards(data);
+      } catch (error) {
+        document.getElementById('namespaces-summary-content').innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+      }
+    }
+
     async function loadAssets() {
       try {
+        const namespace = document.getElementById('filter-namespace').value;
         const visibility = document.getElementById('filter-visibility').value;
         const contentType = document.getElementById('filter-content-type').value;
 
         let url = `${API_BASE}/api/admin/assets?page=${currentPage}&limit=12`;
+        if (namespace) url += `&namespace=${encodeURIComponent(namespace)}`;
         if (visibility) url += `&visibility=${visibility}`;
         if (contentType) url += `&contentType=${contentType}`;
 
@@ -310,7 +688,7 @@
 
     function showUploadModal() {
       document.getElementById('upload-file').value = '';
-      document.getElementById('upload-visibility').value = 'private';
+      setUploadNamespace('default');
       document.getElementById('upload-modal').classList.remove('hidden');
     }
 
@@ -332,6 +710,7 @@
       const formData = new FormData();
       formData.append('file', fileInput.files[0]);
       formData.append('visibility', visibility);
+      formData.append('namespace', document.getElementById('upload-namespace').value || 'default');
 
       const btn = document.getElementById('upload-btn');
       btn.disabled = true;
@@ -345,12 +724,23 @@
 
         const data = await response.json();
 
-        if (!response.ok) throw new Error(data?.error || 'Upload failed');
+        if (!response.ok) {
+          const details = Array.isArray(data?.errors) && data.errors.length
+            ? data.errors.map(e => {
+                if (e.field === 'sizeBytes') return `size too large (max ${formatBytes(e.maxFileSizeBytes)})`;
+                if (e.field === 'contentType') return `invalid type (allowed: ${(e.allowedContentTypes || []).join(', ') || 'none'})`;
+                return e.reason || 'policy error';
+              }).join('; ')
+            : '';
+          const msg = data?.error || 'Upload failed';
+          throw new Error(details ? `${msg}: ${details}` : msg);
+        }
 
         showToast('Asset uploaded successfully');
         closeUploadModal();
         currentPage = 1;
         await loadAssets();
+        await loadNamespacesSummary();
       } catch (error) {
         showToast(error.message, 'error');
       } finally {
@@ -391,6 +781,7 @@
 
         showToast('Asset deleted successfully');
         await loadAssets();
+        await loadNamespacesSummary();
       } catch (error) {
         showToast(error.message, 'error');
       }
@@ -431,12 +822,233 @@
       loadAssets();
     });
 
+    document.getElementById('filter-namespace').addEventListener('change', () => {
+      currentPage = 1;
+      loadAssets();
+    });
+
     document.getElementById('filter-content-type').addEventListener('change', () => {
       currentPage = 1;
       loadAssets();
     });
 
+    async function loadNamespaces() {
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to load namespaces');
+
+        namespaces = Array.isArray(data) ? data : [];
+        if (!namespaces.find(n => n.key === 'default')) {
+          namespaces = [{
+            key: 'default',
+            enabled: true,
+            maxFileSizeBytes: null,
+            allowedContentTypes: [],
+            keyPrefix: 'assets',
+            defaultVisibility: 'private',
+            enforceVisibility: false
+          }, ...namespaces];
+        }
+
+        renderNamespaceSelects();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function renderNamespaceSelects() {
+      const filterNs = document.getElementById('filter-namespace');
+      const uploadNs = document.getElementById('upload-namespace');
+
+      filterNs.innerHTML = '<option value="">All namespaces</option>' + namespaces
+        .map(n => `<option value="${escapeHtml(n.key)}">${escapeHtml(n.key)}</option>`)
+        .join('');
+
+      uploadNs.innerHTML = namespaces
+        .filter(n => n.enabled !== false)
+        .map(n => `<option value="${escapeHtml(n.key)}">${escapeHtml(n.key)}</option>`)
+        .join('');
+
+      if (!uploadNs.value) {
+        uploadNs.value = 'default';
+      }
+
+      setUploadNamespace(uploadNs.value);
+    }
+
+    function setUploadNamespace(key) {
+      const uploadNs = document.getElementById('upload-namespace');
+      const uploadVis = document.getElementById('upload-visibility');
+      const nsHint = document.getElementById('upload-namespace-hint');
+      const visHint = document.getElementById('upload-visibility-hint');
+
+      uploadNs.value = key || 'default';
+      const ns = namespaces.find(n => n.key === uploadNs.value) || namespaces.find(n => n.key === 'default');
+
+      if (!ns) {
+        nsHint.textContent = '';
+        visHint.textContent = '';
+        uploadVis.disabled = false;
+        uploadVis.value = 'private';
+        return;
+      }
+
+      const maxSizeText = ns.maxFileSizeBytes ? formatBytes(ns.maxFileSizeBytes) : 'default';
+      const typesText = Array.isArray(ns.allowedContentTypes) && ns.allowedContentTypes.length ? ns.allowedContentTypes.join(', ') : 'default';
+
+      nsHint.textContent = `Max size: ${maxSizeText}. Allowed types: ${typesText}. Prefix: ${ns.keyPrefix || 'assets'}.`;
+
+      if (ns.enforceVisibility) {
+        uploadVis.disabled = true;
+        uploadVis.value = ns.defaultVisibility === 'public' ? 'public' : 'private';
+        visHint.textContent = `Visibility is enforced by namespace: ${uploadVis.value}.`;
+      } else {
+        uploadVis.disabled = false;
+        uploadVis.value = 'private';
+        visHint.textContent = `Default visibility for this namespace: ${ns.defaultVisibility === 'public' ? 'public' : 'private'}.`;
+      }
+    }
+
+    document.getElementById('upload-namespace').addEventListener('change', (e) => {
+      setUploadNamespace(e.target.value);
+    });
+
+    function showNamespacesModal() {
+      document.getElementById('namespaces-modal').classList.remove('hidden');
+      renderNamespacesTable();
+    }
+
+    function closeNamespacesModal() {
+      document.getElementById('namespaces-modal').classList.add('hidden');
+    }
+
+    function renderNamespacesTable() {
+      const tbody = document.getElementById('namespaces-table');
+      const rows = namespaces
+        .slice()
+        .sort((a, b) => String(a.key).localeCompare(String(b.key)))
+        .map((ns) => {
+          const types = Array.isArray(ns.allowedContentTypes) ? ns.allowedContentTypes : [];
+          const typesText = types.length ? types.join(', ') : '(default)';
+          const visText = ns.enforceVisibility
+            ? `${ns.defaultVisibility || 'private'} (enforced)`
+            : `${ns.defaultVisibility || 'private'} (default)`;
+
+          return `
+            <tr>
+              <td class="px-4 py-2 text-sm font-mono">${escapeHtml(ns.key)}</td>
+              <td class="px-4 py-2 text-sm">${ns.enabled === false ? 'false' : 'true'}</td>
+              <td class="px-4 py-2 text-sm">${ns.maxFileSizeBytes ? formatBytes(ns.maxFileSizeBytes) : '(default)'}</td>
+              <td class="px-4 py-2 text-sm">${escapeHtml(typesText)}</td>
+              <td class="px-4 py-2 text-sm">${escapeHtml(visText)}</td>
+              <td class="px-4 py-2 text-right">
+                <button class="text-blue-600 hover:text-blue-800 text-sm" onclick="openNamespaceEditor('edit','${escapeJs(ns.key)}')">Edit</button>
+                ${ns.key === 'default' ? '' : `<button class="ml-3 text-red-600 hover:text-red-800 text-sm" onclick="deleteNamespace('${escapeJs(ns.key)}')">Delete</button>`}
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+      tbody.innerHTML = rows || '<tr><td class="px-4 py-4 text-sm text-gray-500" colspan="6">No namespaces found.</td></tr>';
+    }
+
+    function openNamespaceEditor(mode, key) {
+      namespaceEditorMode = mode;
+      namespaceEditorOriginalKey = key || null;
+
+      const title = document.getElementById('namespace-editor-title');
+      title.textContent = mode === 'create' ? 'New Namespace' : `Edit Namespace: ${key}`;
+
+      const ns = mode === 'edit' ? namespaces.find(n => n.key === key) : null;
+
+      document.getElementById('ns-key').value = ns?.key || '';
+      document.getElementById('ns-key').disabled = mode === 'edit';
+      document.getElementById('ns-enabled').value = String(ns?.enabled !== false);
+      document.getElementById('ns-max').value = ns?.maxFileSizeBytes ? String(ns.maxFileSizeBytes) : '';
+      document.getElementById('ns-types').value = Array.isArray(ns?.allowedContentTypes) ? ns.allowedContentTypes.join(',') : '';
+      document.getElementById('ns-prefix').value = ns?.keyPrefix || '';
+      document.getElementById('ns-default-vis').value = ns?.defaultVisibility === 'public' ? 'public' : 'private';
+      document.getElementById('ns-enforce-vis').value = String(Boolean(ns?.enforceVisibility));
+
+      document.getElementById('namespace-editor-modal').classList.remove('hidden');
+    }
+
+    function closeNamespaceEditor() {
+      document.getElementById('namespace-editor-modal').classList.add('hidden');
+    }
+
+    async function saveNamespace(event) {
+      event.preventDefault();
+
+      const key = document.getElementById('ns-key').value.trim();
+      if (!key) {
+        showToast('Namespace key is required', 'error');
+        return;
+      }
+
+      const payload = {
+        key,
+        enabled: document.getElementById('ns-enabled').value === 'true',
+        maxFileSizeBytes: document.getElementById('ns-max').value ? Number(document.getElementById('ns-max').value) : undefined,
+        allowedContentTypes: document.getElementById('ns-types').value
+          ? document.getElementById('ns-types').value.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined,
+        keyPrefix: document.getElementById('ns-prefix').value ? document.getElementById('ns-prefix').value.trim() : undefined,
+        defaultVisibility: document.getElementById('ns-default-vis').value,
+        enforceVisibility: document.getElementById('ns-enforce-vis').value === 'true',
+      };
+
+      const btn = document.getElementById('ns-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const url = namespaceEditorMode === 'create'
+          ? `${API_BASE}/api/admin/upload-namespaces`
+          : `${API_BASE}/api/admin/upload-namespaces/${encodeURIComponent(namespaceEditorOriginalKey)}`;
+
+        const method = namespaceEditorMode === 'create' ? 'POST' : 'PUT';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to save namespace');
+
+        showToast('Namespace saved');
+        closeNamespaceEditor();
+        await loadNamespaces();
+        renderNamespacesTable();
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+
+    async function deleteNamespace(key) {
+      if (!confirm(`Delete namespace '${key}'?`)) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces/${encodeURIComponent(key)}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to delete namespace');
+        showToast('Namespace deleted');
+        await loadNamespaces();
+        renderNamespacesTable();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
     loadStorageInfo();
+    loadNamespaces();
+    loadNamespacesSummary();
     loadAssets();
   </script>
 </body>

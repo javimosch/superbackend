@@ -1,5 +1,6 @@
 const Asset = require('../models/Asset');
 const objectStorage = require('../services/objectStorage.service');
+const uploadNamespacesService = require('../services/uploadNamespaces.service');
 
 const buildPublicUrl = (key) => {
   return `/public/assets/${key}`;
@@ -43,22 +44,37 @@ exports.upload = async (req, res) => {
     const originalName = file.originalname || file.name;
     const sizeBytes = buffer.length;
 
-    if (!objectStorage.validateContentType(contentType)) {
+    const namespaceKey = req.body?.namespace ? String(req.body.namespace).trim() : 'default';
+    const namespaceConfig = await uploadNamespacesService.resolveNamespace(namespaceKey);
+
+    const hardCapMaxFileSizeBytes = await uploadNamespacesService.getEffectiveHardCapMaxFileSizeBytes();
+
+    const validation = uploadNamespacesService.validateUpload({
+      namespaceConfig,
+      contentType,
+      sizeBytes,
+      hardCapMaxFileSizeBytes,
+    });
+
+    if (!validation.ok) {
       return res.status(400).json({
-        error: 'Invalid file type',
-        allowed: objectStorage.getAllowedContentTypes()
+        error: 'Upload rejected by namespace policy',
+        namespace: namespaceConfig.key,
+        hardCapMaxFileSizeBytes,
+        errors: validation.errors,
       });
     }
 
-    if (!objectStorage.validateFileSize(sizeBytes)) {
-      return res.status(400).json({
-        error: 'File too large',
-        maxSize: objectStorage.getMaxFileSize()
-      });
-    }
+    const key = uploadNamespacesService.generateObjectKey({
+      namespaceConfig,
+      originalName,
+    });
 
-    const key = objectStorage.generateKey(originalName);
-    const visibility = req.body.visibility === 'public' ? 'public' : 'private';
+    const visibility = uploadNamespacesService.computeVisibility({
+      namespaceConfig,
+      requestedVisibility: req.body?.visibility,
+    });
+
     const orgId = req.body.orgId || null;
 
     const { provider, bucket } = await objectStorage.putObject({
@@ -75,6 +91,8 @@ exports.upload = async (req, res) => {
       contentType,
       sizeBytes,
       visibility,
+      namespace: namespaceConfig.key,
+      visibilityEnforced: Boolean(namespaceConfig.enforceVisibility),
       ownerUserId: req.user._id,
       orgId,
       status: 'uploaded'

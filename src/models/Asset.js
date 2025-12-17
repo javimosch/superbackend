@@ -36,6 +36,17 @@ const assetSchema = new mongoose.Schema({
     enum: ['public', 'private'],
     default: 'private'
   },
+  namespace: {
+    type: String,
+    required: true,
+    default: 'default',
+    index: true,
+  },
+  visibilityEnforced: {
+    type: Boolean,
+    required: true,
+    default: false,
+  },
   ownerUserId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -61,5 +72,6 @@ const assetSchema = new mongoose.Schema({
 assetSchema.index({ ownerUserId: 1, createdAt: -1 });
 assetSchema.index({ visibility: 1, status: 1 });
 assetSchema.index({ orgId: 1, createdAt: -1 });
+assetSchema.index({ namespace: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Asset', assetSchema);

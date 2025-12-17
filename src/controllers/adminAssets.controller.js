@@ -1,5 +1,6 @@
 const Asset = require('../models/Asset');
 const objectStorage = require('../services/objectStorage.service');
+const uploadNamespacesService = require('../services/uploadNamespaces.service');
 
 const buildPublicUrl = (key) => {
   return `/public/assets/${key}`;
@@ -16,6 +17,8 @@ const formatAssetResponse = (asset) => {
     contentType: obj.contentType,
     sizeBytes: obj.sizeBytes,
     visibility: obj.visibility,
+    namespace: obj.namespace,
+    visibilityEnforced: obj.visibilityEnforced,
     ownerUserId: obj.ownerUserId,
     orgId: obj.orgId,
     status: obj.status,
@@ -58,6 +61,10 @@ exports.list = async (req, res) => {
 
     if (req.query.orgId) {
       filter.orgId = req.query.orgId;
+    }
+
+    if (req.query.namespace) {
+      filter.namespace = String(req.query.namespace);
     }
 
     const [assets, total] = await Promise.all([
@@ -112,22 +119,36 @@ exports.upload = async (req, res) => {
     const originalName = file.originalname || file.name;
     const sizeBytes = buffer.length;
 
-    if (!objectStorage.validateContentType(contentType)) {
+    const namespaceKey = req.body?.namespace ? String(req.body.namespace).trim() : 'default';
+    const namespaceConfig = await uploadNamespacesService.resolveNamespace(namespaceKey);
+
+    const hardCapMaxFileSizeBytes = await uploadNamespacesService.getEffectiveHardCapMaxFileSizeBytes();
+
+    const validation = uploadNamespacesService.validateUpload({
+      namespaceConfig,
+      contentType,
+      sizeBytes,
+      hardCapMaxFileSizeBytes,
+    });
+
+    if (!validation.ok) {
       return res.status(400).json({
-        error: 'Invalid file type',
-        allowed: objectStorage.getAllowedContentTypes()
+        error: 'Upload rejected by namespace policy',
+        namespace: namespaceConfig.key,
+        hardCapMaxFileSizeBytes,
+        errors: validation.errors,
       });
     }
 
-    if (!objectStorage.validateFileSize(sizeBytes)) {
-      return res.status(400).json({
-        error: 'File too large',
-        maxSize: objectStorage.getMaxFileSize()
-      });
-    }
+    const key = uploadNamespacesService.generateObjectKey({
+      namespaceConfig,
+      originalName,
+    });
 
-    const key = objectStorage.generateKey(originalName);
-    const visibility = req.body.visibility === 'public' ? 'public' : 'private';
+    const visibility = uploadNamespacesService.computeVisibility({
+      namespaceConfig,
+      requestedVisibility: req.body?.visibility,
+    });
 
     const { provider, bucket } = await objectStorage.putObject({
       key,
@@ -143,6 +164,8 @@ exports.upload = async (req, res) => {
       contentType,
       sizeBytes,
       visibility,
+      namespace: namespaceConfig.key,
+      visibilityEnforced: Boolean(namespaceConfig.enforceVisibility),
       ownerUserId: null,
       orgId: null,
       status: 'uploaded'
@@ -174,6 +197,10 @@ exports.update = async (req, res) => {
 
     if (updates.visibility && !['public', 'private'].includes(updates.visibility)) {
       return res.status(400).json({ error: 'Invalid visibility value' });
+    }
+
+    if (updates.visibility && asset.visibilityEnforced) {
+      return res.status(400).json({ error: 'Visibility is enforced by the upload namespace for this asset' });
     }
 
     Object.assign(asset, updates);
@@ -208,11 +235,14 @@ exports.delete = async (req, res) => {
 
 exports.getStorageInfo = async (req, res) => {
   try {
+    const hardCapMaxFileSizeBytes = await uploadNamespacesService.getEffectiveHardCapMaxFileSizeBytes();
+
     res.json({
       provider: objectStorage.getProvider(),
       bucket: objectStorage.getBucket(),
       s3Enabled: objectStorage.isS3Enabled(),
       maxFileSize: objectStorage.getMaxFileSize(),
+      hardCapMaxFileSizeBytes,
       allowedContentTypes: objectStorage.getAllowedContentTypes()
     });
   } catch (error) {

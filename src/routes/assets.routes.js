@@ -7,7 +7,7 @@ const assetsController = require('../controllers/assets.controller');
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760', 10)
+    fileSize: parseInt(process.env.MAX_FILE_SIZE_HARD_CAP || process.env.MAX_FILE_SIZE || '10485760', 10)
   }
 });
 
