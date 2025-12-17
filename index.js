@@ -24,7 +24,7 @@ function startServer(options = {}) {
   const app = express();
   const PORT = options.port || process.env.PORT || 3000;
 
-  app.use(middleware(options));
+  app.use(module.exports.middleware(options));
 
   // Start server
   const server = app.listen(PORT, () => {
@@ -34,9 +34,12 @@ function startServer(options = {}) {
   return { app, server };
 }
 
-module.exports = {
+const saasbackend = {
   server: startServer,
-  middleware: middleware,
+  middleware: (options = {}) => {
+    globalThis.saasbackend = saasbackend;
+    return middleware(options);
+  },
   services: {
     email: require("./src/services/email.service"),
     storage: require("./src/services/storage"),
@@ -65,3 +68,5 @@ module.exports = {
     jsonConfigs: require("./src/services/jsonConfigs.service"),
   },
 };
+
+module.exports = saasbackend;
