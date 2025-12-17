@@ -18,6 +18,7 @@ router.use('/storage', basicAuth, adminAssetsStorageRoutes);
 router.get('/', basicAuth, adminAssetsController.list);
 router.get('/:id', basicAuth, adminAssetsController.get);
 router.post('/upload', basicAuth, upload.single('file'), adminAssetsController.upload);
+router.post('/:id/replace', basicAuth, upload.single('file'), adminAssetsController.replace);
 router.patch('/:id', basicAuth, adminAssetsController.update);
 router.delete('/:id', basicAuth, adminAssetsController.delete);
 

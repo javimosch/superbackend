@@ -25,12 +25,10 @@
     };
 
     function showToast(message, type = 'success') {
-      const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
-      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
-        type === 'success' ? 'bg-green-500' : 'bg-red-500'
-      }`;
+      toast.className = `toast px-4 py-3 rounded shadow-lg text-white ${type === 'error' ? 'bg-red-500' : 'bg-green-500'}`;
       toast.textContent = message;
+      const container = document.getElementById('toast-container');
       container.appendChild(toast);
 
       setTimeout(() => {
@@ -45,6 +43,23 @@
       const sizes = ['Bytes', 'KB', 'MB', 'GB'];
       const i = Math.floor(Math.log(bytes) / Math.log(k));
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatDateTime(value) {
+      if (!value) return '';
+      const d = value instanceof Date ? value : new Date(value);
+      if (Number.isNaN(d.getTime())) return '';
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(d);
+      } catch {
+        return d.toISOString();
+      }
     }
 
     function setNamespaceMaxSizePresetMb(mb) {
@@ -762,6 +777,134 @@
       });
     }
 
+    function copyAssetId(id) {
+      navigator.clipboard.writeText(String(id || '')).then(() => {
+        showToast('Asset ID copied');
+      }).catch(() => {
+        showToast('Failed to copy asset ID', 'error');
+      });
+    }
+
+    let replacingAssetId = null;
+
+    function setReplaceStatus(text, kind) {
+      const el = document.getElementById('replace-status');
+      if (!el) return;
+      el.className = 'mt-3 text-xs ' + (kind === 'error' ? 'text-red-600' : kind === 'success' ? 'text-green-700' : 'text-gray-600');
+      el.textContent = text || '';
+    }
+
+    function openReplaceModal(assetId) {
+      const asset = allAssets.find(a => a._id === assetId);
+      replacingAssetId = assetId;
+      const title = document.getElementById('replace-modal-title');
+      const subtitle = document.getElementById('replace-modal-subtitle');
+      if (title) title.textContent = 'Replace asset';
+      if (subtitle) subtitle.textContent = asset ? `${asset.originalName} (${asset._id})` : String(assetId);
+      const input = document.getElementById('replace-file-input');
+      if (input) input.value = '';
+      setReplaceStatus('', '');
+      document.getElementById('replace-modal').classList.remove('hidden');
+    }
+
+    function closeReplaceModal() {
+      replacingAssetId = null;
+      document.getElementById('replace-modal').classList.add('hidden');
+    }
+
+    async function uploadReplacementBlob(file, idx, total) {
+      if (!replacingAssetId) throw new Error('No asset selected');
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      setReplaceStatus(`Uploading ${idx}/${total}: ${file?.name || 'clipboard'}...`, '');
+
+      const response = await fetch(`${API_BASE}/api/admin/assets/${encodeURIComponent(replacingAssetId)}/replace`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const details = Array.isArray(data?.errors)
+          ? data.errors.map((e) => {
+              if (!e) return '';
+              if (e.reason && e.value !== undefined) return `${e.reason} (${e.value})`;
+              return e.reason || 'policy error';
+            }).join('; ')
+          : '';
+        const msg = data?.error || 'Replace failed';
+        throw new Error(details ? `${msg}: ${details}` : msg);
+      }
+
+      return data?.asset || null;
+    }
+
+    async function replaceFiles(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length) return;
+
+      const btn = document.getElementById('replace-clipboard-btn');
+      if (btn) btn.disabled = true;
+
+      try {
+        for (let i = 0; i < list.length; i++) {
+          await uploadReplacementBlob(list[i], i + 1, list.length);
+        }
+
+        setReplaceStatus(`Done. Replaced with ${list.length} file(s).`, 'success');
+        currentPage = 1;
+        await loadAssets();
+      } catch (e) {
+        setReplaceStatus(e?.message ? String(e.message) : 'Replace failed', 'error');
+        showToast(e?.message ? String(e.message) : 'Replace failed', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function replaceFromClipboard() {
+      if (!replacingAssetId) {
+        showToast('Select an asset first', 'error');
+        return;
+      }
+
+      if (!navigator.clipboard?.read) {
+        showToast('Clipboard file upload not supported in this browser', 'error');
+        return;
+      }
+
+      try {
+        setReplaceStatus('Reading clipboard...', '');
+        const items = await navigator.clipboard.read();
+        const files = [];
+
+        for (const item of items) {
+          for (const type of item.types) {
+            if (!type) continue;
+            if (type.startsWith('image/') || type === 'application/octet-stream') {
+              const blob = await item.getType(type);
+              const ext = type.startsWith('image/') ? type.split('/')[1] : 'bin';
+              const name = `clipboard-${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+              files.push(new File([blob], name, { type: blob.type || type }));
+              break;
+            }
+          }
+        }
+
+        if (!files.length) {
+          setReplaceStatus('Clipboard has no files/images to upload.', 'error');
+          return;
+        }
+
+        await replaceFiles(files);
+      } catch (e) {
+        setReplaceStatus(e?.message ? String(e.message) : 'Clipboard read failed', 'error');
+        showToast(e?.message ? String(e.message) : 'Clipboard read failed', 'error');
+      }
+    }
+
     function showPreview(id) {
       const asset = allAssets.find(a => a._id === id);
       if (!asset || !asset.publicUrl) return;
@@ -1095,6 +1238,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Namespace</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
@@ -1102,6 +1246,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Storage</th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tags</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
                 <th class="px-4 py-2"></th>
               </tr>
             </thead>
@@ -1117,8 +1262,17 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
                     ? '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">ok</span>'
                     : '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">unknown</span>';
 
+                const fullId = String(asset._id || '');
+                const shortId = fullId ? fullId.slice(-4) : '';
+                const updatedAt = asset.updatedAt || asset.createdAt;
+                const updatedAtText = formatDateTime(updatedAt);
+
                 return `
                   <tr class="hover:bg-gray-50 cursor-pointer" onclick="selectAsset('${escapeJs(asset._id)}')" ondblclick="event.stopPropagation(); showPreview('${escapeJs(asset._id)}')">
+                    <td class="px-4 py-2 text-sm font-mono whitespace-nowrap">
+                      <span title="${escapeHtml(fullId)}">…${escapeHtml(shortId)}</span>
+                      <button onclick="event.stopPropagation(); copyAssetId('${escapeJs(fullId)}')" class="ml-2 text-blue-600 hover:text-blue-800 text-xs" title="Copy full asset id">copy</button>
+                    </td>
                     <td class="px-4 py-2 text-sm max-w-xs truncate" title="${escapeHtml(asset.originalName)}">${escapeHtml(asset.originalName)}</td>
                     <td class="px-4 py-2 text-sm font-mono">${escapeHtml(asset.namespace || 'default')}</td>
                     <td class="px-4 py-2 text-sm">${escapeHtml(asset.contentType || '')}</td>
@@ -1128,8 +1282,14 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
                     </td>
                     <td class="px-4 py-2 text-sm">${storageBadge}</td>
                     <td class="px-4 py-2 text-sm">${escapeHtml(tagsText)}</td>
+                    <td class="px-4 py-2 text-sm whitespace-nowrap" title="${escapeHtml(String(updatedAt || ''))}">${escapeHtml(updatedAtText)}</td>
                     <td class="px-4 py-2 text-right">
                       <div class="flex justify-end gap-2">
+                        <button onclick="event.stopPropagation(); openReplaceModal('${escapeJs(asset._id)}')" class="text-indigo-600 hover:text-indigo-800" title="Replace asset">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                          </svg>
+                        </button>
                         <button onclick="event.stopPropagation(); openTagsModal('${escapeJs(asset._id)}')" class="text-gray-700 hover:text-gray-900" title="Edit tags">
                           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M3 11l6.586-6.586a2 2 0 012.828 0L21 13a2 2 0 010 2.828l-6.586 6.586a2 2 0 01-2.828 0L3 13v-2z"></path>
@@ -1201,6 +1361,11 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
               <div class="flex items-center justify-between mt-2">
                 <span class="px-2 py-1 text-xs rounded ${asset.visibility === 'public' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${asset.visibility}</span>
                 <div class="flex gap-2">
+                  <button onclick="event.stopPropagation(); openReplaceModal('${escapeJs(asset._id)}')" class="text-indigo-600 hover:text-indigo-800" title="Replace asset">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                  </button>
                   <button onclick="event.stopPropagation(); openTagsModal('${escapeJs(asset._id)}')" class="text-gray-700 hover:text-gray-900" title="Edit tags">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M3 11l6.586-6.586a2 2 0 012.828 0L21 13a2 2 0 010 2.828l-6.586 6.586a2 2 0 01-2.828 0L3 13v-2z"></path>
@@ -1533,6 +1698,42 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
           setDragActive(false);
           const files = e.dataTransfer?.files;
           await uploadFilesToSelectedNamespace(files);
+        });
+      }
+
+      // Replace modal: bind dropzone + file input
+      const replaceDropzone = document.getElementById('replace-dropzone');
+      const replaceInput = document.getElementById('replace-file-input');
+      if (replaceDropzone && replaceInput) {
+        replaceInput.addEventListener('change', async () => {
+          const files = replaceInput.files;
+          replaceInput.value = '';
+          await replaceFiles(files);
+        });
+
+        const setReplaceDragActive = (active) => {
+          if (active) {
+            replaceDropzone.classList.add('border-blue-400');
+            replaceDropzone.classList.add('bg-blue-50');
+          } else {
+            replaceDropzone.classList.remove('border-blue-400');
+            replaceDropzone.classList.remove('bg-blue-50');
+          }
+        };
+
+        replaceDropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          setReplaceDragActive(true);
+        });
+        replaceDropzone.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          setReplaceDragActive(false);
+        });
+        replaceDropzone.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          setReplaceDragActive(false);
+          const files = e.dataTransfer?.files;
+          await replaceFiles(files);
         });
       }
 

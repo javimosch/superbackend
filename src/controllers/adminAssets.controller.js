@@ -101,7 +101,7 @@ exports.list = async (req, res) => {
     }
 
     const [assets, total] = await Promise.all([
-      Asset.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Asset.find(filter).sort({ updatedAt: -1, createdAt: -1 }).skip(skip).limit(limit).lean(),
       Asset.countDocuments(filter)
     ]);
 
@@ -139,6 +139,70 @@ exports.list = async (req, res) => {
   } catch (error) {
     console.error('Error listing assets:', error);
     res.status(500).json({ error: 'Failed to list assets' });
+  }
+};
+
+exports.replace = async (req, res) => {
+  try {
+    const asset = await Asset.findById(req.params.id);
+
+    if (!asset) {
+      return res.status(404).json({ error: 'Asset not found' });
+    }
+
+    if (asset.status === 'deleted') {
+      return res.status(400).json({ error: 'Cannot replace a deleted asset' });
+    }
+
+    if (!req.file && !req.files?.file) {
+      return res.status(400).json({ error: 'No file provided' });
+    }
+
+    const file = req.file || req.files.file;
+    const buffer = file.buffer || (file.data ? file.data : null);
+
+    if (!buffer) {
+      return res.status(400).json({ error: 'Unable to read file buffer' });
+    }
+
+    const contentType = file.mimetype;
+    const sizeBytes = buffer.length;
+
+    const namespaceConfig = await uploadNamespacesService.resolveNamespace(asset.namespace || 'default');
+    const hardCapMaxFileSizeBytes = await uploadNamespacesService.getEffectiveHardCapMaxFileSizeBytes();
+
+    const validation = uploadNamespacesService.validateUpload({
+      namespaceConfig,
+      contentType,
+      sizeBytes,
+      hardCapMaxFileSizeBytes,
+    });
+
+    if (!validation.ok) {
+      return res.status(400).json({
+        error: 'Upload rejected by namespace policy',
+        namespace: namespaceConfig.key,
+        hardCapMaxFileSizeBytes,
+        errors: validation.errors,
+      });
+    }
+
+    const { provider, bucket } = await objectStorage.putObject({
+      key: asset.key,
+      body: buffer,
+      contentType,
+    });
+
+    asset.contentType = contentType;
+    asset.sizeBytes = sizeBytes;
+    asset.provider = provider;
+    asset.bucket = bucket;
+    await asset.save();
+
+    res.json({ asset: formatAssetResponse(asset) });
+  } catch (error) {
+    console.error('Error replacing asset:', error);
+    res.status(500).json({ error: 'Failed to replace asset' });
   }
 };
 
