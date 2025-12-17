@@ -642,6 +642,85 @@ const endpointRegistry = [
     ],
   },
   {
+    id: "assets",
+    title: "Assets",
+    endpoints: [
+      {
+        id: "public-assets-get",
+        method: "GET",
+        path: "/public/assets/:key",
+        auth: "none",
+      },
+      {
+        id: "assets-upload",
+        method: "POST",
+        path: "/api/assets/upload",
+        auth: "jwt",
+      },
+      {
+        id: "assets-list",
+        method: "GET",
+        path: "/api/assets",
+        auth: "jwt",
+      },
+      {
+        id: "assets-get",
+        method: "GET",
+        path: "/api/assets/:id",
+        auth: "jwt",
+      },
+      {
+        id: "assets-download",
+        method: "GET",
+        path: "/api/assets/:id/download",
+        auth: "jwt",
+      },
+      {
+        id: "assets-delete",
+        method: "DELETE",
+        path: "/api/assets/:id",
+        auth: "jwt",
+      },
+      {
+        id: "admin-assets-info",
+        method: "GET",
+        path: "/api/admin/assets/info",
+        auth: "basic",
+      },
+      {
+        id: "admin-assets-list",
+        method: "GET",
+        path: "/api/admin/assets",
+        auth: "basic",
+      },
+      {
+        id: "admin-assets-get",
+        method: "GET",
+        path: "/api/admin/assets/:id",
+        auth: "basic",
+      },
+      {
+        id: "admin-assets-upload",
+        method: "POST",
+        path: "/api/admin/assets/upload",
+        auth: "basic",
+      },
+      {
+        id: "admin-assets-update",
+        method: "PATCH",
+        path: "/api/admin/assets/:id",
+        auth: "basic",
+        bodyExample: { visibility: "public" },
+      },
+      {
+        id: "admin-assets-delete",
+        method: "DELETE",
+        path: "/api/admin/assets/:id",
+        auth: "basic",
+      },
+    ],
+  },
+  {
     id: "admin-users",
     title: "Admin Users",
     endpoints: [
