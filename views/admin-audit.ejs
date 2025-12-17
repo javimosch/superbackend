@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audit Log - Admin</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Audit Log</h1>
+            <p class="text-sm text-gray-600 mt-1">Admin + user actions with request context</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div class="flex gap-4 text-sm">
+          <div class="bg-white border border-gray-200 rounded-lg px-4 py-2">
+            <span class="text-gray-500">Last 24h:</span>
+            <span id="stat-24h" class="text-blue-600 font-semibold ml-1">—</span>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-lg px-4 py-2">
+            <span class="text-gray-500">Failures 24h:</span>
+            <span id="stat-failures" class="text-orange-600 font-semibold ml-1">—</span>
+          </div>
+        </div>
+        <button onclick="refreshAll()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <select id="filter-actor-type" class="border rounded px-3 py-2 text-sm">
+            <option value="">All Actor Types</option>
+            <option value="admin">admin</option>
+            <option value="user">user</option>
+            <option value="system">system</option>
+          </select>
+          <select id="filter-outcome" class="border rounded px-3 py-2 text-sm">
+            <option value="">All Outcomes</option>
+            <option value="success">success</option>
+            <option value="failure">failure</option>
+          </select>
+          <select id="filter-action" class="border rounded px-3 py-2 text-sm">
+            <option value="">All Actions</option>
+          </select>
+          <input id="filter-search" type="text" placeholder="Search..." class="border rounded px-3 py-2 text-sm" />
+        </div>
+        <div class="mt-3 flex justify-end">
+          <button id="btn-filter" class="bg-gray-900 text-white px-4 py-2 rounded hover:bg-gray-800 text-sm">Filter</button>
+        </div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+        <table class="w-full">
+          <thead class="bg-gray-50">
+            <tr class="text-left text-xs uppercase tracking-wide text-gray-500">
+              <th class="px-4 py-3 w-56">At</th>
+              <th class="px-4 py-3">Action</th>
+              <th class="px-4 py-3 w-32">Actor</th>
+              <th class="px-4 py-3 w-24">Outcome</th>
+              <th class="px-4 py-3 w-48">Target</th>
+              <th class="px-4 py-3 w-24"></th>
+            </tr>
+          </thead>
+          <tbody id="audit-table" class="divide-y divide-gray-100">
+            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
+        <div id="pagination-info"></div>
+        <div class="flex gap-2">
+          <button id="btn-prev" class="px-3 py-1 bg-white border border-gray-300 rounded hover:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Prev</button>
+          <button id="btn-next" class="px-3 py-1 bg-white border border-gray-300 rounded hover:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div class="flex items-center justify-between px-6 py-4 border-b">
+        <h2 id="modal-title" class="text-xl font-bold text-gray-900">Audit Event</h2>
+        <button id="modal-close" class="text-gray-500 hover:text-gray-800">Close</button>
+      </div>
+      <div id="modal-content" class="flex-1 overflow-y-auto p-6"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    let currentPage = 1;
+    const pageSize = 50;
+    let totalPages = 1;
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/audit/stats`);
+        if (!res.ok) return;
+        const stats = await res.json();
+        document.getElementById('stat-24h').textContent = stats.last24h ?? 0;
+        document.getElementById('stat-failures').textContent = stats.failures24h ?? 0;
+      } catch (e) {}
+    }
+
+    async function loadActions() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/audit/actions`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const select = document.getElementById('filter-action');
+        (data.actions || []).forEach(action => {
+          const opt = document.createElement('option');
+          opt.value = action;
+          opt.textContent = action;
+          select.appendChild(opt);
+        });
+      } catch (e) {}
+    }
+
+    async function loadEvents() {
+      const actorType = document.getElementById('filter-actor-type').value;
+      const outcome = document.getElementById('filter-outcome').value;
+      const action = document.getElementById('filter-action').value;
+      const q = document.getElementById('filter-search').value;
+
+      const params = new URLSearchParams();
+      if (actorType) params.set('actorType', actorType);
+      if (outcome) params.set('outcome', outcome);
+      if (action) params.set('action', action);
+      if (q) params.set('q', q);
+      params.set('page', currentPage);
+      params.set('pageSize', pageSize);
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/audit?` + params.toString());
+        if (!res.ok) throw new Error('Failed to load events');
+        const data = await res.json();
+        totalPages = data.totalPages || 1;
+        renderEvents(data.events || []);
+        renderPagination(data);
+      } catch (e) {
+        document.getElementById('audit-table').innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-red-600">Failed to load events</td></tr>';
+      }
+    }
+
+    function renderEvents(events) {
+      const tbody = document.getElementById('audit-table');
+      if (!events.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No audit events found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = events.map(evt => {
+        const actorBadge = evt.actorType === 'admin'
+          ? '<span class="px-2 py-1 text-xs rounded bg-purple-100 text-purple-700">admin</span>'
+          : (evt.actorType === 'user'
+              ? '<span class="px-2 py-1 text-xs rounded bg-blue-100 text-blue-700">user</span>'
+              : '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-700">system</span>');
+
+        const outcomeColor = evt.outcome === 'success' ? 'text-green-600' : 'text-orange-600';
+        const targetText = evt.targetType || evt.entityType || '';
+        const targetId = evt.targetId || evt.entityId || '';
+
+        return `
+          <tr class="hover:bg-gray-50 cursor-pointer" onclick="showDetails('${evt._id}')">
+            <td class="px-4 py-3 text-sm text-gray-600">${formatDate(evt.createdAt)}</td>
+            <td class="px-4 py-3">
+              <div class="text-gray-900 font-medium">${escapeHtml(evt.action || '')}</div>
+              ${evt.context?.path ? `<div class="text-gray-500 text-xs">${escapeHtml(evt.context.method || 'GET')} ${escapeHtml(evt.context.path)}</div>` : ''}
+            </td>
+            <td class="px-4 py-3">${actorBadge}</td>
+            <td class="px-4 py-3 text-sm ${outcomeColor}">${escapeHtml(evt.outcome || 'success')}</td>
+            <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(targetText)} ${targetId ? `<span class="text-xs text-gray-500">${escapeHtml(String(targetId).slice(-8))}</span>` : ''}</td>
+            <td class="px-4 py-3"><button onclick="event.stopPropagation(); showDetails('${evt._id}')" class="text-blue-600 hover:underline text-sm">View</button></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderPagination(data) {
+      document.getElementById('pagination-info').textContent = `Page ${data.page} of ${data.totalPages} (${data.total} total)`;
+      document.getElementById('btn-prev').disabled = data.page <= 1;
+      document.getElementById('btn-next').disabled = data.page >= data.totalPages;
+    }
+
+    async function showDetails(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/audit/${id}`);
+        if (!res.ok) throw new Error('Failed to load event details');
+        const evt = await res.json();
+        renderModal(evt);
+      } catch (e) {
+        alert('Failed to load event details');
+      }
+    }
+
+    function renderModal(evt) {
+      document.getElementById('modal-title').textContent = evt.action || 'Audit Event';
+      document.getElementById('modal-content').innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6 text-sm">
+          <div><span class="text-gray-500">Actor Type:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.actorType || '')}</span></div>
+          <div><span class="text-gray-500">Actor Id:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.actorId || '')}</span></div>
+          <div><span class="text-gray-500">Outcome:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.outcome || '')}</span></div>
+          <div><span class="text-gray-500">Entity:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.entityType || '')} ${escapeHtml(evt.entityId || '')}</span></div>
+          <div><span class="text-gray-500">Target:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.targetType || '')} ${escapeHtml(evt.targetId || '')}</span></div>
+          <div><span class="text-gray-500">Request Id:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.context?.requestId || '')}</span></div>
+          <div><span class="text-gray-500">Path:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.context?.path || '')}</span></div>
+          <div><span class="text-gray-500">IP:</span> <span class="ml-2 text-gray-900">${escapeHtml(evt.context?.ip || '')}</span></div>
+        </div>
+
+        <div class="mb-4">
+          <div class="text-gray-500 text-sm">Before</div>
+          <pre class="mt-1 p-3 bg-gray-50 rounded text-xs overflow-x-auto">${escapeHtml(JSON.stringify(evt.before ?? null, null, 2))}</pre>
+        </div>
+
+        <div class="mb-4">
+          <div class="text-gray-500 text-sm">After</div>
+          <pre class="mt-1 p-3 bg-gray-50 rounded text-xs overflow-x-auto">${escapeHtml(JSON.stringify(evt.after ?? null, null, 2))}</pre>
+        </div>
+
+        <div class="mb-4">
+          <div class="text-gray-500 text-sm">Meta</div>
+          <pre class="mt-1 p-3 bg-gray-50 rounded text-xs overflow-x-auto">${escapeHtml(JSON.stringify(evt.meta ?? null, null, 2))}</pre>
+        </div>
+      `;
+
+      document.getElementById('modal').classList.remove('hidden');
+      document.getElementById('modal').classList.add('flex');
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.add('hidden');
+      document.getElementById('modal').classList.remove('flex');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      const d = new Date(dateStr);
+      return d.toLocaleString();
+    }
+
+    function refreshAll() {
+      loadStats();
+      loadEvents();
+    }
+
+    document.getElementById('btn-filter').addEventListener('click', () => { currentPage = 1; loadEvents(); });
+    document.getElementById('filter-search').addEventListener('keypress', (e) => { if (e.key === 'Enter') { currentPage = 1; loadEvents(); } });
+    document.getElementById('btn-prev').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadEvents(); } });
+    document.getElementById('btn-next').addEventListener('click', () => { if (currentPage < totalPages) { currentPage++; loadEvents(); } });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
+
+    loadActions();
+    refreshAll();
+  </script>
+</body>
+</html>

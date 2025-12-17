@@ -7,6 +7,14 @@ const ejs = require("ejs");
 const { basicAuth } = require("./middleware/auth");
 const endpointRegistry = require("./admin/endpointRegistry");
 const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.service");
+const {
+  hookConsoleError,
+  setupProcessHandlers,
+  expressErrorMiddleware,
+  requestIdMiddleware,
+} = require("./middleware/errorCapture");
+
+let errorCaptureInitialized = false;
 
 /**
  * Creates and configures the SaaS backend middleware
@@ -20,6 +28,12 @@ const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.ser
  */
 function createMiddleware(options = {}) {
   const router = express.Router();
+
+  if (!errorCaptureInitialized) {
+    errorCaptureInitialized = true;
+    hookConsoleError();
+    setupProcessHandlers();
+  }
 
   // Database connection
   const mongoUri =
@@ -118,6 +132,8 @@ function createMiddleware(options = {}) {
     router.use(express.urlencoded({ extended: true }));
   }
 
+  router.use(requestIdMiddleware);
+
   // Serve public static files (e.g. /og/og-default.png)
   router.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -165,6 +181,8 @@ function createMiddleware(options = {}) {
     "/api/admin/upload-namespaces",
     require("./routes/adminUploadNamespaces.routes"),
   );
+  router.use("/api/admin/errors", basicAuth, require("./routes/adminErrors.routes"));
+  router.use("/api/admin/audit", basicAuth, require("./routes/adminAudit.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
   router.use("/api/feature-flags", require("./routes/featureFlags.routes"));
   router.use("/api/json-configs", require("./routes/jsonConfigs.routes"));
@@ -174,6 +192,7 @@ function createMiddleware(options = {}) {
   router.use("/api/user", require("./routes/user.routes"));
   router.use("/api/orgs", require("./routes/org.routes"));
   router.use("/api/invites", require("./routes/invite.routes"));
+  router.use("/api/log", require("./routes/log.routes"));
 
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));
@@ -596,6 +615,40 @@ function createMiddleware(options = {}) {
     });
   });
 
+  router.get("/admin/errors", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-errors.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get("/admin/audit", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-audit.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   // Health check
   router.get("/health", (req, res) => {
     res.json({
@@ -607,12 +660,7 @@ function createMiddleware(options = {}) {
   });
 
   // Error handling middleware
-  router.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(err.status || 500).json({
-      error: err.message || "Internal server error",
-    });
-  });
+  router.use(expressErrorMiddleware);
 
   return router;
 }
