@@ -1,3 +1,5 @@
+ref*
+uploads
 node_modules/
 .env
 .DS_Store
