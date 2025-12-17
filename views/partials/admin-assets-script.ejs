@@ -785,6 +785,16 @@
       });
     }
 
+    function buildAssetPublicUrl(asset) {
+      if (!asset?.publicUrl) return null;
+      const base = `${API_BASE}${asset.publicUrl}`;
+      const v = asset.updatedAt || asset.createdAt;
+      if (!v) return base;
+      const ts = new Date(v).getTime();
+      if (!Number.isFinite(ts)) return base;
+      return `${base}${base.includes('?') ? '&' : '?'}v=${encodeURIComponent(String(ts))}`;
+    }
+
     let replacingAssetId = null;
 
     function setReplaceStatus(text, kind) {
@@ -911,11 +921,13 @@
 
       document.getElementById('preview-title').textContent = asset.originalName;
 
+      const url = buildAssetPublicUrl(asset);
+
       const content = document.getElementById('preview-content');
       if (asset.contentType?.startsWith('image/')) {
-        content.innerHTML = `<img src="${API_BASE}${asset.publicUrl}" alt="${escapeHtml(asset.originalName)}" class="max-w-full max-h-[60vh]">`;
+        content.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.originalName)}" class="max-w-full max-h-[60vh]">`;
       } else if (asset.contentType?.startsWith('video/')) {
-        content.innerHTML = `<video src="${API_BASE}${asset.publicUrl}" controls class="max-w-full max-h-[60vh]"></video>`;
+        content.innerHTML = `<video src="${escapeHtml(url)}" controls class="max-w-full max-h-[60vh]"></video>`;
       } else {
         content.innerHTML = `<p>Preview not available for this file type.</p>`;
       }
@@ -1339,7 +1351,8 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
 
         let thumbnail = '';
         if (isImage && asset.publicUrl) {
-          thumbnail = `<img src="${API_BASE}${asset.publicUrl}" alt="${escapeHtml(asset.originalName)}" class="w-full h-32 object-cover rounded cursor-pointer" onclick="event.stopPropagation(); showPreview('${escapeJs(asset._id)}')">`;
+          const url = buildAssetPublicUrl(asset);
+          thumbnail = `<img src="${escapeHtml(url)}" alt="${escapeHtml(asset.originalName)}" class="w-full h-32 object-cover rounded cursor-pointer" onclick="event.stopPropagation(); showPreview('${escapeJs(asset._id)}')">`;
         } else if (isImage) {
           thumbnail = `<div class="w-full h-32 bg-gray-200 rounded flex items-center justify-center text-gray-500">🖼️ Image (private)</div>`;
         } else if (isVideo) {
@@ -1706,7 +1719,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
       const replaceInput = document.getElementById('replace-file-input');
       if (replaceDropzone && replaceInput) {
         replaceInput.addEventListener('change', async () => {
-          const files = replaceInput.files;
+          const files = Array.from(replaceInput.files || []);
           replaceInput.value = '';
           await replaceFiles(files);
         });

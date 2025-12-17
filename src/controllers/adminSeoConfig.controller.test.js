@@ -2,7 +2,9 @@ const adminSeoConfigController = require('./adminSeoConfig.controller');
 
 jest.mock('../services/seoConfig.service', () => ({
   getSeoJsonConfig: jest.fn(),
+  getSeoConfigData: jest.fn(),
   updateSeoJsonConfig: jest.fn(),
+  applySeoPageEntry: jest.fn(),
   getOgSvgSettingRaw: jest.fn(),
   setOgSvgSettingRaw: jest.fn(),
   generateOgPng: jest.fn(),
@@ -12,6 +14,16 @@ jest.mock('../services/seoConfig.service', () => ({
 }));
 
 const seoConfigService = require('../services/seoConfig.service');
+
+jest.mock('fs', () => ({
+  promises: {
+    readdir: jest.fn(),
+    stat: jest.fn(),
+    readFile: jest.fn(),
+  },
+}));
+
+const fs = require('fs');
 
 describe('Admin SEO Config Controller', () => {
   let req;
@@ -136,6 +148,48 @@ describe('Admin SEO Config Controller', () => {
           height: 630,
         },
       });
+    });
+  });
+
+  describe('seoConfigAiListViews', () => {
+    it('returns views list', async () => {
+      fs.promises.readdir
+        .mockResolvedValueOnce([
+          { name: 'a.ejs', isDirectory: () => false, isFile: () => true },
+          { name: 'partials', isDirectory: () => true, isFile: () => false },
+        ])
+        .mockResolvedValueOnce([
+          { name: 'b.ejs', isDirectory: () => false, isFile: () => true },
+        ]);
+
+      await adminSeoConfigController.seoConfigAiListViews(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        views: ['a.ejs', 'partials/b.ejs'],
+      });
+    });
+  });
+
+  describe('seoConfigApplyEntry', () => {
+    it('applies entry', async () => {
+      req.body = { routePath: '/marketplace', entry: { title: 'T', description: 'D' } };
+      seoConfigService.applySeoPageEntry.mockResolvedValue({ routePath: '/marketplace', entry: { title: 'T', description: 'D' }, jsonRaw: '{}' });
+
+      await adminSeoConfigController.seoConfigApplyEntry(req, res);
+
+      expect(seoConfigService.applySeoPageEntry).toHaveBeenCalledWith({
+        routePath: '/marketplace',
+        entry: { title: 'T', description: 'D' },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        result: { routePath: '/marketplace', entry: { title: 'T', description: 'D' }, jsonRaw: '{}' },
+      });
+    });
+
+    it('validates routePath', async () => {
+      req.body = { routePath: 'marketplace', entry: { title: 'T', description: 'D' } };
+      await adminSeoConfigController.seoConfigApplyEntry(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 });
