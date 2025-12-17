@@ -1,80 +1,25 @@
 # Metrics & activity
 
 ## What it is
+Lightweight metrics/event tracking and per-user activity logging for product analytics and auditing.
 
-SaasBackend includes:
+## Base URL / mount prefix
+When mounted at `/saas`, all routes are prefixed:
+- `/saas/api/metrics/track`
+- `/saas/api/activity-log`
 
-- A lightweight metrics/event tracking endpoint (`/api/metrics/*`) designed for product analytics.
-- A per-user activity log API (`/api/activity-log`) designed for “user did X” auditing inside your product.
+## API
 
-## Metrics
+### Public endpoints
+- `POST /saas/api/metrics/track` - Track event (supports anonymous via anon cookie)
+- `GET /saas/api/metrics/impact` - Get aggregate metrics for current month
 
-### Track an event
+### JWT endpoints
+- `GET /saas/api/activity-log` - List user activity
+- `POST /saas/api/activity-log` - Create activity entry
 
-```
-POST /api/metrics/track
-```
+## Admin UI
+- `/saas/admin/metrics` - Metrics dashboard and management
 
-Body:
-
-```json
-{ "action": "service_view", "meta": { "serviceId": "abc" } }
-```
-
-Notes:
-
-- This endpoint supports anonymous usage via an anon cookie (`enbauges_anon_id`).
-- If you include `Authorization: Bearer <token>`, the event is attributed to the user.
-
-### Impact summary
-
-```
-GET /api/metrics/impact
-```
-
-Returns aggregate metrics for the current month.
-
-## Activity log (JWT)
-
-### List activity
-
-```
-GET /api/activity-log
-Authorization: Bearer <token>
-```
-
-Optional query params:
-
-- `category`
-- `action`
-- `limit`
-- `offset`
-
-### Create activity entry
-
-```
-POST /api/activity-log
-Authorization: Bearer <token>
-```
-
-Body:
-
-```json
-{ "action": "custom_event", "category": "other", "description": "Something happened", "metadata": {} }
-```
-
-Valid categories:
-
-- `auth`
-- `billing`
-- `content`
-- `settings`
-- `admin`
-- `other`
-
-## Troubleshooting
-
-### Events not attributed to users
-
-- Ensure you are passing a valid `Authorization: Bearer ...` header.
-- If you want anonymous attribution continuity, pass `x-anon-id` or keep cookies enabled.
+## Common errors / troubleshooting
+- **Events not attributed to users**: Ensure valid `Authorization: Bearer` header or pass `x-anon-id`
