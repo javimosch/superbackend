@@ -27,6 +27,16 @@ const formatAssetResponse = (asset) => {
     updatedAt: obj.updatedAt
   };
 
+  if (Object.prototype.hasOwnProperty.call(obj, 'storageExists')) {
+    response.storageExists = obj.storageExists;
+  }
+  if (Object.prototype.hasOwnProperty.call(obj, 'storageCheckedBackend')) {
+    response.storageCheckedBackend = obj.storageCheckedBackend;
+  }
+  if (Object.prototype.hasOwnProperty.call(obj, 'storageExistsError')) {
+    response.storageExistsError = obj.storageExistsError;
+  }
+
   if (obj.visibility === 'public') {
     response.publicUrl = buildPublicUrl(obj.key);
   }
@@ -95,8 +105,30 @@ exports.list = async (req, res) => {
       Asset.countDocuments(filter)
     ]);
 
+    const assetsWithStorage = await Promise.all(
+      assets.map(async (a) => {
+        const backend = a?.provider === 's3' ? 's3' : 'fs';
+
+        try {
+          const exists = await objectStorage.objectExists({ key: a.key, backend });
+          return {
+            ...a,
+            storageCheckedBackend: backend,
+            storageExists: Boolean(exists),
+          };
+        } catch (e) {
+          return {
+            ...a,
+            storageCheckedBackend: backend,
+            storageExists: null,
+            storageExistsError: e?.message ? String(e.message) : 'storage check failed',
+          };
+        }
+      })
+    );
+
     res.json({
-      assets: assets.map(formatAssetResponse),
+      assets: assetsWithStorage.map(formatAssetResponse),
       pagination: {
         page,
         limit,
@@ -267,10 +299,16 @@ exports.getStorageInfo = async (req, res) => {
     const configuredHardCapMaxFileSizeBytes = await uploadNamespacesService.getConfiguredHardCapMaxFileSizeBytes();
     const hardCapMaxFileSizeBytes = await uploadNamespacesService.getEffectiveHardCapMaxFileSizeBytes();
 
+    const [provider, bucket, s3Enabled] = await Promise.all([
+      objectStorage.getProvider(),
+      objectStorage.getBucket(),
+      objectStorage.isS3Enabled(),
+    ]);
+
     res.json({
-      provider: objectStorage.getProvider(),
-      bucket: objectStorage.getBucket(),
-      s3Enabled: objectStorage.isS3Enabled(),
+      provider,
+      bucket,
+      s3Enabled,
       maxFileSize: objectStorage.getMaxFileSize(),
       multerCeilingMaxFileSizeBytes,
       envFallbackHardCapMaxFileSizeBytes,

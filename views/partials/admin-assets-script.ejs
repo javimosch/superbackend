@@ -1,0 +1,1315 @@
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>";
+    let allAssets = [];
+    let namespaces = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    let viewMode = 'cards';
+
+    let selectedAssetId = null;
+
+    let tagsEditingAssetId = null;
+
+    let namespaceEditorMode = 'create';
+    let namespaceEditorOriginalKey = null;
+
+    let storageConsole = {
+      activeBackend: null,
+      s3Configured: false,
+      s3CheckOk: false,
+      lastS3CheckError: null,
+    };
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
+        type === 'success' ? 'bg-green-500' : 'bg-red-500'
+      }`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function setNamespaceMaxSizePresetMb(mb) {
+      const input = document.getElementById('ns-max');
+      const parsedMb = Number(mb);
+      if (!Number.isFinite(parsedMb) || parsedMb <= 0) return;
+      input.value = String(Math.round(parsedMb * 1024 * 1024));
+    }
+
+    function clearNamespaceMaxSize() {
+      document.getElementById('ns-max').value = '';
+    }
+
+    function setNamespaceAllowedTypesPreset(preset) {
+      const input = document.getElementById('ns-types');
+
+      const media = [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+        'video/mp4',
+        'video/webm',
+      ];
+
+      const documents = [
+        'application/pdf',
+        'text/plain',
+        'text/csv',
+        'application/json',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ];
+
+      if (preset === 'media') {
+        input.value = media.join(',');
+        return;
+      }
+
+      if (preset === 'documents') {
+        input.value = documents.join(',');
+        return;
+      }
+
+      if (preset === 'allDefault') {
+        input.value = '';
+        return;
+      }
+    }
+
+    function parseEnvLines(text) {
+      const result = {};
+      const lines = String(text || '').split(/\r?\n/);
+      for (const lineRaw of lines) {
+        const line = String(lineRaw || '').trim();
+        if (!line) continue;
+        if (line.startsWith('#')) continue;
+
+        const normalized = line.startsWith('export ') ? line.slice('export '.length).trim() : line;
+        const idx = normalized.indexOf('=');
+        if (idx <= 0) continue;
+
+        const key = normalized.slice(0, idx).trim();
+        let value = normalized.slice(idx + 1).trim();
+        if (!key) continue;
+
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+
+        result[key] = value;
+      }
+
+      return result;
+    }
+
+    function parseBoolean(value) {
+      const v = String(value ?? '').trim().toLowerCase();
+      if (['1', 'true', 'yes', 'y', 'on'].includes(v)) return true;
+      if (['0', 'false', 'no', 'n', 'off'].includes(v)) return false;
+      return null;
+    }
+
+    function applyS3EnvMap(envs) {
+      if (!envs || typeof envs !== 'object') return { applied: 0 };
+      let applied = 0;
+
+      const setValue = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const v = String(value ?? '');
+        if (!v) return;
+        el.value = v;
+        applied += 1;
+      };
+
+      if (envs.S3_ENDPOINT) setValue('s3-endpoint', envs.S3_ENDPOINT);
+      if (envs.S3_REGION) setValue('s3-region', envs.S3_REGION);
+      if (envs.S3_BUCKET) setValue('s3-bucket', envs.S3_BUCKET);
+
+      if (envs.S3_ACCESS_KEY_ID) setValue('s3-access-key', envs.S3_ACCESS_KEY_ID);
+      if (envs.S3_SECRET_ACCESS_KEY) setValue('s3-secret-key', envs.S3_SECRET_ACCESS_KEY);
+
+      if (envs.S3_FORCE_PATH_STYLE !== undefined) {
+        const b = parseBoolean(envs.S3_FORCE_PATH_STYLE);
+        if (b !== null) {
+          const checkbox = document.getElementById('s3-force-path-style');
+          if (checkbox) {
+            checkbox.checked = b;
+            applied += 1;
+          }
+        }
+      }
+
+      return { applied };
+    }
+
+    async function pasteS3EnvsFromClipboard() {
+      const hint = document.getElementById('storage-console-hint');
+      try {
+        if (!navigator.clipboard?.readText) {
+          throw new Error('Clipboard API not available in this browser context');
+        }
+        if (hint) hint.textContent = 'Reading clipboard...';
+
+        const text = await navigator.clipboard.readText();
+        const envs = parseEnvLines(text);
+        const { applied } = applyS3EnvMap(envs);
+
+        if (!applied) {
+          throw new Error('No recognized S3_* envs found in clipboard');
+        }
+
+        if (hint) hint.textContent = `Pasted ${applied} value(s). Review fields, then click "Save S3 config".`;
+        showToast(`Pasted ${applied} value(s)`);
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Failed to paste envs', 'error');
+      }
+    }
+
+    function clearNamespaceAllowedTypes() {
+      document.getElementById('ns-types').value = '';
+    }
+
+    async function fetchStorageConsoleStatus() {
+      const res = await fetch(`${API_BASE}/api/admin/assets/storage`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load storage status');
+
+      storageConsole.activeBackend = data?.activeBackend || null;
+      storageConsole.s3Configured = Boolean(data?.s3?.configured);
+      return data;
+    }
+
+    function renderStorageConsole({ info, storageStatus }) {
+      const data = info;
+      const status = storageStatus;
+
+      const activeBackend = status?.activeBackend || data?.provider || 'fs';
+      const s3Configured = Boolean(status?.s3?.configured);
+
+      const s3CheckStateText = storageConsole.s3CheckOk
+        ? '<span class="text-green-700 font-semibold">connected</span>'
+        : storageConsole.lastS3CheckError
+          ? `<span class="text-red-700 font-semibold">failed</span> <span class="text-red-700">(${escapeHtml(storageConsole.lastS3CheckError)})</span>`
+          : '<span class="text-gray-600">not checked</span>';
+
+      const s3Config = status?.s3?.config || null;
+
+      document.getElementById('storage-info-content').innerHTML = `
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div><strong>Active backend:</strong> ${escapeHtml(activeBackend === 's3' ? 'S3' : 'Filesystem')}</div>
+          <div><strong>Bucket:</strong> ${escapeHtml(String(data.bucket || ''))}</div>
+          ${data.multerCeilingMaxFileSizeBytes ? `<div><strong>Multer ceiling:</strong> ${formatBytes(data.multerCeilingMaxFileSizeBytes)}</div>` : ''}
+        </div>
+
+        <div class="mt-2 text-xs text-blue-900">
+          <div><strong>Env hard cap (fallback):</strong> ${data.envFallbackHardCapMaxFileSizeBytes ? formatBytes(data.envFallbackHardCapMaxFileSizeBytes) : '(not set)'}</div>
+          <div><strong>Setting hard cap:</strong> ${data.configuredHardCapMaxFileSizeBytes ? formatBytes(data.configuredHardCapMaxFileSizeBytes) : '(not set)'}</div>
+          <div><strong>Effective hard cap (enforced):</strong> ${data.hardCapMaxFileSizeBytes ? formatBytes(data.hardCapMaxFileSizeBytes) : '(unknown)'}</div>
+        </div>
+
+        <div class="mt-3">
+          <div class="text-xs text-blue-900 font-semibold mb-2">Set hard cap (GlobalSetting: MAX_FILE_SIZE_HARD_CAP)</div>
+          <div class="flex flex-wrap gap-2 items-center">
+            <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('10mb')">10mb</button>
+            <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('30mb')">30mb</button>
+            <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('50mb')">50mb</button>
+            <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('100mb')">100mb</button>
+            <button type="button" class="px-2 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="setHardCapPreset('1gb')">1gb</button>
+            <span class="text-xs text-blue-900">or</span>
+            <input id="hard-cap-input" class="border rounded px-2 py-1 text-xs" placeholder="e.g. 10mb, 1gb" style="width: 150px;" />
+            <button type="button" class="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700" onclick="applyHardCapFromInput()">Set</button>
+          </div>
+          <div class="mt-1 text-xs text-blue-900" id="hard-cap-hint"></div>
+        </div>
+
+        <div class="mt-4 border-t border-blue-200 pt-4">
+          <div class="text-xs text-blue-900 font-semibold mb-2">S3 storage</div>
+
+          <div class="text-xs text-blue-900 mb-2">
+            <div><strong>Configured:</strong> ${s3Configured ? 'yes' : 'no'}</div>
+            <div><strong>Connection:</strong> ${s3CheckStateText}</div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <input id="s3-endpoint" class="border rounded px-2 py-1 text-xs" placeholder="S3 endpoint" value="${escapeHtml(String(s3Config?.endpoint || ''))}" />
+            <input id="s3-region" class="border rounded px-2 py-1 text-xs" placeholder="Region" value="${escapeHtml(String(s3Config?.region || 'us-east-1'))}" />
+            <input id="s3-bucket" class="border rounded px-2 py-1 text-xs" placeholder="Bucket" value="${escapeHtml(String(s3Config?.bucket || ''))}" />
+            <input id="s3-access-key" class="border rounded px-2 py-1 text-xs" placeholder="Access key" value="" />
+            <input id="s3-secret-key" class="border rounded px-2 py-1 text-xs" placeholder="Secret key" value="" />
+            <label class="flex items-center gap-2 text-xs text-blue-900">
+              <input id="s3-force-path-style" type="checkbox" ${s3Config?.forcePathStyle ? 'checked' : ''} />
+              forcePathStyle
+            </label>
+          </div>
+
+          <div class="mt-2 flex flex-wrap gap-2">
+            <button type="button" class="px-3 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="pasteS3EnvsFromClipboard()">Paste envs</button>
+            <button type="button" class="px-3 py-1 text-xs bg-gray-800 text-white rounded hover:bg-gray-900" onclick="saveS3Config()">Save S3 config</button>
+            <button type="button" class="px-3 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="checkS3Conn()" ${s3Configured ? '' : 'disabled'}>Check S3 conn</button>
+            <button type="button" class="px-3 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="runSync('fs-to-s3')" ${s3Configured ? '' : 'disabled'}>Sync fs → s3</button>
+            <button type="button" class="px-3 py-1 text-xs bg-white border rounded hover:bg-blue-100" onclick="runSync('s3-to-fs')" ${s3Configured ? '' : 'disabled'}>Sync s3 → fs</button>
+          </div>
+
+          <div class="mt-2 flex flex-wrap gap-2 items-center">
+            <span class="text-xs text-blue-900"><strong>Switch backend:</strong></span>
+            <button type="button" class="px-3 py-1 text-xs rounded border ${activeBackend === 'fs' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white'}" onclick="switchBackend('fs')">Use fs</button>
+            <button type="button" class="px-3 py-1 text-xs rounded border ${activeBackend === 's3' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white'}" onclick="switchBackend('s3')" ${s3Configured && storageConsole.s3CheckOk ? '' : 'disabled'}>Use s3</button>
+          </div>
+
+          <div class="mt-1 text-xs text-blue-900" id="storage-console-hint"></div>
+        </div>
+      `;
+
+      const input = document.getElementById('hard-cap-input');
+      if (input) {
+        input.value = data.configuredHardCapMaxFileSizeBytes
+          ? bytesToHumanInput(data.configuredHardCapMaxFileSizeBytes)
+          : '';
+      }
+    }
+
+    async function loadStorageInfo() {
+      try {
+        const [infoRes, storageStatus] = await Promise.all([
+          fetch(`${API_BASE}/api/admin/assets/info`).then(r => r.json().then(d => ({ ok: r.ok, d }))),
+          fetchStorageConsoleStatus(),
+        ]);
+
+        if (!infoRes.ok) throw new Error(infoRes.d?.error || 'Failed to load storage info');
+
+        renderStorageConsole({ info: infoRes.d, storageStatus });
+      } catch (error) {
+        document.getElementById('storage-info-content').innerHTML = `<p class="text-red-600">Error: ${escapeHtml(error.message)}</p>`;
+      }
+    }
+
+    async function saveS3Config() {
+      const hint = document.getElementById('storage-console-hint');
+      try {
+        if (hint) hint.textContent = 'Saving S3 config...';
+
+        const payload = {
+          endpoint: document.getElementById('s3-endpoint')?.value,
+          region: document.getElementById('s3-region')?.value,
+          bucket: document.getElementById('s3-bucket')?.value,
+          accessKeyId: document.getElementById('s3-access-key')?.value,
+          secretAccessKey: document.getElementById('s3-secret-key')?.value,
+          forcePathStyle: Boolean(document.getElementById('s3-force-path-style')?.checked),
+        };
+
+        const res = await fetch(`${API_BASE}/api/admin/assets/storage/s3-config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to save S3 config');
+
+        storageConsole.s3Configured = true;
+        storageConsole.s3CheckOk = false;
+        storageConsole.lastS3CheckError = null;
+
+        if (hint) hint.textContent = 'Saved. Now run "Check S3 conn".';
+        showToast('S3 config saved');
+        await loadStorageInfo();
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Failed to save S3 config', 'error');
+      }
+    }
+
+    async function checkS3Conn() {
+      const hint = document.getElementById('storage-console-hint');
+      try {
+        if (hint) hint.textContent = 'Checking S3 connection...';
+        const res = await fetch(`${API_BASE}/api/admin/assets/storage/s3-check`, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data?.ok === false) throw new Error(data?.error || 'S3 check failed');
+
+        storageConsole.s3CheckOk = true;
+        storageConsole.lastS3CheckError = null;
+        if (hint) hint.textContent = 'S3 connected.';
+        showToast('S3 connected');
+        await loadStorageInfo();
+      } catch (e) {
+        storageConsole.s3CheckOk = false;
+        storageConsole.lastS3CheckError = e.message || 'S3 check failed';
+        if (hint) hint.textContent = '';
+        showToast(storageConsole.lastS3CheckError, 'error');
+        await loadStorageInfo();
+      }
+    }
+
+    async function runSync(direction) {
+      const hint = document.getElementById('storage-console-hint');
+      try {
+        if (!confirm(`Run sync ${direction}?\n\nRules:\n- missing in source => skip\n- different bytes => skip\n- provider/bucket mismatch => abort`)) return;
+        if (hint) hint.textContent = `Syncing (${direction})...`;
+
+        const res = await fetch(`${API_BASE}/api/admin/assets/storage/sync`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ direction, limit: 100 }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const details = data?.details?.reason ? `${data.details.reason} (assetId=${data.details.assetId})` : (data?.error || 'Sync failed');
+          throw new Error(details);
+        }
+
+        const stats = data?.stats;
+        if (hint) hint.textContent = `Done. scanned=${stats?.scanned || 0} copied=${stats?.copied || 0} skippedMissing=${stats?.skippedMissingSource || 0} skippedSame=${stats?.skippedAlreadySynced || 0} skippedDiff=${stats?.skippedDifferentBytes || 0}`;
+        showToast('Sync completed');
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Sync failed', 'error');
+      }
+    }
+
+    async function switchBackend(backend) {
+      const hint = document.getElementById('storage-console-hint');
+      try {
+        if (!confirm(`Switch active backend to ${backend}?`)) return;
+        if (backend === 's3' && !storageConsole.s3CheckOk) {
+          throw new Error('S3 must be configured and connected before switching');
+        }
+
+        if (hint) hint.textContent = `Switching to ${backend}...`;
+        const res = await fetch(`${API_BASE}/api/admin/assets/storage/switch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ backend }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Switch failed');
+
+        storageConsole.activeBackend = backend;
+        if (hint) hint.textContent = `Active backend: ${backend}`;
+        showToast('Backend switched');
+        await loadStorageInfo();
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Failed to switch backend', 'error');
+      }
+    }
+
+    function bytesToHumanInput(bytes) {
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) return '';
+      const mb = n / (1024 * 1024);
+      if (mb >= 1024) return `${Math.round(mb / 1024)}gb`;
+      if (mb >= 1) return `${Math.round(mb)}mb`;
+      const kb = n / 1024;
+      if (kb >= 1) return `${Math.round(kb)}kb`;
+      return `${Math.round(n)}b`;
+    }
+
+    function parseHumanBytes(input) {
+      const raw = String(input || '').trim().toLowerCase();
+      if (!raw) return null;
+
+      const match = raw.match(/^([0-9]+(?:\.[0-9]+)?)\s*(b|kb|mb|gb)$/);
+      if (!match) return null;
+
+      const value = Number(match[1]);
+      if (!Number.isFinite(value) || value <= 0) return null;
+
+      const unit = match[2];
+      const multipliers = {
+        b: 1,
+        kb: 1024,
+        mb: 1024 * 1024,
+        gb: 1024 * 1024 * 1024,
+      };
+
+      return Math.round(value * multipliers[unit]);
+    }
+
+    function setHardCapPreset(text) {
+      const input = document.getElementById('hard-cap-input');
+      if (input) input.value = text;
+      applyHardCapFromInput();
+    }
+
+    async function persistHardCapSetting(bytes) {
+      const hint = document.getElementById('hard-cap-hint');
+      try {
+        if (hint) hint.textContent = 'Saving...';
+
+        const putRes = await fetch(`${API_BASE}/api/admin/settings/MAX_FILE_SIZE_HARD_CAP`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: String(bytes) }),
+        });
+
+        if (putRes.status === 404) {
+          const postRes = await fetch(`${API_BASE}/api/admin/settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: 'MAX_FILE_SIZE_HARD_CAP',
+              value: String(bytes),
+              type: 'number',
+              description: 'Global multipart hard cap for uploads (bytes)',
+              public: false,
+            }),
+          });
+
+          const postData = await postRes.json().catch(() => ({}));
+          if (!postRes.ok) throw new Error(postData?.error || 'Failed to create setting');
+        } else {
+          const putData = await putRes.json().catch(() => ({}));
+          if (!putRes.ok) throw new Error(putData?.error || 'Failed to update setting');
+        }
+
+        if (hint) hint.textContent = `Saved: ${formatBytes(bytes)}.`;
+
+        await loadStorageInfo();
+        await loadNamespaces();
+        await loadNamespacesSummary();
+      } catch (e) {
+        if (hint) hint.textContent = '';
+        showToast(e.message || 'Failed to save hard cap', 'error');
+      }
+    }
+
+    function applyHardCapFromInput() {
+      const input = document.getElementById('hard-cap-input');
+      const hint = document.getElementById('hard-cap-hint');
+      const bytes = parseHumanBytes(input?.value);
+      if (!bytes) {
+        if (hint) hint.textContent = 'Enter a value like 10mb, 1gb, 500kb.';
+        return;
+      }
+      if (hint) hint.textContent = `Will set hard cap to ${formatBytes(bytes)}.`;
+      persistHardCapSetting(bytes);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = String(text ?? '');
+      return div.innerHTML;
+    }
+
+    function escapeJs(text) {
+      return String(text ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function showUploadModal() {
+      document.getElementById('upload-file').value = '';
+      setUploadNamespace('default');
+      document.getElementById('upload-modal').classList.remove('hidden');
+    }
+
+    function closeUploadModal() {
+      document.getElementById('upload-modal').classList.add('hidden');
+    }
+
+    async function handleUpload(event) {
+      event.preventDefault();
+
+      const fileInput = document.getElementById('upload-file');
+      const visibility = document.getElementById('upload-visibility').value;
+
+      if (!fileInput.files.length) {
+        showToast('Please select a file', 'error');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      formData.append('visibility', visibility);
+      formData.append('namespace', document.getElementById('upload-namespace').value || 'default');
+
+      const btn = document.getElementById('upload-btn');
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/assets/upload`, {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          const details = Array.isArray(data?.errors)
+            ? data.errors.map((e) => {
+                if (!e) return '';
+                if (e.reason && e.value !== undefined) return `${e.reason} (${e.value})`;
+                return e.reason || 'policy error';
+              }).join('; ')
+            : '';
+          const msg = data?.error || 'Upload failed';
+          throw new Error(details ? `${msg}: ${details}` : msg);
+        }
+
+        showToast('Asset uploaded successfully');
+        closeUploadModal();
+        currentPage = 1;
+        await loadAssets();
+        await loadNamespacesSummary();
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Upload';
+      }
+    }
+
+    async function toggleVisibility(id, currentVisibility) {
+      const newVisibility = currentVisibility === 'public' ? 'private' : 'public';
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/assets/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visibility: newVisibility })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data?.error || 'Update failed');
+
+        showToast(`Asset is now ${newVisibility}`);
+        await loadAssets();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function deleteAsset(id) {
+      if (!confirm('Are you sure you want to delete this asset? This cannot be undone.')) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/assets/${id}`, { method: 'DELETE' });
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data?.error || 'Delete failed');
+
+        showToast('Asset deleted successfully');
+        await loadAssets();
+        await loadNamespacesSummary();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function copyUrl(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        showToast('URL copied to clipboard');
+      }).catch(() => {
+        showToast('Failed to copy URL', 'error');
+      });
+    }
+
+    function showPreview(id) {
+      const asset = allAssets.find(a => a._id === id);
+      if (!asset || !asset.publicUrl) return;
+
+      document.getElementById('preview-title').textContent = asset.originalName;
+
+      const content = document.getElementById('preview-content');
+      if (asset.contentType?.startsWith('image/')) {
+        content.innerHTML = `<img src="${API_BASE}${asset.publicUrl}" alt="${escapeHtml(asset.originalName)}" class="max-w-full max-h-[60vh]">`;
+      } else if (asset.contentType?.startsWith('video/')) {
+        content.innerHTML = `<video src="${API_BASE}${asset.publicUrl}" controls class="max-w-full max-h-[60vh]"></video>`;
+      } else {
+        content.innerHTML = `<p>Preview not available for this file type.</p>`;
+      }
+
+      document.getElementById('preview-modal').classList.remove('hidden');
+    }
+
+    function closePreviewModal() {
+      document.getElementById('preview-modal').classList.add('hidden');
+    }
+
+    document.getElementById('filter-visibility').addEventListener('change', () => {
+      currentPage = 1;
+      loadAssets();
+    });
+
+    document.getElementById('filter-namespace').addEventListener('change', () => {
+      currentPage = 1;
+      loadAssets();
+      updateDevSnippet();
+    });
+
+    document.getElementById('filter-tag').addEventListener('change', () => {
+      currentPage = 1;
+      loadAssets();
+      updateDevSnippet();
+    });
+
+    document.getElementById('filter-content-type').addEventListener('change', () => {
+      currentPage = 1;
+      loadAssets();
+    });
+
+    function setViewMode(mode) {
+      viewMode = mode === 'list' ? 'list' : 'cards';
+      const btnCards = document.getElementById('view-cards');
+      const btnList = document.getElementById('view-list');
+      if (btnCards && btnList) {
+        if (viewMode === 'cards') {
+          btnCards.className = 'px-3 py-2 text-sm rounded border bg-blue-600 text-white hover:bg-blue-700';
+          btnList.className = 'px-3 py-2 text-sm rounded border bg-white hover:bg-gray-50';
+        } else {
+          btnCards.className = 'px-3 py-2 text-sm rounded border bg-white hover:bg-gray-50';
+          btnList.className = 'px-3 py-2 text-sm rounded border bg-blue-600 text-white hover:bg-blue-700';
+        }
+      }
+      renderAssets();
+    }
+
+    function normalizeTagsInput(value) {
+      const raw = String(value || '')
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean);
+      return Array.from(new Set(raw));
+    }
+
+    function openTagsModal(assetId) {
+      const asset = allAssets.find(a => a._id === assetId);
+      tagsEditingAssetId = assetId;
+
+      const title = document.getElementById('tags-modal-title');
+      if (title) {
+        title.textContent = asset ? `Edit Tags: ${asset.originalName}` : 'Edit Tags';
+      }
+
+      const input = document.getElementById('tags-input');
+      const tags = Array.isArray(asset?.tags) ? asset.tags : [];
+      if (input) input.value = tags.join(', ');
+
+      document.getElementById('tags-modal').classList.remove('hidden');
+    }
+
+    function closeTagsModal() {
+      tagsEditingAssetId = null;
+      document.getElementById('tags-modal').classList.add('hidden');
+    }
+
+    async function saveTags() {
+      if (!tagsEditingAssetId) return;
+      const input = document.getElementById('tags-input');
+      const btn = document.getElementById('tags-save-btn');
+      const tags = normalizeTagsInput(input?.value);
+
+      try {
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        const response = await fetch(`${API_BASE}/api/admin/assets/${tagsEditingAssetId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tags }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error || 'Failed to update tags');
+
+        showToast('Tags updated');
+        closeTagsModal();
+        await loadAssets();
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+
+    async function loadNamespaces() {
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to load namespaces');
+
+        namespaces = Array.isArray(data) ? data : [];
+        if (!namespaces.find(n => n.key === 'default')) {
+          namespaces = [{
+            key: 'default',
+            enabled: true,
+            maxFileSizeBytes: undefined,
+            allowedContentTypes: undefined,
+            keyPrefix: undefined,
+            defaultVisibility: 'private',
+            enforceVisibility: false,
+          }, ...namespaces];
+        }
+
+        const select = document.getElementById('filter-namespace');
+        const currentValue = select.value;
+
+        select.innerHTML = '<option value="">All namespaces</option>' + namespaces.map(n =>
+          `<option value="${escapeHtml(n.key)}">${escapeHtml(n.key)}</option>`
+        ).join('');
+
+        if ([...select.options].some(o => o.value === currentValue)) {
+          select.value = currentValue;
+        }
+
+        const uploadNs = document.getElementById('upload-namespace');
+        const currentUploadValue = uploadNs.value;
+        uploadNs.innerHTML = namespaces.map(n =>
+          `<option value="${escapeHtml(n.key)}">${escapeHtml(n.key)}</option>`
+        ).join('');
+
+        if ([...uploadNs.options].some(o => o.value === currentUploadValue)) {
+          uploadNs.value = currentUploadValue;
+        } else {
+          uploadNs.value = 'default';
+        }
+
+        updateUploadNamespaceHint();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function loadNamespacesSummary() {
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces/summary`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to load namespaces summary');
+        renderNamespacesSummaryCards(data);
+      } catch (error) {
+        document.getElementById('namespaces-summary-content').innerHTML = `<div class="text-red-600">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function loadAssets() {
+      try {
+        const namespace = document.getElementById('filter-namespace').value;
+        const tag = String(document.getElementById('filter-tag').value || '').trim().toLowerCase();
+        const visibility = document.getElementById('filter-visibility').value;
+        const contentType = document.getElementById('filter-content-type').value;
+
+        let url = `${API_BASE}/api/admin/assets?page=${currentPage}&limit=12`;
+        if (namespace) url += `&namespace=${encodeURIComponent(namespace)}`;
+        if (tag) url += `&tag=${encodeURIComponent(tag)}`;
+        if (visibility) url += `&visibility=${visibility}`;
+        if (contentType) url += `&contentType=${contentType}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data?.error || 'Failed to load assets');
+
+        allAssets = Array.isArray(data.assets) ? data.assets : [];
+        totalPages = data.pagination?.pages || 1;
+
+        if (selectedAssetId && !allAssets.find(a => a._id === selectedAssetId)) {
+          selectedAssetId = null;
+        }
+
+        updateDevSnippet();
+        renderAssets();
+        renderPagination();
+      } catch (error) {
+        showToast(error.message, 'error');
+        document.getElementById('assets-container').innerHTML = `
+          <div class="text-center py-12 col-span-full text-red-600">
+            <p>Error loading assets: ${escapeHtml(error.message)}</p>
+          </div>
+        `;
+      }
+    }
+
+    function escapeSnippetString(str) {
+      return String(str ?? '').replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    }
+
+    function updateDevSnippet() {
+      const namespaceRaw = document.getElementById('filter-namespace')?.value || '';
+      const namespace = String(namespaceRaw).trim();
+      const tag = String(document.getElementById('filter-tag')?.value || '').trim().toLowerCase();
+
+      const selected = selectedAssetId ? allAssets.find(a => a._id === selectedAssetId) : null;
+      const assetId = selected?._id || '<assetId>';
+      const assetKey = selected?.key || '<assetKey>';
+      const publicUrl = selected?.publicUrl ? `${API_BASE}${selected.publicUrl}` : null;
+
+      const snippet =
+`const saasbackend = require('saasbackend');
+
+// Works when your host app mounts saasbackend.middleware(...) and shares the same process/DB connection
+const { assets } = saasbackend.services;
+
+// 1) List assets (metadata)
+const { assets: list } = await assets.listAssets({
+  namespace: ${namespace ? `'${escapeSnippetString(namespace)}'` : 'undefined'},
+  tag: ${tag ? `'${escapeSnippetString(tag)}'` : 'undefined'},
+  page: 1,
+  limit: 50,
+});
+
+// 2) Get one asset (metadata)
+const asset = await assets.getAssetById('${escapeSnippetString(assetId)}');
+
+// 3) Get raw bytes (Buffer) for an asset
+const { body, contentType } = await assets.getAssetBytesById('${escapeSnippetString(assetId)}');
+
+// 4) Or fetch by storage key
+const { body: body2 } = await assets.getAssetBytesByKey('${escapeSnippetString(assetKey)}');
+
+${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
+// ${escapeSnippetString(publicUrl)}
+
+` : ''}`;
+
+      const el = document.getElementById('dev-snippet');
+      if (el) el.textContent = snippet;
+    }
+
+    async function copyDevSnippet() {
+      try {
+        const el = document.getElementById('dev-snippet');
+        await navigator.clipboard.writeText(el?.textContent || '');
+        showToast('Copied');
+      } catch {
+        showToast('Copy failed', 'error');
+      }
+    }
+
+    function renderAssets() {
+      const container = document.getElementById('assets-container');
+
+      if (viewMode === 'list') {
+        container.className = 'bg-white rounded-lg shadow overflow-x-auto';
+      } else {
+        container.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6';
+      }
+
+      if (!allAssets || allAssets.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 col-span-full">
+            <p class="text-gray-600">No assets found</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (viewMode === 'list') {
+        container.innerHTML = `
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Namespace</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Visibility</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Storage</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tags</th>
+                <th class="px-4 py-2"></th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              ${allAssets.map((asset) => {
+                const tags = Array.isArray(asset.tags) ? asset.tags : [];
+                const tagsText = tags.length ? tags.join(', ') : '';
+
+                const storageExists = asset.storageExists;
+                const storageBadge = storageExists === false
+                  ? '<span class="px-2 py-1 text-xs rounded bg-red-100 text-red-700" title="DB record exists but blob is missing">missing</span>'
+                  : storageExists === true
+                    ? '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">ok</span>'
+                    : '<span class="px-2 py-1 text-xs rounded bg-gray-100 text-gray-600">unknown</span>';
+
+                return `
+                  <tr class="hover:bg-gray-50 cursor-pointer" onclick="selectAsset('${escapeJs(asset._id)}')">
+                    <td class="px-4 py-2 text-sm max-w-xs truncate" title="${escapeHtml(asset.originalName)}">${escapeHtml(asset.originalName)}</td>
+                    <td class="px-4 py-2 text-sm font-mono">${escapeHtml(asset.namespace || 'default')}</td>
+                    <td class="px-4 py-2 text-sm">${escapeHtml(asset.contentType || '')}</td>
+                    <td class="px-4 py-2 text-sm">${formatBytes(asset.sizeBytes || 0)}</td>
+                    <td class="px-4 py-2 text-sm">
+                      <span class="px-2 py-1 text-xs rounded ${asset.visibility === 'public' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${asset.visibility}</span>
+                    </td>
+                    <td class="px-4 py-2 text-sm">${storageBadge}</td>
+                    <td class="px-4 py-2 text-sm">${escapeHtml(tagsText)}</td>
+                    <td class="px-4 py-2 text-right">
+                      <div class="flex justify-end gap-2">
+                        <button onclick="event.stopPropagation(); openTagsModal('${escapeJs(asset._id)}')" class="text-gray-700 hover:text-gray-900" title="Edit tags">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M3 11l6.586-6.586a2 2 0 012.828 0L21 13a2 2 0 010 2.828l-6.586 6.586a2 2 0 01-2.828 0L3 13v-2z"></path>
+                          </svg>
+                        </button>
+                        ${asset.visibility === 'public' && asset.publicUrl ? `
+                          <button onclick="event.stopPropagation(); copyUrl('${escapeJs(API_BASE + asset.publicUrl)}')" class="text-blue-600 hover:text-blue-800" title="Copy URL">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                            </svg>
+                          </button>
+                        ` : ''}
+                        <button onclick="event.stopPropagation(); toggleVisibility('${escapeJs(asset._id)}', '${asset.visibility}')" class="text-yellow-600 hover:text-yellow-800" title="Toggle visibility">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                          </svg>
+                        </button>
+                        <button onclick="event.stopPropagation(); deleteAsset('${escapeJs(asset._id)}')" class="text-red-600 hover:text-red-800" title="Delete">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                `;
+              }).join('')
+            }
+          </tbody>
+        </table>
+      `;
+        return;
+      }
+
+      container.innerHTML = allAssets.map((asset) => {
+        const isImage = asset.contentType?.startsWith('image/');
+        const isVideo = asset.contentType?.startsWith('video/');
+        const isPdf = asset.contentType === 'application/pdf';
+        const tags = Array.isArray(asset.tags) ? asset.tags : [];
+        const tagsText = tags.length ? tags.join(', ') : '';
+
+        const storageExists = asset.storageExists;
+        const storageBadge = storageExists === false
+          ? '<span class="px-2 py-1 text-xs rounded bg-red-100 text-red-700" title="DB record exists but blob is missing">missing</span>'
+          : '';
+
+        let thumbnail = '';
+        if (isImage && asset.publicUrl) {
+          thumbnail = `<img src="${API_BASE}${asset.publicUrl}" alt="${escapeHtml(asset.originalName)}" class="w-full h-32 object-cover rounded cursor-pointer" onclick="event.stopPropagation(); showPreview('${escapeJs(asset._id)}')">`;
+        } else if (isImage) {
+          thumbnail = `<div class="w-full h-32 bg-gray-200 rounded flex items-center justify-center text-gray-500">🖼️ Image (private)</div>`;
+        } else if (isVideo) {
+          thumbnail = `<div class="w-full h-32 bg-gray-200 rounded flex items-center justify-center text-gray-500">🎬 Video</div>`;
+        } else if (isPdf) {
+          thumbnail = `<div class="w-full h-32 bg-gray-200 rounded flex items-center justify-center text-gray-500">📄 PDF</div>`;
+        } else {
+          thumbnail = `<div class="w-full h-32 bg-gray-200 rounded flex items-center justify-center text-gray-500">📁 File</div>`;
+        }
+
+        return `
+          <div class="bg-white rounded-lg shadow p-4" onclick="selectAsset('${escapeJs(asset._id)}')">
+            ${thumbnail}
+            <div class="mt-3">
+              <h4 class="font-medium text-gray-900 truncate" title="${escapeHtml(asset.originalName)}">${escapeHtml(asset.originalName)}</h4>
+              <p class="text-xs text-gray-500 mt-1">${formatBytes(asset.sizeBytes)} • ${asset.contentType}</p>
+              ${tagsText ? `<p class="text-xs text-gray-500 mt-1">Tags: ${escapeHtml(tagsText)}</p>` : ''}
+              ${storageBadge ? `<p class="text-xs text-red-700 mt-1">Storage: ${storageBadge}</p>` : ''}
+              <div class="flex items-center justify-between mt-2">
+                <span class="px-2 py-1 text-xs rounded ${asset.visibility === 'public' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${asset.visibility}</span>
+                <div class="flex gap-2">
+                  <button onclick="event.stopPropagation(); openTagsModal('${escapeJs(asset._id)}')" class="text-gray-700 hover:text-gray-900" title="Edit tags">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M3 11l6.586-6.586a2 2 0 012.828 0L21 13a2 2 0 010 2.828l-6.586 6.586a2 2 0 01-2.828 0L3 13v-2z"></path>
+                    </svg>
+                  </button>
+                  ${asset.visibility === 'public' && asset.publicUrl ? `
+                    <button onclick="event.stopPropagation(); copyUrl('${escapeJs(API_BASE + asset.publicUrl)}')" class="text-blue-600 hover:text-blue-800" title="Copy URL">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+                      </svg>
+                    </button>
+                  ` : ''}
+                  <button onclick="event.stopPropagation(); toggleVisibility('${escapeJs(asset._id)}', '${asset.visibility}')" class="text-yellow-600 hover:text-yellow-800" title="Toggle visibility">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                  </button>
+                  <button onclick="event.stopPropagation(); deleteAsset('${escapeJs(asset._id)}')" class="text-red-600 hover:text-red-800" title="Delete">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPagination() {
+      const container = document.getElementById('pagination');
+
+      if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      if (currentPage > 1) {
+        html += `<button onclick="goToPage(${currentPage - 1})" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Prev</button>`;
+      }
+      html += `<span class="px-3 py-1">Page ${currentPage} of ${totalPages}</span>`;
+      if (currentPage < totalPages) {
+        html += `<button onclick="goToPage(${currentPage + 1})" class="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300">Next</button>`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      currentPage = page;
+      loadAssets();
+    }
+
+    function selectAsset(id) {
+      selectedAssetId = id;
+      updateDevSnippet();
+    }
+
+    function setUploadNamespace(key) {
+      const select = document.getElementById('upload-namespace');
+      if (!select) return;
+      select.value = key;
+      updateUploadNamespaceHint();
+    }
+
+    function computeKeyPrefixHint(ns) {
+      if (!ns || ns.key === 'default') return '';
+      const explicit = (ns.keyPrefix || '').trim();
+      if (explicit) return explicit;
+      return `assets/${ns.key}`;
+    }
+
+    function updateUploadNamespaceHint() {
+      const select = document.getElementById('upload-namespace');
+      const hint = document.getElementById('upload-namespace-hint');
+      if (!select || !hint) return;
+      const key = select.value || 'default';
+      const ns = namespaces.find(n => n.key === key);
+      if (!ns) {
+        hint.textContent = '';
+        return;
+      }
+      const prefix = computeKeyPrefixHint(ns);
+      hint.textContent = prefix ? `keyPrefix: ${prefix}` : '';
+
+      const visHint = document.getElementById('upload-visibility-hint');
+      if (visHint) {
+        if (ns.enforceVisibility) {
+          visHint.textContent = `Visibility is enforced by namespace (default: ${ns.defaultVisibility})`;
+        } else {
+          visHint.textContent = '';
+        }
+      }
+    }
+
+    async function showNamespacesModal() {
+      document.getElementById('namespaces-modal').classList.remove('hidden');
+      await loadNamespaces();
+      renderNamespacesTable();
+    }
+
+    function closeNamespacesModal() {
+      document.getElementById('namespaces-modal').classList.add('hidden');
+    }
+
+    function renderNamespacesTable() {
+      const tbody = document.getElementById('namespaces-table-body') || document.getElementById('namespaces-table');
+      if (!tbody) return;
+
+      tbody.innerHTML = namespaces.map((ns) => {
+        const maxSizeText = ns.maxFileSizeBytes ? formatBytes(ns.maxFileSizeBytes) : '(hard cap)';
+        const types = Array.isArray(ns.allowedContentTypes) ? ns.allowedContentTypes : [];
+        const typesText = types.length ? `${types.length} types` : 'default types';
+        const keyPrefixText = ns.keyPrefix ? escapeHtml(ns.keyPrefix) : `<span class="text-gray-400">(auto: ${escapeHtml(computeKeyPrefixHint(ns) || '')})</span>`;
+
+        return `
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2 text-sm font-mono">${escapeHtml(ns.key)}</td>
+            <td class="px-4 py-2 text-sm">${ns.enabled ? 'yes' : 'no'}</td>
+            <td class="px-4 py-2 text-sm">${escapeHtml(maxSizeText)}</td>
+            <td class="px-4 py-2 text-sm">${escapeHtml(typesText)}</td>
+            <td class="px-4 py-2 text-sm">${keyPrefixText}</td>
+            <td class="px-4 py-2 text-sm">${escapeHtml(ns.defaultVisibility || 'private')}</td>
+            <td class="px-4 py-2 text-sm">${ns.enforceVisibility ? 'true' : 'false'}</td>
+            <td class="px-4 py-2 text-right">
+              <div class="flex justify-end gap-2">
+                <button onclick="openNamespaceEditor('${escapeJs(ns.key)}')" class="px-2 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300">Edit</button>
+                ${ns.key !== 'default' ? `<button onclick="deleteNamespace('${escapeJs(ns.key)}')" class="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700">Delete</button>` : ''}
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderNamespacesSummaryCards(data) {
+      const container = document.getElementById('namespaces-summary-content');
+      if (!container) return;
+
+      const items = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+      if (!items.length) {
+        container.innerHTML = '<div class="text-sm text-gray-600">No namespaces.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          ${items.map((ns) => {
+            const types = Array.isArray(ns.allowedContentTypes) ? ns.allowedContentTypes : [];
+            const typesText = types.length ? `${types.length} types` : 'default types';
+            const maxSizeText = ns.maxFileSizeBytes ? formatBytes(ns.maxFileSizeBytes) : '(hard cap)';
+            const keyPrefixText = ns.keyPrefix ? escapeHtml(ns.keyPrefix) : `<span class="text-gray-400">(auto: ${escapeHtml(computeKeyPrefixHint(ns) || '')})</span>`;
+
+            const stats = ns.stats || {};
+            const count = Number(stats.count || 0);
+            const totalBytes = Number(stats.totalBytes || 0);
+
+            return `
+              <div class="bg-white rounded-lg shadow p-4 cursor-pointer hover:bg-gray-50" onclick="filterByNamespace('${escapeJs(ns.key)}')">
+                <div class="flex items-center justify-between">
+                  <div class="font-mono text-sm text-gray-900">${escapeHtml(ns.key)}</div>
+                  <div class="text-xs ${ns.enabled ? 'text-green-700' : 'text-gray-500'}">${ns.enabled ? 'enabled' : 'disabled'}</div>
+                </div>
+                <div class="mt-2 text-sm text-gray-700">
+                  <div><strong>Assets:</strong> ${count}</div>
+                  <div><strong>Total:</strong> ${formatBytes(totalBytes)}</div>
+                </div>
+                <div class="mt-2 text-xs text-gray-600">
+                  <div><strong>Max:</strong> ${escapeHtml(maxSizeText)}</div>
+                  <div><strong>Types:</strong> ${escapeHtml(typesText)}</div>
+                  <div><strong>keyPrefix:</strong> ${keyPrefixText}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    function filterByNamespace(key) {
+      const select = document.getElementById('filter-namespace');
+      if (!select) return;
+      select.value = key;
+      currentPage = 1;
+      loadAssets();
+      updateDevSnippet();
+    }
+
+    function openNamespaceEditor(key) {
+      const createMode = key === 'create' || !key;
+      namespaceEditorMode = createMode ? 'create' : 'edit';
+      namespaceEditorOriginalKey = createMode ? null : key;
+
+      const ns = createMode ? null : namespaces.find(n => n.key === key);
+
+      document.getElementById('namespace-editor-title').textContent = createMode ? 'Create namespace' : `Edit namespace: ${key}`;
+      document.getElementById('ns-key').value = ns?.key || '';
+      document.getElementById('ns-key').readOnly = !createMode;
+      document.getElementById('ns-enabled').value = String(ns?.enabled !== false);
+      document.getElementById('ns-max').value = ns?.maxFileSizeBytes ? String(ns.maxFileSizeBytes) : '';
+      document.getElementById('ns-types').value = Array.isArray(ns?.allowedContentTypes) ? ns.allowedContentTypes.join(',') : '';
+      document.getElementById('ns-prefix').value = ns?.keyPrefix || '';
+      document.getElementById('ns-default-vis').value = ns?.defaultVisibility === 'public' ? 'public' : 'private';
+      document.getElementById('ns-enforce-vis').value = String(Boolean(ns?.enforceVisibility));
+
+      document.getElementById('namespace-editor-modal').classList.remove('hidden');
+    }
+
+    function closeNamespaceEditor() {
+      document.getElementById('namespace-editor-modal').classList.add('hidden');
+    }
+
+    async function saveNamespace(event) {
+      event.preventDefault();
+
+      const key = document.getElementById('ns-key').value.trim();
+      if (!key) {
+        showToast('Namespace key is required', 'error');
+        return;
+      }
+
+      const payload = {
+        key,
+        enabled: document.getElementById('ns-enabled').value === 'true',
+        maxFileSizeBytes: document.getElementById('ns-max').value ? Number(document.getElementById('ns-max').value) : undefined,
+        allowedContentTypes: document.getElementById('ns-types').value
+          ? document.getElementById('ns-types').value.split(',').map(s => s.trim()).filter(Boolean)
+          : undefined,
+        keyPrefix: document.getElementById('ns-prefix').value ? document.getElementById('ns-prefix').value.trim() : undefined,
+        defaultVisibility: document.getElementById('ns-default-vis').value,
+        enforceVisibility: document.getElementById('ns-enforce-vis').value === 'true',
+      };
+
+      const btn = document.getElementById('ns-save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+
+      try {
+        const url = namespaceEditorMode === 'create'
+          ? `${API_BASE}/api/admin/upload-namespaces`
+          : `${API_BASE}/api/admin/upload-namespaces/${encodeURIComponent(namespaceEditorOriginalKey)}`;
+
+        const method = namespaceEditorMode === 'create' ? 'POST' : 'PUT';
+
+        const response = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to save namespace');
+
+        showToast('Namespace saved');
+        closeNamespaceEditor();
+        await loadNamespaces();
+        renderNamespacesTable();
+      } catch (error) {
+        showToast(error.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Save';
+      }
+    }
+
+    async function deleteNamespace(key) {
+      if (!confirm(`Delete namespace '${key}'?`)) return;
+
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/upload-namespaces/${encodeURIComponent(key)}`, { method: 'DELETE' });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || 'Failed to delete namespace');
+        showToast('Namespace deleted');
+        await loadNamespaces();
+        renderNamespacesTable();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    (async function init() {
+      await loadStorageInfo();
+      await loadNamespaces();
+      await loadNamespacesSummary();
+      await loadAssets();
+    })();
+  </script>

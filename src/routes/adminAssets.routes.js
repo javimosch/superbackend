@@ -4,6 +4,8 @@ const multer = require('multer');
 const { basicAuth } = require('../middleware/auth');
 const adminAssetsController = require('../controllers/adminAssets.controller');
 
+const adminAssetsStorageRoutes = require('./adminAssetsStorage.routes');
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -12,6 +14,7 @@ const upload = multer({
 });
 
 router.get('/info', basicAuth, adminAssetsController.getStorageInfo);
+router.use('/storage', basicAuth, adminAssetsStorageRoutes);
 router.get('/', basicAuth, adminAssetsController.list);
 router.get('/:id', basicAuth, adminAssetsController.get);
 router.post('/upload', basicAuth, upload.single('file'), adminAssetsController.upload);
