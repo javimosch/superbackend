@@ -149,7 +149,8 @@
   </div>
 
   <script>
-    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const BASE_PATH = "<%= (typeof baseUrl !== 'undefined' && baseUrl) ? baseUrl : '' %>";
+    const API_BASE = window.location.origin + (BASE_PATH || '');
     let allSettings = [];
 
     function showToast(message, type = 'success') {
