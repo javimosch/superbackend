@@ -580,6 +580,142 @@
       }
     }
 
+    function getSelectedNamespaceKey() {
+      const raw = document.getElementById('filter-namespace')?.value || '';
+      return String(raw).trim();
+    }
+
+    function getNamespaceConfig(key) {
+      if (!key) return null;
+      return namespaces.find(n => String(n.key) === String(key)) || null;
+    }
+
+    function setQuickUploadStatus(text, kind) {
+      const el = document.getElementById('quick-upload-status');
+      if (!el) return;
+      el.className = 'mt-3 text-xs ' + (kind === 'error' ? 'text-red-600' : kind === 'success' ? 'text-green-700' : 'text-gray-600');
+      el.textContent = text || '';
+    }
+
+    function updateQuickUploadVisibility() {
+      const key = getSelectedNamespaceKey();
+      const wrap = document.getElementById('quick-upload');
+      const label = document.getElementById('quick-upload-namespace-label');
+      if (!wrap || !label) return;
+
+      if (!key) {
+        wrap.classList.add('hidden');
+        label.textContent = '';
+        setQuickUploadStatus('', '');
+        return;
+      }
+
+      wrap.classList.remove('hidden');
+      label.textContent = key;
+      setQuickUploadStatus('', '');
+    }
+
+    async function uploadSingleFileToSelectedNamespace(file, idx, total) {
+      const namespaceKey = getSelectedNamespaceKey();
+      if (!namespaceKey) {
+        throw new Error('Select a namespace first');
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('namespace', namespaceKey);
+      // Intentionally omit visibility => backend uses namespace default visibility
+
+      setQuickUploadStatus(`Uploading ${idx}/${total}: ${file.name || 'clipboard'}...`, '');
+
+      const response = await fetch(`${API_BASE}/api/admin/assets/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const details = Array.isArray(data?.errors)
+          ? data.errors.map((e) => {
+              if (!e) return '';
+              if (e.reason && e.value !== undefined) return `${e.reason} (${e.value})`;
+              return e.reason || 'policy error';
+            }).join('; ')
+          : '';
+        const msg = data?.error || 'Upload failed';
+        throw new Error(details ? `${msg}: ${details}` : msg);
+      }
+
+      return data?.asset || null;
+    }
+
+    async function uploadFilesToSelectedNamespace(files) {
+      const list = Array.from(files || []).filter(Boolean);
+      if (!list.length) return;
+
+      const btn = document.getElementById('quick-upload-clipboard-btn');
+      if (btn) btn.disabled = true;
+
+      try {
+        for (let i = 0; i < list.length; i++) {
+          await uploadSingleFileToSelectedNamespace(list[i], i + 1, list.length);
+        }
+
+        setQuickUploadStatus(`Done. Uploaded ${list.length} file(s).`, 'success');
+        currentPage = 1;
+        await loadAssets();
+        await loadNamespacesSummary();
+      } catch (e) {
+        setQuickUploadStatus(e?.message ? String(e.message) : 'Upload failed', 'error');
+        showToast(e?.message ? String(e.message) : 'Upload failed', 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function uploadFromClipboard() {
+      const namespaceKey = getSelectedNamespaceKey();
+      if (!namespaceKey) {
+        showToast('Select a namespace first', 'error');
+        return;
+      }
+
+      if (!navigator.clipboard?.read) {
+        showToast('Clipboard file upload not supported in this browser', 'error');
+        return;
+      }
+
+      try {
+        setQuickUploadStatus('Reading clipboard...', '');
+        const items = await navigator.clipboard.read();
+        const files = [];
+
+        for (const item of items) {
+          for (const type of item.types) {
+            if (!type) continue;
+            // Prefer images, but accept any file-like blob
+            if (type.startsWith('image/') || type === 'application/octet-stream') {
+              const blob = await item.getType(type);
+              const ext = type.startsWith('image/') ? type.split('/')[1] : 'bin';
+              const name = `clipboard-${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`;
+              files.push(new File([blob], name, { type: blob.type || type }));
+              break;
+            }
+          }
+        }
+
+        if (!files.length) {
+          setQuickUploadStatus('Clipboard has no files/images to upload.', 'error');
+          return;
+        }
+
+        await uploadFilesToSelectedNamespace(files);
+      } catch (e) {
+        setQuickUploadStatus(e?.message ? String(e.message) : 'Clipboard read failed', 'error');
+        showToast(e?.message ? String(e.message) : 'Clipboard read failed', 'error');
+      }
+    }
+
     async function toggleVisibility(id, currentVisibility) {
       const newVisibility = currentVisibility === 'public' ? 'private' : 'public';
 
@@ -657,6 +793,7 @@
       currentPage = 1;
       loadAssets();
       updateDevSnippet();
+      updateQuickUploadVisibility();
     });
 
     document.getElementById('filter-tag').addEventListener('change', () => {
@@ -1253,6 +1390,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
       currentPage = 1;
       loadAssets();
       updateDevSnippet();
+      updateQuickUploadVisibility();
     }
 
     function openNamespaceEditor(key) {
@@ -1360,9 +1498,49 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
       // Ensure the initial mode is highlighted even before assets load
       setViewMode(viewMode);
 
+      // Quick upload: bind dropzone
+      const dropzone = document.getElementById('quick-upload-dropzone');
+      const fileInput = document.getElementById('quick-upload-file-input');
+      if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', async () => {
+          const files = fileInput.files;
+          fileInput.value = '';
+          await uploadFilesToSelectedNamespace(files);
+        });
+
+        const setDragActive = (active) => {
+          if (active) {
+            dropzone.classList.add('border-blue-400');
+            dropzone.classList.add('bg-blue-50');
+          } else {
+            dropzone.classList.remove('border-blue-400');
+            dropzone.classList.remove('bg-blue-50');
+          }
+        };
+
+        dropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          setDragActive(true);
+        });
+        dropzone.addEventListener('dragleave', (e) => {
+          e.preventDefault();
+          setDragActive(false);
+        });
+        dropzone.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          setDragActive(false);
+          const files = e.dataTransfer?.files;
+          await uploadFilesToSelectedNamespace(files);
+        });
+      }
+
       await loadStorageInfo();
       await loadNamespaces();
       await loadNamespacesSummary();
       await loadAssets();
+
+      updateQuickUploadVisibility();
     })();
   </script>
