@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEO Config - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    pre { white-space: pre; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">SEO Config</h1>
+            <p class="text-sm text-gray-600 mt-1">Manage SEO JSON config and OG image tooling</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="<%= baseUrl %>/admin/test" class="text-blue-600 hover:text-blue-800">← Back to API Test</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+      <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900">SEO Config JSON</h2>
+            <div class="flex gap-2">
+              <button class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm" onclick="loadSeoConfig()">Reload</button>
+              <button class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm" onclick="saveSeoConfig()">Save</button>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600 mt-1">Fixed slug: <code class="bg-gray-100 px-1 rounded">seo-config</code> (stored in JSON Configs). SVG is stored separately in Global Settings.</p>
+        </div>
+        <div class="p-4 space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label class="flex items-center gap-2 text-sm">
+              <input id="seo-public-enabled" type="checkbox" class="h-4 w-4" />
+              <span>Public enabled (expose via <code>/api/json-configs/seo-config</code>)</span>
+            </label>
+            <div>
+              <label class="block text-sm font-medium">Cache TTL (seconds)</label>
+              <input id="seo-cache-ttl" type="number" min="0" class="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="0" />
+            </div>
+            <div class="text-sm text-gray-600 flex items-end" id="seo-updated-at"></div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">JSON</label>
+            <textarea id="seo-json-raw" class="w-full border rounded px-3 py-2 font-mono text-xs" rows="18" placeholder="{\n  ...\n}"></textarea>
+            <div class="mt-2 text-xs text-gray-600" id="seo-json-status"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900">Developer helper</h2>
+            <button class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm" onclick="copySnippet()">Copy</button>
+          </div>
+          <p class="text-sm text-gray-600 mt-1">Fetch SEO config via internal JSON Config service.</p>
+        </div>
+        <div class="p-4">
+          <pre id="dev-snippet" class="bg-gray-50 rounded p-3 text-xs overflow-auto"></pre>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg font-semibold text-gray-900">OG Share Image</h2>
+            <div class="flex gap-2">
+              <button class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm" onclick="reloadOgPng()">Reload PNG</button>
+              <button class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm" onclick="loadSeoConfig()">Reload data</button>
+            </div>
+          </div>
+          <p class="text-sm text-gray-600 mt-1">Edit SVG, preview live, and generate a 1200×630 PNG.</p>
+        </div>
+
+        <div class="p-4 space-y-5">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-medium">SVG (Global Setting: <code>seoconfig.og.svg</code>)</label>
+                <div class="flex gap-2">
+                  <button id="ai-edit-btn" class="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm" onclick="openAiModal()">AI edit</button>
+                  <button class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm" onclick="saveOgSvg()">Save SVG</button>
+                </div>
+              </div>
+              <textarea id="og-svg-raw" class="w-full border rounded px-3 py-2 font-mono text-xs" rows="16" placeholder="<svg ...>"></textarea>
+              <div class="mt-2 text-xs text-gray-600" id="og-svg-status"></div>
+            </div>
+
+            <div>
+              <div class="mb-2 flex justify-between items-center">
+                <label class="block text-sm font-medium">SVG preview (sandboxed)</label>
+                <div class="text-xs text-gray-600">Updates on change</div>
+              </div>
+              <iframe id="og-svg-preview" class="w-full border rounded bg-white" style="height: 360px;" sandbox></iframe>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium mb-1">PNG output path (must be under <code>public/</code>)</label>
+              <div class="flex gap-2">
+                <input id="og-png-output" class="flex-1 border rounded px-3 py-2 text-sm" value="public/og/og-default.png" />
+                <button class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm" onclick="generatePng()">Generate PNG</button>
+              </div>
+              <div class="mt-2 text-xs text-gray-600" id="og-png-status"></div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium mb-1">PNG preview</label>
+              <div id="png-preview-wrapper" class="border rounded bg-white p-3" style="min-height: 140px;">
+                <div id="png-preview-empty" class="text-sm text-gray-600">Not available</div>
+                <img id="png-preview" class="hidden max-w-full" alt="og png preview" />
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <div id="ai-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold">AI edit SVG</h3>
+        <button onclick="closeAiModal()" class="text-gray-400 hover:text-gray-600">✕</button>
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-sm font-medium mb-1">Instruction</label>
+        <input id="ai-instruction" class="w-full border rounded px-3 py-2 text-sm" placeholder="e.g. Make background darker and replace title with MicroExits" />
+      </div>
+
+      <div class="mb-3">
+        <label class="block text-sm font-medium mb-1">Model (optional override)</label>
+        <input id="ai-model" class="w-full border rounded px-3 py-2 text-sm" placeholder="google/gemini-2.5-flash-lite" />
+        <div class="mt-1 text-xs text-gray-600">Uses <code>seoconfig.ai.openrouter.*</code> settings with fallback to <code>ai.openrouter.*</code>. Disabled if no API key.</div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeAiModal()" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400">Cancel</button>
+        <button type="button" id="ai-run-btn" onclick="runAiEdit()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">Run</button>
+      </div>
+      <div class="mt-3 text-xs text-gray-600" id="ai-status"></div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>";
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function buildSnippet() {
+      const snippet = `const { getJsonConfigValueBySlug } = require('saasbackend').services.jsonConfigs;\n\nasync function loadSeoConfig() {\n  const seo = await getJsonConfigValueBySlug('seo-config');\n  return seo;\n}`;
+      document.getElementById('dev-snippet').textContent = snippet;
+    }
+
+    function setSvgPreview(svgRaw) {
+      const iframe = document.getElementById('og-svg-preview');
+      const html = `<!doctype html><html><head><meta charset="utf-8" />\n<style>html,body{margin:0;padding:0;background:#fff;}svg{width:100%;height:auto;display:block;}</style></head><body>${svgRaw || ''}</body></html>`;
+      iframe.srcdoc = html;
+    }
+
+    function debounce(fn, wait) {
+      let t;
+      return (...args) => {
+        clearTimeout(t);
+        t = setTimeout(() => fn(...args), wait);
+      };
+    }
+
+    const debouncedPreview = debounce(() => {
+      const svgRaw = document.getElementById('og-svg-raw').value;
+      setSvgPreview(svgRaw);
+    }, 200);
+
+    async function loadSeoConfig() {
+      const status = document.getElementById('seo-json-status');
+      status.textContent = 'Loading...';
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/seo-config`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to load');
+
+        document.getElementById('seo-public-enabled').checked = Boolean(data?.config?.publicEnabled);
+        document.getElementById('seo-cache-ttl').value = String(data?.config?.cacheTtlSeconds ?? 0);
+        document.getElementById('seo-json-raw').value = String(data?.config?.jsonRaw || '');
+        document.getElementById('seo-updated-at').textContent = data?.config?.updatedAt ? `Updated: ${new Date(data.config.updatedAt).toLocaleString()}` : '';
+
+        document.getElementById('og-svg-raw').value = String(data?.og?.svgRaw || '');
+        document.getElementById('og-png-output').value = String(data?.og?.defaultPngOutputPath || 'public/og/og-default.png');
+        setSvgPreview(String(data?.og?.svgRaw || ''));
+
+        status.textContent = 'Loaded';
+        document.getElementById('og-svg-status').textContent = '';
+
+        await reloadOgPng();
+
+        return data;
+      } catch (e) {
+        status.textContent = e.message || 'Failed to load';
+        showToast(status.textContent, 'error');
+      }
+    }
+
+    async function saveSeoConfig() {
+      const status = document.getElementById('seo-json-status');
+      status.textContent = 'Saving...';
+      try {
+        const jsonRaw = document.getElementById('seo-json-raw').value;
+        const publicEnabled = document.getElementById('seo-public-enabled').checked;
+        const cacheTtlSeconds = Number(document.getElementById('seo-cache-ttl').value || 0);
+
+        const res = await fetch(`${API_BASE}/api/admin/seo-config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonRaw, publicEnabled, cacheTtlSeconds }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to save');
+
+        status.textContent = 'Saved';
+        showToast('Saved SEO config');
+        document.getElementById('seo-updated-at').textContent = data?.config?.updatedAt ? `Updated: ${new Date(data.config.updatedAt).toLocaleString()}` : '';
+      } catch (e) {
+        status.textContent = e.message || 'Failed to save';
+        showToast(status.textContent, 'error');
+      }
+    }
+
+    async function saveOgSvg() {
+      const status = document.getElementById('og-svg-status');
+      status.textContent = 'Saving...';
+      try {
+        const svgRaw = document.getElementById('og-svg-raw').value;
+        const res = await fetch(`${API_BASE}/api/admin/seo-config/og/svg`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ svgRaw }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to save');
+        status.textContent = 'Saved';
+        showToast('Saved OG SVG');
+      } catch (e) {
+        status.textContent = e.message || 'Failed to save';
+        showToast(status.textContent, 'error');
+      }
+    }
+
+    async function generatePng() {
+      const status = document.getElementById('og-png-status');
+      status.textContent = 'Generating...';
+      try {
+        const svgRaw = document.getElementById('og-svg-raw').value;
+        const outputPath = document.getElementById('og-png-output').value;
+
+        const res = await fetch(`${API_BASE}/api/admin/seo-config/og/generate-png`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ svgRaw, outputPath }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to generate');
+
+        const tool = data?.result?.tool ? ` (${data.result.tool})` : '';
+        status.textContent = `Generated${tool}`;
+        showToast('Generated PNG');
+
+        await reloadOgPng(data?.result?.publicUrlPath);
+      } catch (e) {
+        status.textContent = e.message || 'Failed to generate';
+        showToast(status.textContent, 'error');
+      }
+    }
+
+    async function reloadOgPng(forcedPublicUrlPath) {
+      const outputPath = document.getElementById('og-png-output').value;
+      const publicPath = forcedPublicUrlPath || ('/' + String(outputPath || '').replace(/^public\//, ''));
+
+      const img = document.getElementById('png-preview');
+      const empty = document.getElementById('png-preview-empty');
+
+      const url = publicPath.includes('?')
+        ? publicPath + '&t=' + Date.now()
+        : publicPath + '?t=' + Date.now();
+
+      img.onload = () => {
+        img.classList.remove('hidden');
+        empty.classList.add('hidden');
+      };
+      img.onerror = () => {
+        img.classList.add('hidden');
+        empty.classList.remove('hidden');
+        empty.textContent = 'Not available';
+      };
+
+      img.src = url;
+    }
+
+    async function copySnippet() {
+      try {
+        const text = document.getElementById('dev-snippet').textContent;
+        await navigator.clipboard.writeText(text);
+        showToast('Copied');
+      } catch (e) {
+        showToast('Failed to copy', 'error');
+      }
+    }
+
+    function openAiModal() {
+      document.getElementById('ai-status').textContent = '';
+      document.getElementById('ai-instruction').value = '';
+      document.getElementById('ai-model').value = '';
+      document.getElementById('ai-modal').classList.remove('hidden');
+    }
+
+    function closeAiModal() {
+      document.getElementById('ai-modal').classList.add('hidden');
+    }
+
+    async function runAiEdit() {
+      const status = document.getElementById('ai-status');
+      const btn = document.getElementById('ai-run-btn');
+      status.textContent = 'Running...';
+      btn.disabled = true;
+      btn.classList.add('opacity-50');
+
+      try {
+        const svgRaw = document.getElementById('og-svg-raw').value;
+        const instruction = document.getElementById('ai-instruction').value;
+        const model = document.getElementById('ai-model').value;
+
+        const res = await fetch(`${API_BASE}/api/admin/seo-config/ai/edit-svg`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ svgRaw, instruction, model: model || undefined }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'AI failed');
+
+        document.getElementById('og-svg-raw').value = String(data?.svgRaw || '');
+        setSvgPreview(String(data?.svgRaw || ''));
+        status.textContent = `Done (model: ${data?.model || 'unknown'})`;
+        showToast('AI updated SVG');
+      } catch (e) {
+        status.textContent = e.message || 'AI failed';
+        showToast(status.textContent, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+      }
+    }
+
+    document.getElementById('og-svg-raw').addEventListener('input', debouncedPreview);
+
+    buildSnippet();
+    loadSeoConfig();
+  </script>
+</body>
+</html>
