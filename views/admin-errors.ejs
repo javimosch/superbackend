@@ -37,6 +37,44 @@
         <button onclick="refreshAll()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
       </div>
 
+      <details class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+        <summary class="cursor-pointer select-none text-sm font-semibold text-gray-900">Quick integration (browser SDK)</summary>
+        <div class="mt-4 space-y-4">
+          <div>
+            <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Embed SDK</div>
+            <div class="relative">
+              <pre class="p-3 bg-gray-50 rounded text-xs overflow-x-auto"><code id="snippet-embed">&lt;script src="<%= baseUrl %>/api/error-tracking/browser-sdk"&gt;&lt;/script&gt;</code></pre>
+              <button type="button" class="absolute top-2 right-2 text-xs px-2 py-1 bg-white border border-gray-200 rounded hover:border-blue-500" onclick="copySnippet('snippet-embed')">Copy</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Identify user (JWT header)</div>
+            <div class="relative">
+              <pre class="p-3 bg-gray-50 rounded text-xs overflow-x-auto"><code id="snippet-jwt">saasbackend.errorTracking.config({
+  headers: { authorization: "Bearer XXX" }
+})</code></pre>
+              <button type="button" class="absolute top-2 right-2 text-xs px-2 py-1 bg-white border border-gray-200 rounded hover:border-blue-500" onclick="copySnippet('snippet-jwt')">Copy</button>
+            </div>
+          </div>
+
+          <div>
+            <div class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Future npm package (bundlers)</div>
+            <div class="relative">
+              <pre class="p-3 bg-gray-50 rounded text-xs overflow-x-auto"><code id="snippet-npm">import { createErrorTrackingClient } from '@saasbackend/sdk/error-tracking/browser';
+
+const client = createErrorTrackingClient({
+  endpoint: '/api/log/error',
+  headers: { authorization: `Bearer ${token}` },
+});
+
+client.init();</code></pre>
+              <button type="button" class="absolute top-2 right-2 text-xs px-2 py-1 bg-white border border-gray-200 rounded hover:border-blue-500" onclick="copySnippet('snippet-npm')">Copy</button>
+            </div>
+          </div>
+        </div>
+      </details>
+
       <div class="bg-white border border-gray-200 rounded-xl p-4 mb-6">
         <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
           <select id="filter-source" class="border rounded px-3 py-2 text-sm">
@@ -114,6 +152,28 @@
     let currentPage = 1;
     const pageSize = 20;
     let totalPages = 1;
+
+    async function copySnippet(id) {
+      try {
+        const el = document.getElementById(id);
+        const text = el ? (el.textContent || '') : '';
+        if (!text) return;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return;
+        }
+
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (e) {}
+    }
 
     async function loadStats() {
       try {

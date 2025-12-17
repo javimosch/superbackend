@@ -193,6 +193,7 @@ function createMiddleware(options = {}) {
   router.use("/api/orgs", require("./routes/org.routes"));
   router.use("/api/invites", require("./routes/invite.routes"));
   router.use("/api/log", require("./routes/log.routes"));
+  router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
 
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));

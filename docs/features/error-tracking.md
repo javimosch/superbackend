@@ -142,20 +142,6 @@ curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
   "${BASE_URL}/api/admin/errors/stats"
 ```
 
-#### Audit log admin APIs
-
-- `GET /api/admin/audit`
-- `GET /api/admin/audit/stats`
-- `GET /api/admin/audit/actions`
-- `GET /api/admin/audit/:id`
-
-Example:
-
-```bash
-curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
-  "${BASE_URL}/api/admin/audit?outcome=failure&page=1&pageSize=50"
-```
-
 ## Admin UI
 
 ### Error tracking UI
@@ -171,6 +157,55 @@ It can:
 - Change status (open/ignored/resolved)
 
 ## Frontend integration
+
+### Browser SDK (recommended)
+
+You can install the browser SDK with a single script tag. It will attach to `window.saasbackend` (creating it if missing), and create `saasbackend.errorTracking`.
+
+```html
+<script src="${BASE_URL}/api/error-tracking/browser-sdk"></script>
+```
+
+Notes:
+
+- Default endpoint: `POST /api/log/error`
+- If you mount the middleware under a prefix, `${BASE_URL}` should include it.
+- The embed SDK is served with `Cache-Control: no-cache` to support iterative development.
+
+#### Identify user: pass a JWT bearer header
+
+```js
+saasbackend.errorTracking.config({
+  headers: { authorization: `Bearer ${token}` }
+})
+```
+
+#### Identify user: provide a dynamic auth header getter
+
+```js
+saasbackend.errorTracking.config({
+  getAuthHeader: () => `Bearer ${token}`
+})
+```
+
+### Future npm package (bundlers)
+
+Planned package:
+
+- `@saasbackend/sdk/error-tracking/browser`
+
+Example usage:
+
+```js
+import { createErrorTrackingClient } from '@saasbackend/sdk/error-tracking/browser';
+
+const client = createErrorTrackingClient({
+  endpoint: '/api/log/error',
+  headers: { authorization: `Bearer ${token}` },
+});
+
+client.init();
+```
 
 ### Report JS runtime errors (window.onerror)
 

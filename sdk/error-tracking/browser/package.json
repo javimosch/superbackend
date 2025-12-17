@@ -1,0 +1,17 @@
+{
+  "name": "@saasbackend/sdk/error-tracking/browser",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/embed.js --bundle --format=iife --global-name=saasbackendErrorTrackingEmbed --outfile=dist/embed.iife.js --minify"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
+  }
+}
