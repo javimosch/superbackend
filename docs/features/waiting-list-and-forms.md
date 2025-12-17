@@ -1,63 +1,24 @@
 # Waiting list & forms
 
 ## What it is
+Public endpoints for email capture (waiting list) and generic form submissions. Designed to be embedded into marketing sites or product UI.
 
-SaasBackend provides simple public endpoints for:
+## Base URL / mount prefix
+When mounted at `/saas`, all routes are prefixed:
+- `/saas/api/waiting-list/subscribe`
+- `/saas/api/forms/submit`
 
-- Waiting list subscription (email capture)
-- Generic form submissions (for example contact forms)
+## API
 
-These endpoints are meant to be embedded into your marketing site or product UI.
+### Public endpoints
+- `POST /saas/api/waiting-list/subscribe` - Subscribe to waiting list
+- `GET /saas/api/waiting-list/stats` - Get waiting list stats
+- `POST /saas/api/forms/submit` - Submit form data
 
-## Waiting list
+## Admin UI
+- `/saas/admin/waiting-list` - Waiting list management
+- `/saas/admin/forms` - Form submissions management
 
-### Subscribe
-
-```
-POST /api/waiting-list/subscribe
-```
-
-Body:
-
-```json
-{ "email": "user@example.com", "type": "early_access", "referralSource": "website" }
-```
-
-Notes:
-
-- The response does not echo back the email (privacy).
-- Submitting the same email twice returns a conflict.
-
-### Stats
-
-```
-GET /api/waiting-list/stats
-```
-
-Public endpoint to query aggregated stats.
-
-## Forms
-
-### Submit
-
-```
-POST /api/forms/submit
-```
-
-Body:
-
-```json
-{ "formKey": "contact", "fields": { "email": "user@example.com", "message": "Hello" } }
-```
-
-Notes:
-
-- Supports anonymous submissions with an anon cookie (`enbauges_anon_id`).
-- If the request includes a valid Bearer token, the submission is attributed to that user.
-
-## Troubleshooting
-
-### 400 validation errors
-
-- Waiting list requires a valid `email` and a non-empty `type`.
-- `contact` form requires a valid `fields.email` and a minimum message length.
+## Common errors / troubleshooting
+- **400 Bad Request**: Invalid email format or missing required fields
+- **409 Conflict**: Email already exists in waiting list
