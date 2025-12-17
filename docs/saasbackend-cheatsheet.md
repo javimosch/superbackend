@@ -74,6 +74,10 @@ SAASBACKEND_ENCRYPTION_KEY=... # if you use encrypted global settings
 
 ## Key routes (grouped)
 
+All routes below are shown **without** the mount prefix.
+
+If you mount SaasBackend under `/saas`, then `GET /admin/test` becomes `GET /saas/admin/test`, and `POST /api/auth/login` becomes `POST /saas/api/auth/login`.
+
 Health:
 
 - `GET /health`
@@ -106,6 +110,28 @@ Admin UI pages (basic auth):
 - `GET /admin/assets`
 - `GET /admin/json-configs`
 - `GET /admin/i18n`
+- `GET /admin/errors`
+- `GET /admin/audit`
+
+Error tracking:
+
+- Browser SDK (embed): `GET /api/error-tracking/browser-sdk`
+  - Embed snippet: `<script src="/api/error-tracking/browser-sdk"></script>`
+- Submit frontend errors (public): `POST /api/log/error`
+- Admin APIs (basic auth):
+  - `GET /api/admin/errors`
+  - `GET /api/admin/errors/:id`
+  - `PUT /api/admin/errors/:id/status`
+  - `DELETE /api/admin/errors/:id`
+
+Audit log:
+
+- Automatically recorded on key routes via middleware (success/failure + request context)
+- Admin APIs (basic auth):
+  - `GET /api/admin/audit`
+  - `GET /api/admin/audit/stats`
+  - `GET /api/admin/audit/actions`
+  - `GET /api/admin/audit/:id`
 
 Feature flags:
 
@@ -141,6 +167,8 @@ Prefer `docs/features/*` for detailed guides and copy/paste examples:
 - `docs/features/admin-api-usage.md`
 - `docs/features/billing-and-subscriptions.md`
 - `docs/features/file-storage.md`
+- `docs/features/error-tracking.md`
+- `docs/features/audit-log.md`
 
 ---
 
