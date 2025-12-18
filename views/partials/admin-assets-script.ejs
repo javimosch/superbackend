@@ -1796,7 +1796,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
             const keyPrefixText = ns.keyPrefix ? escapeHtml(ns.keyPrefix) : `<span class="text-gray-400">(auto: ${escapeHtml(computeKeyPrefixHint(ns) || '')})</span>`;
 
             const stats = ns.stats || {};
-            const count = Number(stats.count || 0);
+            const count = Number(stats.totalFiles ?? stats.count ?? 0);
             const totalBytes = Number(stats.totalBytes || 0);
 
             return `
@@ -1900,6 +1900,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
         closeNamespaceEditor();
         await loadNamespaces();
         renderNamespacesTable();
+        await loadNamespacesSummary();
       } catch (error) {
         showToast(error.message, 'error');
       } finally {
@@ -1918,6 +1919,7 @@ ${publicUrl ? `// Public URL (works only when asset.visibility === 'public')
         showToast('Namespace deleted');
         await loadNamespaces();
         renderNamespacesTable();
+        await loadNamespacesSummary();
       } catch (error) {
         showToast(error.message, 'error');
       }
