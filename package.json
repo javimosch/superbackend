@@ -1,6 +1,6 @@
 {
   "name": "saasbackend",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Micro saas template for solo-entrepreneurs",
   "main": "index.js",
   "scripts": {
