@@ -12,6 +12,12 @@ const jsonConfigSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    alias: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     publicEnabled: {
       type: Boolean,
       default: false,
@@ -35,5 +41,6 @@ const jsonConfigSchema = new mongoose.Schema(
 );
 
 jsonConfigSchema.index({ slug: 1 });
+jsonConfigSchema.index({ alias: 1 });
 
 module.exports = mongoose.model('JsonConfig', jsonConfigSchema);

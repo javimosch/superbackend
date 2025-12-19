@@ -3,6 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>JSON Configs - Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -75,6 +78,7 @@
                   <tr>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Slug</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Alias</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Public</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">TTL</th>
                     <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Updated</th>
@@ -100,6 +104,12 @@
               <div class="mb-4">
                 <label for="title" class="block text-sm font-medium mb-2">Title</label>
                 <input id="title" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g. Homepage copy" />
+              </div>
+
+              <div class="mb-4">
+                <label for="alias" class="block text-sm font-medium mb-2">Alias (optional)</label>
+                <input id="alias" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g. my-app-config" />
+                <p class="text-xs text-gray-500 mt-1">Custom slug. Must be unique and will be normalized to lowercase with hyphens.</p>
               </div>
 
               <div class="mb-4">
@@ -187,6 +197,8 @@
 
         $('title').value = item?.title || '';
         $('slug').value = item?.slug || '';
+        $('alias').value = item?.alias || '';
+        console.log('setSelected - alias value:', $('alias').value, 'item.alias:', item?.alias);
         $('publicEnabled').checked = Boolean(item?.publicEnabled);
         $('cacheTtlSeconds').value = String(item?.cacheTtlSeconds ?? 0);
         $('jsonRaw').value = item?.jsonRaw || '';
@@ -198,15 +210,21 @@
       function updatePublicUrl() {
         const enabled = $('publicEnabled').checked;
         const slug = $('slug').value;
+        const alias = $('alias').value;
         const el = $('publicUrl');
         if (!enabled || !slug) {
           el.style.display = 'none';
           el.textContent = '';
           return;
         }
-        const url = `${API_BASE}/api/json-configs/${encodeURIComponent(slug)}`;
+        const slugUrl = `${API_BASE}/api/json-configs/${encodeURIComponent(slug)}`;
+        let urls = `<a href="${slugUrl}" class="text-blue-600 hover:text-blue-800" target="_blank" rel="noreferrer">${slugUrl}</a>`;
+        if (alias) {
+          const aliasUrl = `${API_BASE}/api/json-configs/${encodeURIComponent(alias)}`;
+          urls += ` <span class="text-gray-500">or</span> <a href="${aliasUrl}" class="text-blue-600 hover:text-blue-800" target="_blank" rel="noreferrer">${aliasUrl}</a>`;
+        }
         el.style.display = 'block';
-        el.innerHTML = `<span class="text-gray-500">Public URL:</span> <a href="${url}" class="text-blue-600 hover:text-blue-800" target="_blank" rel="noreferrer">${url}</a>`;
+        el.innerHTML = `<span class="text-gray-500">Public URL(s):</span> ${urls}`;
       }
 
       function updateSnippet() {
@@ -235,7 +253,7 @@
 
         if (!items.length) {
           const tr = document.createElement('tr');
-          tr.innerHTML = `<td colspan="5" class="px-4 py-4 text-sm text-gray-500">No configs yet.</td>`;
+          tr.innerHTML = `<td colspan="6" class="px-4 py-4 text-sm text-gray-500">No configs yet.</td>`;
           tbody.appendChild(tr);
           return;
         }
@@ -247,6 +265,7 @@
           tr.innerHTML = `
             <td class="px-4 py-2 text-sm text-gray-900">${escapeHtml(it.title || '')}</td>
             <td class="px-4 py-2 text-sm"><code class="text-gray-800">${escapeHtml(it.slug || '')}</code></td>
+            <td class="px-4 py-2 text-sm"><code class="text-gray-600">${escapeHtml(it.alias || '')}</code></td>
             <td class="px-4 py-2 text-sm text-gray-900">${it.publicEnabled ? 'yes' : 'no'}</td>
             <td class="px-4 py-2 text-sm text-gray-900">${Number(it.cacheTtlSeconds || 0)}</td>
             <td class="px-4 py-2 text-sm text-gray-500">${escapeHtml(formatDate(it.updatedAt))}</td>
@@ -277,12 +296,19 @@
       }
 
       async function save() {
+        const aliasField = $('alias');
+        console.log('Alias field element:', aliasField);
+        console.log('Alias field value:', aliasField ? aliasField.value : 'FIELD NOT FOUND');
+        
         const body = {
           title: $('title').value,
+          alias: aliasField ? aliasField.value || null : null,
           publicEnabled: $('publicEnabled').checked,
           cacheTtlSeconds: Number($('cacheTtlSeconds').value || 0),
           jsonRaw: $('jsonRaw').value,
         };
+
+        console.log('Saving with body:', body);
 
         try {
           const res = await fetch(`${API_BASE}/api/admin/json-configs${selectedId ? `/${encodeURIComponent(selectedId)}` : ''}`, {
@@ -366,6 +392,7 @@
 
       $('publicEnabled').addEventListener('change', updatePublicUrl);
       $('slug').addEventListener('input', () => { updatePublicUrl(); updateSnippet(); });
+      $('alias').addEventListener('input', updatePublicUrl);
 
       (async function init() {
         setSelected(null);
