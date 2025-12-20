@@ -89,7 +89,7 @@ How Stripe prices map to your app's plan label is documented in:
 ```bash
 # Check webhook delivery status
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks?status=failed"
+  "${BASE_URL}/api/admin/stripe-webhooks?status=failed"
 ```
 
 **2. Retry failed webhooks:**
@@ -98,14 +98,14 @@ curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{"limit": 10, "maxRetries": 3}' \
-  "http://localhost:5000/api/admin/stripe-webhooks/retry"
+  "${BASE_URL}/api/admin/stripe-webhooks/retry"
 ```
 
 **3. Retry specific webhook:**
 ```bash
 # Retry specific webhook by ID
 curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks/WEBHOOK_ID/retry"
+  "${BASE_URL}/api/admin/stripe-webhooks/WEBHOOK_ID/retry"
 ```
 
 ### Webhook error handling
@@ -156,7 +156,7 @@ curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 **1. Get webhook statistics:**
 ```bash
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks-stats"
+  "${BASE_URL}/api/admin/stripe-webhooks-stats"
 ```
 
 **Response:**
@@ -191,13 +191,13 @@ curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 **2. List failed webhooks:**
 ```bash
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks?status=failed&limit=10"
+  "${BASE_URL}/api/admin/stripe-webhooks?status=failed&limit=10"
 ```
 
 **3. Check specific webhook details:**
 ```bash
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks/WEBHOOK_ID"
+  "${BASE_URL}/api/admin/stripe-webhooks/WEBHOOK_ID"
 ```
 
 ### Error response examples
@@ -320,19 +320,19 @@ app.post('/api/stripe/webhook', webhookLimiter, (req, res) => {
 ```bash
 # Check user's subscription status
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/auth/me"
+  "${BASE_URL}/api/auth/me"
 ```
 
 **3. Manual reconciliation:**
 ```bash
 # Force subscription reconciliation
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/billing/reconcile-subscription"
+  "${BASE_URL}/api/billing/reconcile-subscription"
 ```
 
 **4. Check webhook processing:**
 ```bash
 # View webhook processing logs
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/stripe-webhooks?status=failed"
+  "${BASE_URL}/api/admin/stripe-webhooks?status=failed"
 ```

@@ -4,7 +4,7 @@ const asyncHandler = require('../utils/asyncHandler');
 
 // Register new user
 const register = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required' });
@@ -21,7 +21,8 @@ const register = asyncHandler(async (req, res) => {
 
   const user = new User({
     email: email.toLowerCase(),
-    passwordHash: password
+    passwordHash: password,
+    name
   });
 
   await user.save();

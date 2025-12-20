@@ -59,7 +59,7 @@ When mounted at `/saas`, all routes are prefixed:
 
 **1. Register user:**
 ```bash
-curl -X POST http://localhost:3000/saas/api/auth/register \
+curl -X POST ${BASE_URL}/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email":"user@example.com","password":"password123","name":"John Doe"}'
 ```
@@ -80,15 +80,15 @@ curl -X POST http://localhost:3000/saas/api/auth/register \
 
 **2. Make authenticated request:**
 ```bash
-curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
-  http://localhost:3000/saas/api/auth/me
+curl -H "Authorization: Bearer $TOKEN" \
+  ${BASE_URL}/api/auth/me
 ```
 
 **3. Refresh token when expired:**
 ```bash
-curl -X POST http://localhost:3000/saas/api/auth/refresh-token \
+curl -X POST ${BASE_URL}/api/auth/refresh-token \
   -H 'Content-Type: application/json' \
-  -d '{"refreshToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}'
+  -d '{"refreshToken":"$REFRESH_TOKEN"}'
 ```
 
 ### Client-side integration example

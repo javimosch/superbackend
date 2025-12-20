@@ -22,20 +22,37 @@ Admin pages are protected by HTTP Basic Auth:
 
 Common pages:
 
-- `/admin/test` (admin testing UI)
+- `/admin/users`
+- `/admin/organizations`
+- `/admin/notifications`
 - `/admin/global-settings`
 - `/admin/feature-flags`
-- `/admin/users`
-- `/admin/notifications`
 - `/admin/stripe-pricing`
+- `/admin/metrics`
+- `/admin/audit`
+- `/admin/errors`
+- `/admin/forms`
+- `/admin/waiting-list`
+- `/admin/json-configs`
+- `/admin/seo-config`
+- `/admin/i18n`
+- `/admin/assets`
+- `/admin/test` (admin testing UI)
 
 If you mount in middleware mode under a prefix (for example `/saas`), URLs become:
 
-- `/saas/admin/test`
+- `/saas/admin/users`
 
 ## Admin API routes
 
 Admin APIs are also basic-auth protected.
+
+**Example request:**
+
+```bash
+curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
+  ${BASE_URL}/api/admin/users
+```
 
 Examples:
 
@@ -43,6 +60,8 @@ Examples:
 - `/api/admin/notifications/*`
 - `/api/admin/stripe/*`
 - `/api/admin/stripe-webhooks*`
+- `/api/admin/orgs/*`
+- `/api/admin/settings/*`
 
 ## Developer notes
 
