@@ -11,11 +11,11 @@ When mounted at `/saas`, all routes are prefixed:
 ## API
 
 ### JWT endpoints
-- `POST /saas/api/orgs/:slug/invites` - Create invite
-- `GET /saas/api/orgs/:slug/invites` - List pending invites
-- `DELETE /saas/api/orgs/:slug/invites/:inviteId` - Revoke invite
-- `GET /saas/api/invites/info` - Get invite details (public)
-- `POST /saas/api/invites/accept` - Accept invite (public)
+- `POST ${BASE_URL}/api/orgs/:orgId/invites` - Create invite
+- `GET ${BASE_URL}/api/orgs/:orgId/invites` - List pending invites
+- `DELETE ${BASE_URL}/api/orgs/:orgId/invites/:inviteId` - Revoke invite
+- `GET ${BASE_URL}/api/invites/info` - Get invite details (public)
+- `POST ${BASE_URL}/api/invites/accept` - Accept invite (public)
 
 ## Admin UI
 - `/saas/admin/organizations` - Manage organization invites

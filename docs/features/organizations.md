@@ -11,20 +11,20 @@ When mounted at `/saas`, all routes are prefixed:
 ## API
 
 ### Public endpoints
-- `GET /saas/api/orgs/public` - List public organizations
-- `GET /saas/api/orgs/public/:orgId` - Get public organization details
+- `GET ${BASE_URL}/api/orgs/public` - List public organizations
+- `GET ${BASE_URL}/api/orgs/:orgId/public` - Get public organization details
 
 ### JWT endpoints
-- `GET /saas/api/orgs` - List user's organizations
-- `POST /saas/api/orgs` - Create organization
-- `GET /saas/api/orgs/:slug` - Get organization
-- `PUT /saas/api/orgs/:slug` - Update organization
-- `DELETE /saas/api/orgs/:slug` - Delete organization
-- `GET /saas/api/orgs/:slug/members` - List members
-- `POST /saas/api/orgs/:slug/members` - Add member
-- `PUT /saas/api/orgs/:slug/members/:userId` - Update member role
-- `DELETE /saas/api/orgs/:slug/members/:userId` - Remove member
-- `POST /saas/api/orgs/:slug/join` - Join public organization
+- `GET ${BASE_URL}/api/orgs` - List user's organizations
+- `POST ${BASE_URL}/api/orgs` - Create organization
+- `GET ${BASE_URL}/api/orgs/:orgId` - Get organization
+- `PUT ${BASE_URL}/api/orgs/:orgId` - Update organization
+- `DELETE ${BASE_URL}/api/orgs/:orgId` - Delete organization
+- `GET ${BASE_URL}/api/orgs/:orgId/members` - List members
+- `POST ${BASE_URL}/api/orgs/:orgId/members` - Add member
+- `PUT ${BASE_URL}/api/orgs/:orgId/members/:userId/role` - Update member role
+- `DELETE ${BASE_URL}/api/orgs/:orgId/members/:userId` - Remove member
+- `POST ${BASE_URL}/api/orgs/:orgId/join` - Join public organization
 
 ## Admin UI
 - `/saas/admin/organizations` - Organization management

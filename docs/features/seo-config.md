@@ -92,7 +92,7 @@ When mounted at `/saas`, all routes are prefixed:
 **Get current SEO config:**
 ```bash
 curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/saas/api/admin/seo-config"
+  "${BASE_URL}/api/admin/seo-config"
 ```
 
 **Update SEO JSON:**
@@ -100,7 +100,7 @@ curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 curl -X PUT -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{"jsonRaw":"{\"siteName\":\"My Site\",\"baseUrl\":\"https://example.com\",\"pages\":{\"/marketplace\":{\"title\":\"Marketplace\",\"description\":\"Browse our marketplace\"}}}", "publicEnabled": true}' \
-  "http://localhost:5000/saas/api/admin/seo-config"
+  "${BASE_URL}/api/admin/seo-config"
 ```
 
 **Generate SEO entry from EJS view:**
@@ -108,7 +108,7 @@ curl -X PUT -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{"viewPath":"views/marketplace.ejs","routePath":"/marketplace"}' \
-  "http://localhost:5000/saas/api/admin/seo-config/ai/generate-entry"
+  "${BASE_URL}/api/admin/seo-config/ai/generate-entry"
 ```
 
 **Generate OG PNG:**
@@ -116,12 +116,12 @@ curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
   -H "Content-Type: application/json" \
   -d '{"svgRaw":"<svg width=\"1200\" height=\"630\"><rect width=\"1200\" height=\"630\" fill=\"#ffffff\"/></svg>", "outputPath":"public/og/og-default.png"}' \
-  "http://localhost:5000/saas/api/admin/seo-config/og/generate-png"
+  "${BASE_URL}/api/admin/seo-config/og/generate-png"
 ```
 
 **Get public SEO config:**
 ```bash
-curl "http://localhost:5000/saas/api/json-configs/seo-config"
+curl "${BASE_URL}/api/json-configs/seo-config"
 ```
 
 ### Integration example
