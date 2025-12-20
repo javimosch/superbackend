@@ -38,7 +38,7 @@ Password reset links use:
 1. Client calls:
 
 ```
-POST /api/user/password-reset-request
+POST ${BASE_URL}/api/user/password-reset-request
 ```
 
 Body:
@@ -51,7 +51,7 @@ Body:
 3. Frontend receives token in URL and calls:
 
 ```
-POST /api/user/password-reset-confirm
+POST ${BASE_URL}/api/user/password-reset-confirm
 ```
 
 Body:

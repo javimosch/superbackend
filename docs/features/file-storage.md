@@ -105,7 +105,7 @@ The `*` portion is the asset key (it can include slashes).
 Example:
 
 ```bash
-curl "http://localhost:5000/public/assets/assets/2024/01/abc123.jpg"
+curl "${BASE_URL}/public/assets/assets/2024/01/abc123.jpg"
 ```
 
 If the asset exists and is public, returns the file with correct `Content-Type`. Returns 404 if not found or private.
@@ -144,7 +144,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "namespace=marketing" \
   -F "visibility=private" \
   -F "orgId=60f7b3b3b3b3b3b3b3b3b3b3" \
-  "http://localhost:5000/api/assets/upload" \
+  "${BASE_URL}/api/assets/upload" \
   --progress-bar
 ```
 
@@ -154,7 +154,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "file=@document.pdf" \
   -F "namespace=invoices" \
   -F "visibility=private" \
-  "http://localhost:5000/api/assets/upload"
+  "${BASE_URL}/api/assets/upload"
 ```
 
 **3. Upload multiple files:**
@@ -163,12 +163,12 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "file=@image1.jpg" \
   -F "namespace=avatars" \
   -F "visibility=public" \
-  "http://localhost:5000/api/assets/upload" && \
+  "${BASE_URL}/api/assets/upload" && \
 curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "file=@image2.png" \
   -F "namespace=avatars" \
   -F "visibility=public" \
-  "http://localhost:5000/api/assets/upload"
+  "${BASE_URL}/api/assets/upload"
 ```
 
 **4. JavaScript upload with FormData:**
@@ -215,7 +215,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "file=@test-file.jpg" \
   -F "namespace=avatars" \
   -F "visibility=public" \
-  "http://localhost:5000/api/assets/upload" \
+  "${BASE_URL}/api/assets/upload" \
   -w "\nHTTP Status: %{http_code}\nResponse Time: %{time_total}s\n" \
   -s
 ```
@@ -226,7 +226,7 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   -F "file=@screenshot.png;type=image/png" \
   -F "namespace=marketing" \
   -F "visibility=public" \
-  "http://localhost:5000/api/assets/upload"
+  "${BASE_URL}/api/assets/upload"
 ```
 
 ### Response examples
@@ -291,14 +291,14 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 **Download private file:**
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3/download" \
+  "${BASE_URL}/api/assets/60f7b3b3b3b3b3b3b3b3b3b3/download" \
   -o downloaded-file.jpg
 ```
 
 **Get asset details:**
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
+  "${BASE_URL}/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
 ```
 
 **Response:**
@@ -324,19 +324,19 @@ curl -H "Authorization: Bearer $TOKEN" \
 **List all assets:**
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets"
+  "${BASE_URL}/api/assets"
 ```
 
 **List with pagination:**
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets?page=2&limit=10"
+  "${BASE_URL}/api/assets?page=2&limit=10"
 ```
 
 **Filter by visibility:**
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets?visibility=public"
+  "${BASE_URL}/api/assets?visibility=public"
 ```
 
 **Response:**
@@ -368,7 +368,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 **Delete asset:**
 ```bash
 curl -X DELETE -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5000/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
+  "${BASE_URL}/api/assets/60f7b3b3b3b3b3b3b3b3b3b3"
 ```
 
 **Response:**
@@ -437,12 +437,12 @@ DELETE /api/admin/upload-namespaces/:key
 Upload namespace examples:
 
 ```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/upload-namespaces"
+curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
+  "${BASE_URL}/api/admin/upload-namespaces"
 ```
 
 ```bash
-curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+curl -X POST -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
   -H "Content-Type: application/json" \
   -d '{
     "key": "avatars",
@@ -453,46 +453,46 @@ curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
     "defaultVisibility": "private",
     "enforceVisibility": false
   }' \
-  "http://localhost:5000/api/admin/upload-namespaces"
+  "${BASE_URL}/api/admin/upload-namespaces"
 ```
 
 Storage info:
 
 ```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/assets/info"
+curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
+  "${BASE_URL}/api/admin/assets/info"
 ```
 
 List all assets:
 
 ```bash
-curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/assets"
+curl -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
+  "${BASE_URL}/api/admin/assets"
 ```
 
 Upload (admin):
 
 ```bash
-curl -X POST -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+curl -X POST -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
   -F "file=@logo.png" \
   -F "visibility=public" \
-  "http://localhost:5000/api/admin/assets/upload"
+  "${BASE_URL}/api/admin/assets/upload"
 ```
 
 Update visibility:
 
 ```bash
-curl -X PATCH -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
+curl -X PATCH -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
   -H "Content-Type: application/json" \
   -d '{"visibility": "private"}' \
-  "http://localhost:5000/api/admin/assets/ASSET_ID"
+  "${BASE_URL}/api/admin/assets/ASSET_ID"
 ```
 
 Delete:
 
 ```bash
-curl -X DELETE -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
-  "http://localhost:5000/api/admin/assets/ASSET_ID"
+curl -X DELETE -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
+  "${BASE_URL}/api/admin/assets/ASSET_ID"
 ```
 
 ## Admin UI
