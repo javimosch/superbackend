@@ -93,7 +93,7 @@ With Stripe CLI:
 
 ```bash
 stripe login
-stripe listen --forward-to localhost:5000/api/billing/webhook
+stripe listen --forward-to ${BASE_URL}/api/billing/webhook
 ```
 
 Trigger events:
@@ -110,22 +110,22 @@ stripe trigger invoice.payment_failed
 ### Check overall health
 
 ```bash
-curl -u admin:password http://localhost:5000/api/admin/stripe-webhooks-stats
+curl -u ${ADMIN_USERNAME}:${ADMIN_PASSWORD} http://${BASE_URL}/api/admin/stripe-webhooks-stats
 ```
 
 ### Inspect failed events
 
 ```bash
-curl -u admin:password "http://localhost:5000/api/admin/stripe-webhooks?status=failed"
+curl -u ${ADMIN_USERNAME}:${ADMIN_PASSWORD} "http://${BASE_URL}/api/admin/stripe-webhooks?status=failed"
 ```
 
 ### Retry failures
 
 ```bash
-curl -X POST -u admin:password \
+curl -X POST -u ${ADMIN_USERNAME}:${ADMIN_PASSWORD} \
   -H "Content-Type: application/json" \
   -d '{"limit": 10, "maxRetries": 3}' \
-  http://localhost:5000/api/admin/stripe-webhooks/retry
+  http://${BASE_URL}/api/admin/stripe-webhooks/retry
 ```
 
 ### Understand what changed on update events

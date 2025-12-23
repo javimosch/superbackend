@@ -34,8 +34,8 @@ app.listen(3000);
 Verify:
 
 ```bash
-curl http://localhost:3000/saas/health
-curl -i http://localhost:3000/saas/api/auth/me
+curl ${BASE_URL}/health
+curl -i ${BASE_URL}/api/auth/me
 ```
 
 Notes:

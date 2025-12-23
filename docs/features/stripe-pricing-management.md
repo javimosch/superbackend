@@ -110,6 +110,63 @@ If you already have prices in Stripe:
 
 ---
 
+## Env sync from catalog (optional)
+
+Some host apps use environment variables such as `STRIPE_PRICE_...` to pass Stripe price
+IDs into views or other services. To avoid manually copying `price_...` values from the
+catalog into your `.env`, you can **sync env vars from the Stripe catalog in memory**.
+
+### API
+
+- `POST /api/admin/stripe/env/sync` (basic auth)
+
+Behavior:
+
+- Loads all active `StripeCatalogItem` documents.
+- For each item, treats `planKey` as an environment variable name and sets:
+
+  - `process.env[planKey] = stripePriceId`
+
+- Returns a summary:
+
+```json
+{
+  "applied": [
+    { "envVar": "STRIPE_PRICE_ANNUAL_LAUNCH", "stripePriceId": "price_..." },
+    { "envVar": "MY_APP_SUPER_PRICE_STANDARD", "stripePriceId": "price_..." }
+  ],
+  "totalActive": 4
+}
+```
+
+This works with **any env var name**, as long as you choose your `planKey` to match the
+desired environment variable (e.g. `planKey = STRIPE_PRICE_ANNUAL_LAUNCH` or
+`planKey = MY_APP_SUPER_PRICE_STANDARD`). No per-mapping payload is required.
+
+Important notes:
+
+- This only updates `process.env` **in memory** for the running Node.js process. It does
+  not modify `.env` files.
+- Code that reads `process.env` on startup will not see updates unless you either:
+  - call the endpoint **before** reading those vars, or
+  - restart the process after syncing.
+
+### Admin UI panel
+
+The `/admin/stripe-pricing` page includes an **Env sync from catalog** panel where admins
+can:
+
+- Add any number of rows with:
+  - **Env var name** (e.g. `STRIPE_PRICE_ANNUAL_LAUNCH`, `MY_APP_SUPER_PRICE_STANDARD`)
+  - **Plan key** (e.g. `microexists_annual_launch`, `my_app_super_price_standard`)
+- Click **Sync env from catalog** to POST those mappings to the API.
+
+This allows hot updates of `process.env` without a deploy. Host apps can still use
+their existing `process.env.MY_APP_...` lookups and let the catalog drive the actual
+`price_...` IDs.
+
+---
+
 ## FAQ
 
 ### What does “Deactivate” do?

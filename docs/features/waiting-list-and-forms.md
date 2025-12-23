@@ -5,15 +5,15 @@ Public endpoints for email capture (waiting list) and generic form submissions. 
 
 ## Base URL / mount prefix
 When mounted at `/saas`, all routes are prefixed:
-- `/saas/api/waiting-list/subscribe`
-- `/saas/api/forms/submit`
+- `${BASE_URL}/api/waiting-list/subscribe`
+- `${BASE_URL}/api/forms/submit`
 
 ## API
 
 ### Public endpoints
-- `POST /saas/api/waiting-list/subscribe` - Subscribe to waiting list
-- `GET /saas/api/waiting-list/stats` - Get waiting list stats
-- `POST /saas/api/forms/submit` - Submit form data
+- `POST ${BASE_URL}/api/waiting-list/subscribe` - Subscribe to waiting list
+- `GET ${BASE_URL}/api/waiting-list/stats` - Get waiting list stats
+- `POST ${BASE_URL}/api/forms/submit` - Submit form data
 
 ## Admin UI
 - `/saas/admin/waiting-list` - Waiting list management

@@ -6,9 +6,9 @@ Quick start guide for mounting SaasBackend into an existing Express app. This is
 ## Base URL / mount prefix
 When mounted at `/saas`, all routes are prefixed:
 
-- Health: `GET /saas/health`
-- Auth: `POST /saas/api/auth/login`
-- Admin: `GET /saas/admin/test`
+- Health: `GET ${BASE_URL}/health`
+- Auth: `POST ${BASE_URL}/api/auth/login`
+- Admin: `GET ${BASE_URL}/admin/test`
 
 ## Configuration
 - `mongodbUri` (optional): MongoDB connection string
@@ -16,19 +16,19 @@ When mounted at `/saas`, all routes are prefixed:
 
 ## API
 ### Public endpoints
-- `POST /saas/api/auth/register`
-- `POST /saas/api/auth/login`
-- `GET /saas/health`
+- `POST ${BASE_URL}/api/auth/register`
+- `POST ${BASE_URL}/api/auth/login`
+- `GET ${BASE_URL}/health`
 
 ### JWT endpoints
-- `GET /saas/api/auth/me`
-- `POST /saas/api/billing/create-checkout-session`
-- `GET /saas/api/notifications`
+- `GET ${BASE_URL}/api/auth/me`
+- `POST ${BASE_URL}/api/billing/create-checkout-session`
+- `GET ${BASE_URL}/api/notifications`
 
 ### Admin endpoints (Basic Auth)
-- `GET /saas/admin/test`
-- `GET /saas/admin/users`
-- `GET /saas/admin/global-settings`
+- `GET ${BASE_URL}/admin/test`
+- `GET ${BASE_URL}/admin/users`
+- `GET ${BASE_URL}/admin/global-settings`
 
 ## Admin UI
 - `/saas/admin/test` - API testing UI
