@@ -15,13 +15,22 @@ let cache = {
 const CACHE_TTL = 60000;
 
 
-function computeCompletionURL(baseUrl){
+function computeCompletionURL(baseUrl) {
+  const trimmed = baseUrl.replace(/\/$/, "");
 
-  if(baseUrl.includes('perplex')){
-    return baseUrl.replace(/\/$/, "") + "/chat/completions";
+  // Perplexity: already exposes /chat/completions
+  if (trimmed.includes('perplex')) {
+    if (trimmed.endsWith('/chat/completions')) return trimmed;
+    return trimmed + "/chat/completions";
   }
 
-  return baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
+  // If base already includes /v1 (e.g., https://openrouter.ai/api/v1), do not append another /v1
+  if (/(?:^|\/)v1$/.test(trimmed)) {
+    return trimmed + "/chat/completions";
+  }
+  if (trimmed.endsWith('/v1/chat/completions')) return trimmed;
+
+  return trimmed + "/v1/chat/completions";
 }
 
 async function loadConfig() {
