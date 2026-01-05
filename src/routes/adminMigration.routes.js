@@ -12,6 +12,24 @@ router.get(
   adminMigrationController.listEnvironments,
 );
 
+router.get(
+  '/models',
+  basicAuth,
+  adminMigrationController.listModels,
+);
+
+router.get(
+  '/models/:modelName/schema',
+  basicAuth,
+  adminMigrationController.getModelSchema,
+);
+
+router.post(
+  '/preview',
+  basicAuth,
+  adminMigrationController.preview,
+);
+
 router.post(
   '/environments',
   basicAuth,
