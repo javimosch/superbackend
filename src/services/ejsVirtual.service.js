@@ -470,8 +470,15 @@ function extractIncludePaths(ejsSource) {
 
 function resolveIncludeRelPath({ viewsRoot, parentAbsPath, includePath }) {
   const baseRoot = path.resolve(String(viewsRoot || getDefaultViewsRoot()));
-  const incRaw = String(includePath || '').trim();
+  let incRaw = String(includePath || '').trim();
   if (!incRaw) return null;
+
+  // If the incoming include already embeds the views root somewhere (e.g. duplicated path),
+  // trim to the portion starting at the views root so we don't end up concatenating it twice.
+  const idx = incRaw.indexOf(baseRoot);
+  if (idx > 0) {
+    incRaw = incRaw.slice(idx);
+  }
 
   const incWithExt = incRaw.endsWith('.ejs') ? incRaw : `${incRaw}.ejs`;
 
