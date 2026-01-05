@@ -220,6 +220,14 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                 </svg>
               </button>
+              ${setting.type === 'encrypted' ? `
+                <button onclick="revealSetting('${setting.key}')" class="text-gray-600 hover:text-gray-800" title="Reveal value">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              ` : ''}
               <button onclick="deleteSetting('${setting.key}')" class="text-red-600 hover:text-red-800">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
@@ -229,7 +237,19 @@
           </div>
           <div class="bg-gray-50 rounded p-3">
             <p class="text-xs text-gray-500 mb-1">Current Value:</p>
-            <pre class="text-sm text-gray-800 overflow-auto max-h-40">${escapeHtml(setting.value)}</pre>
+            ${(() => {
+              const displayValue = setting.decryptedValue ?? setting.value;
+              const safeText = escapeHtml(displayValue);
+              const attrValue = escapeAttribute(displayValue);
+              return `
+                <pre class="text-sm text-gray-800 overflow-auto max-h-40">${safeText}</pre>
+                <button data-value="${attrValue}" onclick="copyToClipboard(this.dataset.value)" class="text-blue-600 hover:text-blue-800">
+              `;
+            })()}
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
+              </svg>
+            </button>
           </div>
         </div>
       `).join('');
@@ -239,6 +259,58 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function escapeAttribute(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function revealSetting(key) {
+      try {
+        const response = await fetch(`${API_BASE}/api/admin/settings/${key}/reveal`);
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || 'Failed to reveal setting');
+        }
+
+        const data = await response.json();
+        const matching = allSettings.find(s => s.key === key);
+        if (matching) {
+          matching.decryptedValue = data.value;
+        }
+        renderSettings();
+        showToast(`Revealed value for ${key}`);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function copyToClipboard(text) {
+      if (!navigator.clipboard) {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          showToast('Copied to clipboard');
+        } catch (e) {
+          showToast('Failed to copy', 'error');
+        } finally {
+          document.body.removeChild(textarea);
+        }
+        return;
+      }
+      navigator.clipboard.writeText(text)
+        .then(() => showToast('Copied to clipboard'))
+        .catch(() => showToast('Failed to copy', 'error'));
     }
 
     function showCreateModal() {

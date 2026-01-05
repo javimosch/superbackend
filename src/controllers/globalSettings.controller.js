@@ -12,6 +12,46 @@ const redactSetting = (setting) => {
   };
 };
 
+// GET /api/admin/settings/:key/reveal - Get decrypted value for an encrypted setting
+exports.revealSetting = async (req, res) => {
+  try {
+    const { key } = req.params;
+
+    const setting = await GlobalSetting.findOne({ key }).lean();
+
+    if (!setting) {
+      return res.status(404).json({
+        error: `Setting with key '${key}' not found.`,
+      });
+    }
+
+    if (setting.type === 'encrypted') {
+      try {
+        const payload = JSON.parse(setting.value);
+        const decrypted = decryptString(payload);
+        return res.json({
+          key: setting.key,
+          type: setting.type,
+          value: decrypted,
+        });
+      } catch (e) {
+        console.error(`Error decrypting setting ${key}:`, e);
+        return res.status(500).json({ error: 'Failed to decrypt setting' });
+      }
+    }
+
+    // For non-encrypted settings, just return current value
+    return res.json({
+      key: setting.key,
+      type: setting.type,
+      value: setting.value,
+    });
+  } catch (error) {
+    console.error('Error revealing setting:', error);
+    res.status(500).json({ error: 'Failed to reveal setting' });
+  }
+};
+
 // GET /api/admin/settings - Get all global settings
 exports.getAllSettings = async (req, res) => {
   try {
