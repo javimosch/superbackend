@@ -207,6 +207,35 @@
       sourceAssetsConfigured: false,
     };
 
+    function updateAssetTestsState() {
+      const btnTestAssets = document.getElementById('btnTestAssets');
+      const btnTestAssetsCopy = document.getElementById('btnTestAssetsCopy');
+      const hint = document.getElementById('assetTestsHint');
+      if (!btnTestAssets || !btnTestAssetsCopy || !hint) return;
+
+      const targetKey = document.getElementById('runEnvKey')?.value || '';
+      const targetEnv = state.environments.find((e) => e.key === targetKey);
+      const targetConfigured = !!(targetEnv?.assetsTargetType || targetEnv?.assetsTarget || targetEnv?.assets?.target);
+
+      const sourceConfigured = !!state.sourceAssetsConfigured;
+
+      const enabled = sourceConfigured && targetConfigured;
+      btnTestAssets.disabled = !enabled;
+      btnTestAssetsCopy.disabled = !enabled;
+      btnTestAssets.classList.toggle('opacity-40', !enabled);
+      btnTestAssetsCopy.classList.toggle('opacity-40', !enabled);
+
+      if (!sourceConfigured && !targetConfigured) {
+        hint.textContent = 'Set assets configuration for this source env and select a target env with assets configured.';
+      } else if (!sourceConfigured) {
+        hint.textContent = 'Set assets configuration for this source env.';
+      } else if (!targetConfigured) {
+        hint.textContent = 'Select a target env that has assets configuration set.';
+      } else {
+        hint.textContent = 'Ready: tests will read from source and copy to target.';
+      }
+    }
+
     async function jsonFetch(path, options) {
       const res = await fetch(API_BASE + path, {
         credentials: 'include',
@@ -282,6 +311,46 @@
       return undefined;
     }
 
+    function normalizeAssetsTarget(target) {
+      if (!target || typeof target !== 'object') {
+        return {
+          type: 'fs_local',
+          fs: { baseDir: document.getElementById('assetFsBaseDir').value || (window.UPLOAD_DIR || 'uploads') },
+        };
+      }
+      const type = String(target.type || '').trim() || 'fs_local';
+      if (type === 'fs_local') {
+        return { type, fs: { baseDir: target?.fs?.baseDir || document.getElementById('assetFsBaseDir').value || 'uploads' } };
+      }
+      if (type === 'fs_remote') {
+        return {
+          type,
+          ssh: {
+            host: target?.ssh?.host || document.getElementById('assetSshHost').value,
+            port: target?.ssh?.port || document.getElementById('assetSshPort').value,
+            username: target?.ssh?.username || document.getElementById('assetSshUser').value,
+            baseDir: target?.ssh?.baseDir || document.getElementById('assetSshBaseDir').value,
+            privateKeyPem: target?.ssh?.privateKeyPem || document.getElementById('assetSshKey').value,
+            passphrase: target?.ssh?.passphrase || document.getElementById('assetSshPass').value,
+          },
+        };
+      }
+      if (type === 's3') {
+        return {
+          type,
+          s3: {
+            endpoint: target?.s3?.endpoint || document.getElementById('assetS3Endpoint').value,
+            region: target?.s3?.region || document.getElementById('assetS3Region').value || 'us-east-1',
+            bucket: target?.s3?.bucket || document.getElementById('assetS3Bucket').value,
+            accessKeyId: target?.s3?.accessKeyId || document.getElementById('assetS3Access').value,
+            secretAccessKey: target?.s3?.secretAccessKey || document.getElementById('assetS3Secret').value,
+            forcePathStyle: target?.s3?.forcePathStyle ?? document.getElementById('assetS3ForcePath').checked,
+          },
+        };
+      }
+      return target;
+    }
+
     function loadEnvIntoForm(env) {
       document.getElementById('envKey').value = env?.key?.replace(/^ENV_CONF_/, '') || '';
       document.getElementById('envName').value = env?.name || '';
@@ -354,6 +423,7 @@
           envSelect.appendChild(opt);
         });
         if (current) envSelect.value = current;
+        updateAssetTestsState();
       }
 
       const envFormSelect = document.getElementById('envSelect');
@@ -372,8 +442,6 @@
       }
 
       list.textContent = JSON.stringify(data, null, 2);
-
-      // update hint for tests
       updateAssetTestsState();
     }
 
@@ -691,6 +759,13 @@
         setMsg(msg, err.message, true);
       }
     });
+
+    const runEnvSelect = document.getElementById('runEnvKey');
+    if (runEnvSelect) {
+      runEnvSelect.addEventListener('change', () => {
+        updateAssetTestsState();
+      });
+    }
 
     document.getElementById('btnRun').addEventListener('click', async () => {
       const out = document.getElementById('runOut');
