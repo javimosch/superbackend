@@ -45,13 +45,16 @@
 
                 <div class="border rounded p-3 bg-gray-50">
                   <div class="text-sm font-semibold flex items-center justify-between">
-                    <span>Assets target (where migrated files will be written)</span>
+                    <span>Assets configuration (source env)</span>
                     <span class="text-[11px] text-gray-500">Defaults to fs_local → uploads/</span>
+                  </div>
+                  <div class="text-[11px] text-gray-600 mt-1">
+                    Configure how assets are stored in this environment (source). This is persisted with the env.
                   </div>
                   <div class="mt-2 grid grid-cols-1 gap-2">
                     <label class="text-xs font-medium">Type</label>
                     <select id="assetType" class="border rounded px-2 py-1 text-sm">
-                      <option value="">(none / infer from target DB)</option>
+                      <option value="">fs_local (default)</option>
                       <option value="fs_local">fs_local</option>
                       <option value="fs_remote">fs_remote (SSH/SFTP)</option>
                       <option value="s3">s3</option>
@@ -111,14 +114,17 @@
                   <button id="btnTestConn" class="bg-gray-700 text-white px-3 py-2 rounded">Test connection</button>
                 </div>
 
-                <div class="flex gap-2">
-                  <button id="btnTestAssets" class="bg-gray-900 text-white px-3 py-2 rounded">Test target assets</button>
-                  <input id="assetTestKey" class="border rounded px-3 py-2 flex-1" placeholder="Test copy key (e.g. assets/...jpg)" />
-                  <button id="btnTestAssetsCopy" class="bg-gray-900 text-white px-3 py-2 rounded">Test copy to target</button>
-                </div>
-                <div class="text-[11px] text-gray-600 leading-tight">
-                  • “Test target assets” checks connectivity/writeability to the selected target backend (fs_local / fs_remote / s3).<br />
-                  • “Test copy to target” reads the key from the current instance storage and writes to the target backend (fs↔s3↔sftp supported).
+                <div class="flex flex-col gap-2 border rounded p-3 bg-gray-50">
+                  <div class="font-semibold text-sm">Assets migration tests</div>
+                  <div class="text-[11px] text-gray-600">
+                    These tests appear when both source (this env) and selected target have asset config set.
+                  </div>
+                  <div class="flex gap-2">
+                    <button id="btnTestAssets" class="bg-gray-900 text-white px-3 py-2 rounded disabled:opacity-40" disabled>Test source asset exists</button>
+                    <input id="assetTestKey" class="border rounded px-3 py-2 flex-1" placeholder="asset key (e.g. assets/...jpg)" />
+                    <button id="btnTestAssetsCopy" class="bg-gray-900 text-white px-3 py-2 rounded disabled:opacity-40" disabled>Test copy to target</button>
+                  </div>
+                  <div id="assetTestsHint" class="text-[11px] text-gray-600"></div>
                 </div>
 
                 <div id="envMsg" class="text-sm text-gray-600"></div>
@@ -197,6 +203,8 @@
       models: [],
       schema: null,
       preview: { page: 1, pages: 1, limit: 10, total: 0, items: [] },
+      targetAssetsConfigured: false,
+      sourceAssetsConfigured: false,
     };
 
     async function jsonFetch(path, options) {
@@ -280,7 +288,7 @@
       document.getElementById('envConn').value = env?.connectionString || '';
       document.getElementById('envDesc').value = env?.description || '';
 
-      const at = env?.assetsTarget || {};
+      const at = env?.assetsTarget || env?.assets?.target || {};
       const type = at?.type || '';
       document.getElementById('assetType').value = type || '';
       document.getElementById('assetFsBaseDir').value = at?.fs?.baseDir || '';
@@ -297,12 +305,16 @@
       document.getElementById('assetS3Secret').value = at?.s3?.secretAccessKey || '';
       document.getElementById('assetS3ForcePath').checked = !!at?.s3?.forcePathStyle;
       toggleAssetSections();
+      state.sourceAssetsConfigured = !!type;
+      updateAssetTestsState();
     }
 
     function resetEnvForm() {
       loadEnvIntoForm({});
       document.getElementById('envSelect').value = '';
       document.getElementById('envMsg').textContent = '';
+      state.sourceAssetsConfigured = false;
+      updateAssetTestsState();
     }
 
     async function loadEnvDetails(key) {
@@ -360,6 +372,9 @@
       }
 
       list.textContent = JSON.stringify(data, null, 2);
+
+      // update hint for tests
+      updateAssetTestsState();
     }
 
     async function refreshModels() {
@@ -621,9 +636,11 @@
         const connectionString = document.getElementById('envConn').value;
         const description = document.getElementById('envDesc').value;
         const assetsTarget = buildAssetsTargetPayload();
+        const normalizedAssetsTarget = normalizeAssetsTarget(assetsTarget);
+
         await jsonFetch('/api/admin/migration/environments', {
           method: 'POST',
-          body: JSON.stringify({ envKey, name, connectionString, description, assetsTarget })
+          body: JSON.stringify({ envKey, name, connectionString, description, assetsTarget: normalizedAssetsTarget })
         });
         setMsg(msg, 'Saved', false);
         await refreshEnvs();
