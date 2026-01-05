@@ -58,13 +58,15 @@ exports.list = async (req, res) => {
       .sort()
       .map((p) => {
         const db = dbByPath.get(p) || null;
+        const isAdminView = p.startsWith('admin/');
+        const integratedFlag = isAdminView ? Boolean(db && db.integrated) : true;
         return {
           path: p,
           existsOnFs: fsFiles.includes(p),
           hasOverride: Boolean(db && typeof db.enabled === 'boolean'),
           enabled: db ? Boolean(db.enabled) : false,
           inferred: db ? Boolean(db.inferred) : fsFiles.includes(p),
-          integrated: db ? Boolean(db.integrated) : false,
+          integrated: integratedFlag,
           updatedAt: db ? db.updatedAt : null,
         };
       });
