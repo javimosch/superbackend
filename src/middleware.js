@@ -181,6 +181,7 @@ function createMiddleware(options = {}) {
     "/api/admin/upload-namespaces",
     require("./routes/adminUploadNamespaces.routes"),
   );
+  router.use("/api/admin/migration", require("./routes/adminMigration.routes"));
   router.use("/api/admin/errors", basicAuth, require("./routes/adminErrors.routes"));
   router.use("/api/admin/audit", basicAuth, require("./routes/adminAudit.routes"));
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
@@ -202,6 +203,32 @@ function createMiddleware(options = {}) {
   // Admin test page (protected by basic auth) - render manually to avoid view engine conflicts
   router.get("/admin/test", basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-test.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            endpointRegistry,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get("/admin/migration", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-migration.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
         console.error("Error reading template:", err);

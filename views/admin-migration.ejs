@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Migration</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="flex h-screen">
+    <%- include('partials/admin-test-sidebar') %>
+
+    <div class="flex-1 p-8 overflow-y-auto">
+      <div class="max-w-5xl">
+        <div class="bg-white rounded-lg shadow p-6">
+          <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-bold">Migration</h1>
+            <a href="<%= (baseUrl || '') %>/admin/test" class="text-sm text-blue-600 hover:underline">Back to Admin Test</a>
+          </div>
+
+          <div class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="border rounded-lg p-4">
+              <h2 class="font-semibold mb-3">Environments</h2>
+
+              <div class="grid grid-cols-1 gap-3">
+                <label class="text-sm font-medium">Key (suffix or full ENV_CONF_*)</label>
+                <input id="envKey" class="border rounded px-3 py-2" placeholder="staging" />
+
+                <label class="text-sm font-medium">Name</label>
+                <input id="envName" class="border rounded px-3 py-2" placeholder="Staging" />
+
+                <label class="text-sm font-medium">Connection string</label>
+                <input id="envConn" class="border rounded px-3 py-2" placeholder="mongodb+srv://..." />
+
+                <label class="text-sm font-medium">Description</label>
+                <input id="envDesc" class="border rounded px-3 py-2" placeholder="Optional" />
+
+                <div class="flex gap-2 pt-2">
+                  <button id="btnSaveEnv" class="bg-blue-600 text-white px-3 py-2 rounded">Save</button>
+                  <button id="btnTestConn" class="bg-gray-700 text-white px-3 py-2 rounded">Test connection</button>
+                </div>
+
+                <div id="envMsg" class="text-sm text-gray-600"></div>
+
+                <div class="pt-4">
+                  <button id="btnRefreshEnvs" class="text-sm text-blue-600 hover:underline">Refresh environments list</button>
+                  <pre id="envList" class="mt-2 bg-gray-100 p-3 rounded text-xs overflow-auto max-h-64"></pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="border rounded-lg p-4">
+              <h2 class="font-semibold mb-3">Run generic migration</h2>
+
+              <div class="grid grid-cols-1 gap-3">
+                <label class="text-sm font-medium">Target envKey</label>
+                <input id="runEnvKey" class="border rounded px-3 py-2" placeholder="ENV_CONF_staging" />
+
+                <label class="text-sm font-medium">Model name</label>
+                <input id="runModel" class="border rounded px-3 py-2" placeholder="User" />
+
+                <label class="text-sm font-medium">Query JSON (optional)</label>
+                <textarea id="runQuery" class="border rounded px-3 py-2 font-mono text-sm" rows="5" placeholder='{"status":"active"}'></textarea>
+
+                <label class="inline-flex items-center gap-2 text-sm">
+                  <input id="runDry" type="checkbox" />
+                  Dry run
+                </label>
+
+                <button id="btnRun" class="bg-green-600 text-white px-3 py-2 rounded">Run</button>
+
+                <pre id="runOut" class="bg-gray-100 p-3 rounded text-xs overflow-auto max-h-64"></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+
+    async function jsonFetch(path, options) {
+      const res = await fetch(API_BASE + path, {
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(options && options.headers ? options.headers : {}) },
+        ...options,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Request failed');
+      }
+      return data;
+    }
+
+    function setMsg(el, msg, isError) {
+      el.textContent = msg;
+      el.className = isError ? 'text-sm text-red-600' : 'text-sm text-green-700';
+    }
+
+    async function refreshEnvs() {
+      const list = document.getElementById('envList');
+      const data = await jsonFetch('/api/admin/migration/environments');
+      list.textContent = JSON.stringify(data, null, 2);
+    }
+
+    document.getElementById('btnRefreshEnvs').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        await refreshEnvs();
+      } catch (err) {
+        document.getElementById('envList').textContent = err.message;
+      }
+    });
+
+    document.getElementById('btnSaveEnv').addEventListener('click', async () => {
+      const msg = document.getElementById('envMsg');
+      try {
+        const envKey = document.getElementById('envKey').value;
+        const name = document.getElementById('envName').value;
+        const connectionString = document.getElementById('envConn').value;
+        const description = document.getElementById('envDesc').value;
+        await jsonFetch('/api/admin/migration/environments', {
+          method: 'POST',
+          body: JSON.stringify({ envKey, name, connectionString, description })
+        });
+        setMsg(msg, 'Saved', false);
+        await refreshEnvs();
+      } catch (err) {
+        setMsg(msg, err.message, true);
+      }
+    });
+
+    document.getElementById('btnTestConn').addEventListener('click', async () => {
+      const msg = document.getElementById('envMsg');
+      try {
+        const envKey = document.getElementById('envKey').value;
+        await jsonFetch('/api/admin/migration/test-connection', {
+          method: 'POST',
+          body: JSON.stringify({ envKey })
+        });
+        setMsg(msg, 'Connection OK', false);
+      } catch (err) {
+        setMsg(msg, err.message, true);
+      }
+    });
+
+    document.getElementById('btnRun').addEventListener('click', async () => {
+      const out = document.getElementById('runOut');
+      out.textContent = '';
+      try {
+        const envKey = document.getElementById('runEnvKey').value;
+        const modelName = document.getElementById('runModel').value;
+        const dryRun = document.getElementById('runDry').checked;
+        const rawQuery = document.getElementById('runQuery').value.trim();
+        const query = rawQuery ? JSON.parse(rawQuery) : {};
+        const res = await jsonFetch('/api/admin/migration/run', {
+          method: 'POST',
+          body: JSON.stringify({ envKey, modelName, query, dryRun })
+        });
+        out.textContent = JSON.stringify(res, null, 2);
+      } catch (err) {
+        out.textContent = err.message;
+      }
+    });
+
+    refreshEnvs().catch(() => {});
+  </script>
+</body>
+</html>
