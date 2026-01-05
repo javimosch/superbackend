@@ -491,7 +491,8 @@ async function migrateModel({
   }
 
   const targetConn = await getTargetConnection(targetEnvKey);
-  const TargetModel = targetConn.model(safeModelName, sourceModel.schema);
+  const TargetModel = targetConn.models[safeModelName]
+    || targetConn.model(safeModelName, sourceModel.schema);
 
   const filter = query && typeof query === 'object' ? query : {};
 
