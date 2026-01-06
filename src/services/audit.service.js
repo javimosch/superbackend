@@ -1,4 +1,5 @@
 const AuditEvent = require('../models/AuditEvent');
+const webhookService = require('./webhook.service');
 
 async function createAuditEvent({
   actorType,
@@ -21,6 +22,20 @@ async function createAuditEvent({
       after,
       meta,
     });
+
+    // Trigger Webhooks for critical events or all audit events
+    // Assuming organizationId is available in meta or can be inferred
+    const organizationId = meta?.organizationId || meta?.orgId;
+    if (organizationId) {
+      webhookService.emit('audit.event', {
+        action,
+        entityType,
+        entityId,
+        actorType,
+        actorId,
+        timestamp: new Date().toISOString()
+      }, organizationId);
+    }
   } catch (error) {
     console.error('Error creating audit event:', error);
   }
