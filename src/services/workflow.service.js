@@ -140,9 +140,11 @@ class WorkflowService {
 
       this.executionLog.push({
         nodeId: node.id,
+        nodeName: node.name,
         type: node.type,
         duration: Date.now() - nodeStartTime,
         status: 'success',
+        result: standardizedResult,
         timestamp: new Date()
       });
 
@@ -181,6 +183,9 @@ class WorkflowService {
     });
 
     const match = vm.run(`module.exports = (${node.condition})`);
+    
+    // Store branch outcome in context
+    this.context[`${node.id}_result`] = match ? 'then' : 'else';
 
     if (match) {
       return await this.executeNodes(node.then || []);
@@ -190,7 +195,8 @@ class WorkflowService {
   }
 
   async handleParallel(node) {
-    return await Promise.all((node.branches || []).map(branch => this.executeNodes(branch)));
+    const results = await Promise.all((node.branches || []).map(branch => this.executeNodes(branch)));
+    return results;
   }
 
   async handleHttp(node) {
