@@ -41,9 +41,7 @@ router.all('/:webhookId', async (req, res) => {
   if (workflow.entrypoint?.awaitResponse) {
     try {
       const service = await workflowService.execute(workflow._id, initialContext);
-      const exitNode = service.executionLog.find(l => l.type === 'exit');
-      const responseBody = exitNode ? service.context.nodes[exitNode.nodeId] : { success: true };
-      res.status(200).json(responseBody);
+      res.status(200).json(service.context.lastNode || { success: true });
     } catch (err) {
       res.status(500).json({ error: 'Execution failed', message: err.message });
     }
