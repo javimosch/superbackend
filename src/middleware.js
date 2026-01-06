@@ -209,6 +209,7 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/audit", basicAuth, require("./routes/adminAudit.routes"));
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
   router.use("/api/admin/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
+  router.use("/api/webhooks", require("./routes/webhook.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
   router.use("/api/feature-flags", require("./routes/featureFlags.routes"));
   router.use("/api/json-configs", require("./routes/jsonConfigs.routes"));
@@ -808,7 +809,23 @@ function createMiddleware(options = {}) {
     });
   });
 
-  // Health check
+  router.get(`${adminPath}/webhooks`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-webhooks.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   router.get("/health", (req, res) => {
     res.json({
       status: "ok",
@@ -817,6 +834,9 @@ function createMiddleware(options = {}) {
         mongoose.connection.readyState === 1 ? "connected" : "disconnected",
     });
   });
+
+  router.use("/api/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
+  router.use("/api/webhooks", require("./routes/webhook.routes"));
 
   // Error handling middleware
   router.use(expressErrorMiddleware);
