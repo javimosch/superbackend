@@ -457,7 +457,7 @@ Response: 200 OK
 }
 ```
 
-### Notifications Routes (`/api`) - Requires JWT
+### Notification Routes (`/api`) - Requires JWT
 
 #### Get User Notifications
 ```javascript
@@ -748,22 +748,22 @@ Access admin testing interface at:
 ## Common Issues & Solutions
 
 ### 401 Unauthorized on `/api/auth/me`
-- Ensure JWT_ACCESS_SECRET matches between registration and validation
+- Ensure `JWT_ACCESS_SECRET` matches between registration and validation
 - Check that token is being sent in `Authorization: Bearer <token>` header
 - Verify token is stored correctly after login/register (API returns `token`, not `accessToken`)
 
 ### Stripe Webhook Not Working
-- Verify STRIPE_WEBHOOK_SECRET is set correctly
+- Verify `STRIPE_WEBHOOK_SECRET` is set correctly
 - Test webhook locally using Stripe CLI: `stripe listen --forward-to localhost:3000/api/stripe/webhook`
 - Check webhook events in Stripe Dashboard
 - Verify raw body parser is used for webhook route (already handled by saasbackend)
 
 ### CORS Issues
-- Set CORS_ORIGIN in .env to your frontend URL
+- Set `CORS_ORIGIN` in .env to your frontend URL
 - Or set `corsOrigin: false` in middleware and handle CORS yourself
 
 ### MongoDB Connection Issues
-- Ensure MONGODB_URI is correct
+- Ensure `MONGODB_URI` is correct
 - Check MongoDB is running
 - Verify network connectivity
 
