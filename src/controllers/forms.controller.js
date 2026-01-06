@@ -2,6 +2,67 @@ const crypto = require('crypto');
 const { verifyAccessToken } = require('../utils/jwt');
 const User = require('../models/User');
 const FormSubmission = require('../models/FormSubmission');
+const formsService = require('../services/forms.service');
+
+// --- Form Definition Management (Admin) ---
+
+exports.getForms = async (req, res) => {
+  try {
+    const forms = await formsService.getForms();
+    res.json(forms);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+exports.saveForm = async (req, res) => {
+  try {
+    console.log('[FormsController] Saving form definition:', req.body);
+    const saved = await formsService.saveForm(req.body);
+    res.json(saved);
+  } catch (error) {
+    console.error('[FormsController] Error saving form:', error);
+    res.status(500).json({ error: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined });
+  }
+};
+
+exports.deleteForm = async (req, res) => {
+  try {
+    await formsService.deleteForm(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// --- Submission Management (Admin) ---
+
+exports.adminList = async (req, res) => {
+  try {
+    const { formId, formKey, limit = 50, offset = 0 } = req.query;
+    // Support both formId and formKey (legacy)
+    const filterId = formId || formKey;
+    
+    const result = await formsService.getSubmissions(
+      { formId: filterId },
+      { 
+        limit: parseInt(limit, 10) || 50, 
+        offset: parseInt(offset, 10) || 0 
+      }
+    );
+    
+    // Maintain legacy response format for compatibility
+    res.json({ 
+      submissions: result.entries, 
+      pagination: result.pagination 
+    });
+  } catch (error) {
+    console.error('Form admin list error:', error);
+    return res.status(500).json({ error: 'Failed to list submissions' });
+  }
+};
+
+// --- Public Submission ---
 
 function parseCookieHeader(cookieHeader) {
   const out = {};
@@ -105,14 +166,17 @@ exports.submit = async (req, res) => {
       referer: req.get('referer') || null,
     };
 
-    const doc = await FormSubmission.create({
-      formKey,
+    const doc = await formsService.submitForm(formKey, fields, {
+      ...meta,
       actorType,
       actorId,
-      userId,
-      fields,
-      meta,
+      userId
     });
+
+    const formConfig = await formsService.getFormById(formKey);
+    if (formConfig?.successUrl) {
+      return res.redirect(formConfig.successUrl);
+    }
 
     return res.status(201).json({ ok: true, id: String(doc._id) });
   } catch (error) {

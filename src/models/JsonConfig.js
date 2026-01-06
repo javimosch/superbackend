@@ -40,7 +40,7 @@ const jsonConfigSchema = new mongoose.Schema(
   },
 );
 
-jsonConfigSchema.index({ slug: 1 });
-jsonConfigSchema.index({ alias: 1 });
+// jsonConfigSchema.index({ slug: 1 }); // Removed duplicate index
+// jsonConfigSchema.index({ alias: 1 }); // Removed duplicate index
 
 module.exports = mongoose.model('JsonConfig', jsonConfigSchema);

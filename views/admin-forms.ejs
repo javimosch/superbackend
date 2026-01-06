@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Forms Admin</title>
+  <title>Forms & Leads Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
   <style>
     .toast {
       animation: slideIn 0.3s ease-out;
@@ -23,16 +25,28 @@
   </style>
 </head>
 <body class="bg-gray-100">
-  <div class="min-h-screen">
+  <div id="app" class="min-h-screen">
     <!-- Header -->
     <div class="bg-white shadow">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
         <div class="flex justify-between items-center">
           <div>
-            <h1 class="text-2xl font-bold text-gray-900">Forms</h1>
-            <p class="text-sm text-gray-600 mt-1">Browse and filter form submissions</p>
+            <h1 class="text-2xl font-bold text-gray-900">Forms & Leads</h1>
+            <p class="text-sm text-gray-600 mt-1">Manage form definitions and browse submissions</p>
           </div>
-          <div class="flex items-center gap-4">
+          <div class="flex border-b border-gray-200">
+            <button 
+              @click="activeTab = 'forms'" 
+              :class="['px-4 py-2 font-medium text-sm', activeTab === 'forms' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700']"
+            >Definitions</button>
+            <button 
+              @click="activeTab = 'submissions'; loadSubmissions()" 
+              :class="['px-4 py-2 font-medium text-sm', activeTab === 'submissions' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700']"
+            >Submissions</button>
+            <button 
+              @click="activeTab = 'setup'" 
+              :class="['px-4 py-2 font-medium text-sm', activeTab === 'setup' ? 'border-b-2 border-indigo-500 text-indigo-600' : 'text-gray-500 hover:text-gray-700']"
+            >Quick Setup</button>
           </div>
         </div>
       </div>
@@ -40,313 +54,400 @@
 
     <!-- Main Content -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Filters -->
-      <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 flex-1">
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Form Key</label>
-              <input id="filter-formKey" type="text" class="w-full border rounded px-3 py-2" placeholder="e.g., contact">
+      
+      <!-- Definitions Tab -->
+      <div v-if="activeTab === 'forms'">
+        <div class="flex justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-900">Form Definitions</h2>
+          <button @click="editForm({})" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+            <i class="ti ti-plus mr-2"></i>New Form
+          </button>
+        </div>
+
+        <div class="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID / Key</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <tr v-for="form in forms" :key="form.id">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{{ form.name }}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500"><code>{{ form.id }}</code></td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button @click="editForm(form)" class="text-indigo-600 hover:text-indigo-900 mr-3">Edit</button>
+                  <button @click="deleteForm(form.id)" class="text-red-600 hover:text-red-900">Delete</button>
+                </td>
+              </tr>
+              <tr v-if="forms.length === 0">
+                <td colspan="3" class="px-6 py-8 text-center text-sm text-gray-500 italic">No forms defined yet. Create your first form to start capturing leads.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Inline Editor -->
+        <div v-if="editingForm" class="mt-8 bg-white shadow rounded-lg p-6 border border-indigo-200">
+          <h3 class="text-lg font-medium text-gray-900 mb-4">{{ editingForm.id ? 'Edit' : 'Create' }} Form</h3>
+          <div class="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-6">
+            <div class="sm:col-span-3">
+              <label class="block text-sm font-medium text-gray-700">Form Name</label>
+              <input v-model="editingForm.name" type="text" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Page Size</label>
-              <select id="filter-limit" class="w-full border rounded px-3 py-2">
-                <option value="20">20</option>
-                <option value="50" selected>50</option>
-                <option value="100">100</option>
-                <option value="200">200</option>
-              </select>
+            <div class="sm:col-span-3">
+              <label class="block text-sm font-medium text-gray-700">Custom ID (Optional)</label>
+              <input v-model="editingForm.id" type="text" :disabled="!!editingForm._id" placeholder="e.g. contact-form" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Offset</label>
-              <input id="filter-offset" type="number" class="w-full border rounded px-3 py-2" value="0" min="0">
+            <div class="sm:col-span-6">
+              <label class="block text-sm font-medium text-gray-700">Organization ID (for Webhooks)</label>
+              <input v-model="editingForm.organizationId" type="text" placeholder="org_..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="sm:col-span-6">
+              <label class="block text-sm font-medium text-gray-700">Success Redirect URL</label>
+              <input v-model="editingForm.successUrl" type="text" placeholder="https://example.com/thank-you" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="sm:col-span-6">
+              <label class="block text-sm font-medium text-gray-700">Webhook URL (Optional)</label>
+              <input v-model="editingForm.webhookUrl" type="text" placeholder="https://hooks.zapier.com/..." class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div class="sm:col-span-6">
+              <label class="block text-sm font-medium text-gray-700">Notification Email (Optional)</label>
+              <input v-model="editingForm.notifyEmail" type="email" placeholder="leads@example.com" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
             </div>
           </div>
-          <div class="flex gap-2">
-            <button id="btn-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
-            <button id="btn-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+          <div class="mt-6 flex justify-end space-x-3">
+            <button @click="editingForm = null" class="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button @click="saveForm" class="bg-indigo-600 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-indigo-700">Save Form</button>
           </div>
         </div>
       </div>
 
-      <!-- Table -->
-      <div class="bg-white rounded-lg shadow overflow-hidden">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <div>
-            <h2 class="text-lg font-semibold text-gray-900">Submissions</h2>
-            <p id="table-subtitle" class="text-sm text-gray-600 mt-1">Loading...</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <button id="btn-prev" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Prev</button>
-            <button id="btn-next" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">Next</button>
+      <!-- Submissions Tab -->
+      <div v-if="activeTab === 'submissions'">
+        <div class="bg-white rounded-lg shadow p-6 mb-6">
+          <div class="flex flex-col gap-4 sm:flex-row sm:items-end">
+            <div class="flex-1">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Filter by Form</label>
+              <select v-model="filter.formId" class="w-full border rounded px-3 py-2">
+                <option :value="null">All Forms</option>
+                <option v-for="f in forms" :value="f.id">{{ f.name }}</option>
+              </select>
+            </div>
+            <div class="flex gap-2">
+              <button @click="loadSubmissions" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Apply Filters</button>
+              <button @click="resetFilters" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+            </div>
           </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actor</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="table-body" class="bg-white divide-y divide-gray-200"></tbody>
-          </table>
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+          <div class="px-6 py-4 border-b flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-gray-900">Captured Leads</h2>
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-gray-500">Total: {{ pagination.total }}</span>
+              <button @click="prevPage" :disabled="filter.offset <= 0" class="p-1 disabled:opacity-50"><i class="ti ti-chevron-left"></i></button>
+              <button @click="nextPage" :disabled="filter.offset + filter.limit >= pagination.total" class="p-1 disabled:opacity-50"><i class="ti ti-chevron-right"></i></button>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Form</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP / Origin</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+                  <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody class="bg-white divide-y divide-gray-200">
+                <template v-for="sub in submissions" :key="sub._id">
+                  <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{{ formatDate(sub.createdAt) }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs text-indigo-600 font-semibold">{{ getFormName(sub.formKey) }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{{ sub.meta?.ip }}</td>
+                    <td class="px-6 py-4 text-xs text-gray-900 max-w-xs truncate">{{ formatFields(sub.fields) }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button @click="toggleDetails(sub._id)" class="text-indigo-600 hover:text-indigo-900">Details</button>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedId === sub._id" class="bg-gray-50">
+                    <td colspan="5" class="px-6 py-4">
+                      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <h4 class="text-xs font-bold text-gray-700 uppercase mb-2">Form Fields</h4>
+                          <pre class="bg-white border rounded p-3 text-[10px] overflow-auto max-h-40">{{ sub.fields }}</pre>
+                        </div>
+                        <div>
+                          <h4 class="text-xs font-bold text-gray-700 uppercase mb-2">Meta / Context</h4>
+                          <pre class="bg-white border rounded p-3 text-[10px] overflow-auto max-h-40">{{ sub.meta }}</pre>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+                <tr v-if="submissions.length === 0">
+                  <td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">No submissions found matching your filters.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+      </div>
+
+      <!-- Setup Tab -->
+      <div v-if="activeTab === 'setup'" class="space-y-8">
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-4">
+          <p class="text-sm text-blue-700">Select a form definition below to get the integration code for your external website.</p>
+        </div>
+
+        <section>
+          <label class="block text-sm font-medium text-gray-700 mb-2">1. Choose a Form</label>
+          <select v-model="setupFormId" class="block w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500">
+            <option :value="null">Select a form...</option>
+            <option v-for="f in forms" :value="f.id">{{ f.name }}</option>
+          </select>
+        </section>
+
+        <div v-if="setupFormId" class="space-y-8">
+          <section>
+            <h4 class="text-md font-bold text-gray-900 mb-2">2. Styled HTML Form (Tailwind CSS)</h4>
+            <p class="text-sm text-gray-600 mb-2">A modern, production-ready form using Tailwind CSS classes.</p>
+            <div class="relative">
+              <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-x-auto"><code>&lt;form action="{{ origin }}/api/forms/submit/{{ setupFormId }}" method="POST" class="max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg space-y-4 border border-gray-100"&gt;
+  &lt;div&gt;
+    &lt;label class="block text-sm font-semibold text-gray-700 mb-1"&gt;Email Address&lt;/label&gt;
+    &lt;input type="email" name="email" placeholder="alex@example.com" required 
+      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"&gt;
+  &lt;/div&gt;
+  &lt;div&gt;
+    &lt;label class="block text-sm font-semibold text-gray-700 mb-1"&gt;Message&lt;/label&gt;
+    &lt;textarea name="message" rows="4" placeholder="How can we help?" 
+      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"&gt;&lt;/textarea&gt;
+  &lt;/div&gt;
+  &lt;button type="submit" 
+    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95"&gt;
+    Send Message
+  &lt;/button&gt;
+&lt;/form&gt;</code></pre>
+              <button @click="copyCode('html')" class="absolute top-2 right-2 p-1 bg-gray-700 hover:bg-gray-600 rounded text-white transition">
+                <i class="ti ti-copy"></i>
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <h4 class="text-md font-bold text-gray-900 mb-2">3. AJAX / Fetch Integration</h4>
+            <p class="text-sm text-gray-600 mb-2">Use this for a modern, refresh-less experience.</p>
+            <div class="relative">
+              <pre class="bg-gray-900 text-gray-100 p-4 rounded-lg text-xs overflow-x-auto"><code>const data = { email: 'user@example.com', message: 'Hello!' };
+
+fetch('{{ origin }}/api/forms/submit/{{ setupFormId }}', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(data)
+})
+.then(res => res.json())
+.then(data => console.log('Success!', data));</code></pre>
+              <button @click="copyCode('js')" class="absolute top-2 right-2 p-1 bg-gray-700 hover:bg-gray-600 rounded text-white transition">
+                <i class="ti ti-copy"></i>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <div v-else class="text-center py-20 border-2 border-dashed border-gray-200 rounded-lg">
+          <i class="ti ti-hand-finger text-5xl text-gray-300 mb-4 block"></i>
+          <p class="text-gray-500">Pick a form above to see setup options</p>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50">
+      <div v-for="t in toasts" :key="t.id" :class="['toast px-6 py-4 rounded-lg shadow-lg text-white transition-all duration-300', t.type === 'success' ? 'bg-green-500' : 'bg-red-500']">
+        {{ t.message }}
       </div>
     </div>
   </div>
 
-  <!-- Toast Container -->
-  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
-
   <script>
-    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
-    const FORMS_ADMIN_LIST_PATH = '/api/admin/forms';
-    
-    function showToast(message, type = 'success') {
-      const container = document.getElementById('toast-container');
-      const toast = document.createElement('div');
-      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${
-        type === 'success' ? 'bg-green-500' : 'bg-red-500'
-      }`;
-      toast.textContent = message;
-      container.appendChild(toast);
-      
-      setTimeout(() => {
-        toast.classList.add('fade-out');
-        setTimeout(() => toast.remove(), 300);
-      }, 3000);
-    }
+    const { createApp, ref, onMounted, computed } = Vue;
 
-    async function makeRequest(endpoint, method, body = null, requiresJWT = false) {
-      const headers = { 'Content-Type': 'application/json' };
-      
-      if (requiresJWT) {
-        const token = document.getElementById('jwt-input')?.value;
-        if (!token) {
-          showToast('JWT token required', 'error');
-          return;
-        }
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const options = { method, headers };
-      if (body) options.body = JSON.stringify(body);
-      
-      try {
-        const response = await fetch(`${API_BASE}${endpoint}`, options);
-        const data = await response.json();
+    createApp({
+      setup() {
+        const activeTab = ref('submissions');
+        const forms = ref([]);
+        const submissions = ref([]);
+        const editingForm = ref(null);
+        const expandedId = ref(null);
+        const setupFormId = ref(null);
+        const toasts = ref([]);
+        const filter = ref({
+          formId: null,
+          limit: 50,
+          offset: 0
+        });
+        const pagination = ref({
+          total: 0
+        });
+
+        const origin = window.location.origin;
+
+        const showToast = (message, type = 'success') => {
+          const id = Date.now();
+          toasts.value.push({ id, message, type });
+          setTimeout(() => {
+            toasts.value = toasts.value.filter(t => t.id !== id);
+          }, 3000);
+        };
+
+        const loadForms = async () => {
+          try {
+            const res = await fetch(`${window.location.origin}<%= baseUrl %>/api/admin/forms/definitions`);
+            forms.value = await res.json();
+          } catch (e) {
+            showToast('Failed to load forms', 'error');
+          }
+        };
+
+        const loadSubmissions = async () => {
+          try {
+            const params = new URLSearchParams();
+            if (filter.value.formId) params.append('formId', filter.value.formId);
+            params.append('limit', filter.value.limit);
+            params.append('offset', filter.value.offset);
+            
+            const res = await fetch(`${window.location.origin}<%= baseUrl %>/api/admin/forms?${params.toString()}`);
+            const data = await res.json();
+            submissions.value = data.submissions || [];
+            pagination.value = data.pagination || { total: 0 };
+          } catch (e) {
+            showToast('Failed to load submissions', 'error');
+          }
+        };
+
+        const saveForm = async () => {
+          try {
+            const res = await fetch(`${window.location.origin}<%= baseUrl %>/api/admin/forms/definitions`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(editingForm.value)
+            });
+            if (res.ok) {
+              showToast('Form saved successfully');
+              editingForm.value = null;
+              loadForms();
+            }
+          } catch (e) {
+            showToast('Failed to save form', 'error');
+          }
+        };
+
+        const deleteForm = async (id) => {
+          if (!confirm('Are you sure you want to delete this form definition? Submissions will remain but the integration might break.')) return;
+          try {
+            const res = await fetch(`${window.location.origin}<%= baseUrl %>/api/admin/forms/definitions/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+              showToast('Form deleted');
+              loadForms();
+            }
+          } catch (e) {
+            showToast('Failed to delete form', 'error');
+          }
+        };
+
+        const editForm = (form) => {
+          editingForm.value = { ...form };
+        };
+
+        const toggleDetails = (id) => {
+          expandedId.value = expandedId.value === id ? null : id;
+        };
+
+        const resetFilters = () => {
+          filter.value = { formId: null, limit: 50, offset: 0 };
+          loadSubmissions();
+        };
+
+        const formatDate = (iso) => new Date(iso).toLocaleString();
         
-        const responseEl = document.querySelector('#content pre#response');
-        if (response.ok) {
-          showToast('Request successful!', 'success');
-          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
-        } else {
-          showToast(data.error || 'Request failed', 'error');
-          if (responseEl) responseEl.textContent = JSON.stringify(data, null, 2);
-        }
-      } catch (error) {
-        showToast(error.message, 'error');
-        const responseEl = document.querySelector('#content pre#response');
-        if (responseEl) responseEl.textContent = error.message;
-      }
-    }
+        const getFormName = (id) => {
+          const f = forms.value.find(f => f.id === id);
+          return f ? f.name : id;
+        };
 
-    function qs(obj) {
-      const params = new URLSearchParams();
-      Object.entries(obj).forEach(([k, v]) => {
-        if (v === undefined || v === null) return;
-        const s = String(v);
-        if (!s) return;
-        params.set(k, s);
-      });
-      const out = params.toString();
-      return out ? `?${out}` : '';
-    }
+        const formatFields = (fields) => {
+          if (!fields) return '';
+          return Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join(', ');
+        };
 
-    function formatDate(iso) {
-      try {
-        return new Date(iso).toLocaleString();
-      } catch {
-        return String(iso || '');
-      }
-    }
-
-    function escapeHtml(str) {
-      return String(str || '')
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
-    }
-
-    function toggleDetails(id) {
-      const row = document.getElementById(`details-${id}`);
-      if (!row) return;
-      row.classList.toggle('hidden');
-    }
-
-    async function loadSubmissions() {
-      const formKey = document.getElementById('filter-formKey')?.value?.trim() || '';
-      const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
-      const offset = parseInt(document.getElementById('filter-offset')?.value || '0', 10);
-
-      const subtitle = document.getElementById('table-subtitle');
-      const tbody = document.getElementById('table-body');
-      if (subtitle) subtitle.textContent = 'Loading...';
-      if (tbody) tbody.innerHTML = '';
-
-      try {
-        const url = `${API_BASE}${FORMS_ADMIN_LIST_PATH}${qs({ formKey: formKey || undefined, limit, offset })}`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        const data = await res.json();
-
-        if (!res.ok) {
-          showToast(data?.error || 'Failed to load submissions', 'error');
-          if (subtitle) subtitle.textContent = 'Failed to load.';
-          return;
-        }
-
-        const submissions = Array.isArray(data?.submissions) ? data.submissions : [];
-        const pagination = data?.pagination || {};
-        const total = Number.isFinite(pagination.total) ? pagination.total : 0;
-        const usedLimit = Number.isFinite(pagination.limit) ? pagination.limit : limit;
-        const usedOffset = Number.isFinite(pagination.offset) ? pagination.offset : offset;
-
-        if (subtitle) {
-          const from = total === 0 ? 0 : usedOffset + 1;
-          const to = Math.min(usedOffset + submissions.length, total);
-          subtitle.textContent = `${from}-${to} of ${total}`;
-        }
-
-        if (tbody) {
-          if (submissions.length === 0) {
-            tbody.innerHTML = `
-              <tr>
-                <td class="px-6 py-6 text-sm text-gray-600" colspan="5">No submissions found.</td>
-              </tr>
-            `;
-            return;
+        const prevPage = () => {
+          if (filter.value.offset > 0) {
+            filter.value.offset = Math.max(0, filter.value.offset - filter.value.limit);
+            loadSubmissions();
           }
-
-          tbody.innerHTML = submissions.map((s) => {
-            const id = escapeHtml(s?._id);
-            const createdAt = escapeHtml(formatDate(s?.createdAt));
-            const formKeyCell = escapeHtml(s?.formKey);
-            const actor = escapeHtml(`${s?.actorType || ''}:${s?.actorId || ''}`);
-            const userId = escapeHtml(s?.userId || '');
-            const fieldsJson = escapeHtml(JSON.stringify(s?.fields || {}, null, 2));
-            const metaJson = escapeHtml(JSON.stringify(s?.meta || {}, null, 2));
-
-            return `
-              <tr>
-                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">${createdAt}</td>
-                <td class="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">${formKeyCell}</td>
-                <td class="px-6 py-4 text-sm text-gray-700">${actor}</td>
-                <td class="px-6 py-4 text-sm text-gray-700">${userId}</td>
-                <td class="px-6 py-4 text-sm">
-                  <button class="text-blue-600 hover:text-blue-800" onclick="toggleDetails('${id}')">Details</button>
-                </td>
-              </tr>
-              <tr id="details-${id}" class="hidden bg-gray-50">
-                <td class="px-6 py-4" colspan="5">
-                  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                      <h3 class="text-sm font-semibold text-gray-800 mb-2">Fields</h3>
-                      <pre class="bg-white border rounded p-3 text-xs overflow-auto max-h-80">${fieldsJson}</pre>
-                    </div>
-                    <div>
-                      <h3 class="text-sm font-semibold text-gray-800 mb-2">Meta</h3>
-                      <pre class="bg-white border rounded p-3 text-xs overflow-auto max-h-80">${metaJson}</pre>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            `;
-          }).join('');
-        }
-
-        const prevBtn = document.getElementById('btn-prev');
-        const nextBtn = document.getElementById('btn-next');
-        if (prevBtn) prevBtn.disabled = usedOffset <= 0;
-        if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
-      } catch (e) {
-        showToast(e.message || 'Failed to load submissions', 'error');
-        const subtitle = document.getElementById('table-subtitle');
-        if (subtitle) subtitle.textContent = 'Failed to load.';
-      }
-    }
-
-    function bindEvents() {
-      const applyBtn = document.getElementById('btn-apply');
-      const resetBtn = document.getElementById('btn-reset');
-      const prevBtn = document.getElementById('btn-prev');
-      const nextBtn = document.getElementById('btn-next');
-
-      if (applyBtn) {
-        applyBtn.onclick = () => {
-          document.getElementById('filter-offset').value = '0';
-          loadSubmissions();
         };
-      }
 
-      if (resetBtn) {
-        resetBtn.onclick = () => {
-          document.getElementById('filter-formKey').value = '';
-          document.getElementById('filter-limit').value = '50';
-          document.getElementById('filter-offset').value = '0';
-          loadSubmissions();
-        };
-      }
-
-      if (prevBtn) {
-        prevBtn.onclick = () => {
-          const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
-          const offsetEl = document.getElementById('filter-offset');
-          const current = parseInt(offsetEl?.value || '0', 10);
-          const nextOffset = Math.max(0, current - limit);
-          if (offsetEl) offsetEl.value = String(nextOffset);
-          loadSubmissions();
-        };
-      }
-
-      if (nextBtn) {
-        nextBtn.onclick = () => {
-          const limit = parseInt(document.getElementById('filter-limit')?.value || '50', 10);
-          const offsetEl = document.getElementById('filter-offset');
-          const current = parseInt(offsetEl?.value || '0', 10);
-          const nextOffset = Math.max(0, current + limit);
-          if (offsetEl) offsetEl.value = String(nextOffset);
-          loadSubmissions();
-        };
-      }
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          const active = document.activeElement;
-          if (active && (active.id === 'filter-formKey' || active.id === 'filter-offset')) {
-            e.preventDefault();
-            document.getElementById('btn-apply')?.click();
+        const nextPage = () => {
+          if (filter.value.offset + filter.value.limit < pagination.value.total) {
+            filter.value.offset += filter.value.limit;
+            loadSubmissions();
           }
-        }
-      });
-    }
+        };
 
-    bindEvents();
-    loadSubmissions();
+        const copyCode = (type) => {
+          const origin = window.location.origin;
+          let code = '';
+          if (type === 'html') {
+            code = `<form action="${origin}/api/forms/submit/${setupFormId.value}" method="POST" class="max-w-md mx-auto p-6 bg-white rounded-xl shadow-lg space-y-4 border border-gray-100">
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
+    <input type="email" name="email" placeholder="alex@example.com" required 
+      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+  </div>
+  <div>
+    <label class="block text-sm font-semibold text-gray-700 mb-1">Message</label>
+    <textarea name="message" rows="4" placeholder="How can we help?" 
+      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all"></textarea>
+  </div>
+  <button type="submit" 
+    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:shadow-lg transition-all active:scale-95">
+    Send Message
+  </button>
+</form>`;
+          } else {
+            code = `const data = { email: 'user@example.com', message: 'Hello!' };
+
+fetch('${origin}/api/forms/submit/${setupFormId.value}', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(data)
+})
+.then(res => res.json())
+.then(data => console.log('Success!', data));`;
+          }
+          navigator.clipboard.writeText(code).then(() => showToast('Copied to clipboard'));
+        };
+
+        onMounted(() => {
+          loadForms();
+          loadSubmissions();
+        });
+
+        return {
+          activeTab, forms, submissions, editingForm, expandedId, setupFormId, filter, pagination, toasts,
+          loadSubmissions, saveForm, deleteForm, editForm, toggleDetails, resetFilters,
+          formatDate, getFormName, formatFields, prevPage, nextPage, copyCode,
+          origin
+        };
+      }
+    }).mount('#app');
   </script>
-<script>
-  window.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
-      e.preventDefault();
-      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
-    }
-  });
-</script>
 </body>
 </html>
