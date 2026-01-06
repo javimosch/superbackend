@@ -1,6 +1,15 @@
 require("dotenv").config({ path: process.env.ENV_FILE || ".env" });
 const express = require("express");
 
+// Initialize database adapter BEFORE loading models
+const { initMongooseAdapter, shouldUseSQLite } = require("./src/db/mongoose-adapter");
+if (shouldUseSQLite()) {
+  initMongooseAdapter(true, {
+    dataDir: process.env.DATA_DIR || './data',
+    dbPath: process.env.DB_PATH
+  }).catch(err => console.error("Failed to initialize SQLite:", err));
+}
+
 /**
  * Creates the SaaS backend as Express middleware
  * @param {Object} options - Configuration options

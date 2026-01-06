@@ -49,6 +49,7 @@ async function initMongooseAdapter(useSQLite = false, options = {}) {
     return initPromise;
   } else if (!useSQLite) {
     console.log('✅ MongoDB Mode: Using Mongoose with MongoDB');
+    return Promise.resolve();
   }
 }
 
