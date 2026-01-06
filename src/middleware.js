@@ -219,8 +219,8 @@ function createMiddleware(options = {}) {
     });
   });
 
-  // Admin test page (protected by basic auth) - render manually to avoid view engine conflicts
-  router.get("/admin/test", basicAuth, (req, res) => {
+  // Admin technical API test page (protected by basic auth)
+  router.get("/admin/api/test", basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-test.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
