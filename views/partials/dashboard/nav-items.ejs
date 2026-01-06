@@ -1,0 +1,48 @@
+<script>
+  window.NAV_SECTIONS = [
+    {
+      title: 'User Management',
+      items: [
+        { id: 'users', label: 'Users', path: '/admin/users', icon: 'ti-users' },
+        { id: 'orgs', label: 'Organizations', path: '/admin/organizations', icon: 'ti-building-community' },
+        { id: 'invites', label: 'Waiting List', path: '/admin/waiting-list', icon: 'ti-mail-forward' },
+      ]
+    },
+    {
+      title: 'Content & Config',
+      items: [
+        { id: 'i18n', label: 'I18n Entries', path: '/admin/i18n', icon: 'ti-language' },
+        { id: 'locales', label: 'I18n Locales', path: '/admin/i18n/locales', icon: 'ti-world' },
+        { id: 'json', label: 'JSON Configs', path: '/admin/json-configs', icon: 'ti-braces' },
+        { id: 'seo', label: 'SEO Config', path: '/admin/seo-config', icon: 'ti-search' },
+        { id: 'assets', label: 'Assets', path: '/admin/assets', icon: 'ti-photo' },
+      ]
+    },
+    {
+      title: 'System & DevOps',
+      items: [
+        { id: 'settings', label: 'Global Settings', path: '/admin/global-settings', icon: 'ti-settings' },
+        { id: 'flags', label: 'Feature Flags', path: '/admin/feature-flags', icon: 'ti-flag' },
+        { id: 'ejs', label: 'Virtual EJS', path: '/admin/ejs-virtual', icon: 'ti-code' },
+        { id: 'migration', label: 'Migration', path: '/admin/migration', icon: 'ti-database-export' },
+        { id: 'coolify', label: 'Coolify Deploy', path: '/admin/coolify-deploy', icon: 'ti-rocket' },
+      ]
+    },
+    {
+      title: 'Monitoring & AI',
+      items: [
+        { id: 'audit', label: 'Audit Logs', path: '/admin/audit', icon: 'ti-history' },
+        { id: 'errors', label: 'Error Tracking', path: '/admin/errors', icon: 'ti-bug' },
+        { id: 'metrics', label: 'Metrics', path: '/admin/metrics', icon: 'ti-chart-bar' },
+        { id: 'llm', label: 'LLM/AI', path: '/admin/admin-llm', icon: 'ti-brain' },
+      ]
+    },
+    {
+      title: 'Billing & Forms',
+      items: [
+        { id: 'stripe', label: 'Stripe Pricing', path: '/admin/stripe-pricing', icon: 'ti-credit-card' },
+        { id: 'forms', label: 'Form Submissions', path: '/admin/forms', icon: 'ti-forms' },
+      ]
+    }
+  ];
+</script>

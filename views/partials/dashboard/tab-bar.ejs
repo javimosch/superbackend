@@ -1,0 +1,26 @@
+<!-- Tab Bar Component -->
+<div class="flex items-center bg-white border-b border-gray-200 overflow-x-auto no-scrollbar shrink-0 h-10 px-2 gap-1">
+  <div 
+    v-for="tab in tabs" 
+    :key="tab.id"
+    @click="activeTabId = tab.id"
+    :class="['group relative flex items-center h-8 min-w-[120px] max-w-[200px] px-3 rounded-t-md cursor-pointer transition-all border-x border-t', 
+             activeTabId === tab.id ? 'bg-gray-50 border-gray-200 text-blue-700' : 'bg-transparent border-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-700']"
+  >
+    <i :class="['ti text-base mr-2', tab.icon]"></i>
+    <span class="text-xs font-medium truncate flex-1 pr-4">{{ tab.label }}</span>
+    <button 
+      @click.stop="closeTab(tab.id)"
+      class="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-gray-200 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+    >
+      <i class="ti ti-x text-[10px]"></i>
+    </button>
+    <!-- Active Indicator -->
+    <div v-if="activeTabId === tab.id" class="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-blue-600"></div>
+  </div>
+  
+  <!-- Empty State Tab Placeholder if needed -->
+  <div v-if="tabs.length === 0" class="flex items-center px-4 text-[11px] text-gray-400 italic">
+    No open tabs
+  </div>
+</div>

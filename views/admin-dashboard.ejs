@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaaSBackend Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+    <style>
+        [v-cloak] { display: none; }
+        .sidebar-link.active { @apply bg-blue-50 text-blue-700 border-r-4 border-blue-700; }
+    </style>
+</head>
+<body class="bg-gray-50 overflow-hidden">
+    <div id="app" class="h-screen flex flex-col" v-cloak>
+        <!-- Top Header -->
+        <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
+            <div class="flex items-center gap-4">
+                <i class="ti ti-layout-dashboard text-2xl text-blue-600"></i>
+                <h1 class="text-xl font-bold text-gray-800">SaaSBackend Admin</h1>
+            </div>
+            <div class="flex items-center gap-6">
+                <div class="hidden md:flex items-center gap-2 text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                    <kbd class="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm font-sans">Ctrl</kbd>
+                    <span>+</span>
+                    <kbd class="px-1.5 py-0.5 bg-white border border-gray-300 rounded shadow-sm font-sans">K</kbd>
+                    <span class="ml-1">to search</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span class="text-sm text-gray-500">v1.0.0</span>
+                    <a :href="baseUrl + '/admin'" class="text-sm text-blue-600 hover:underline">API Test</a>
+                </div>
+            </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+            <%- include('partials/dashboard/sidebar') %>
+
+            <!-- Main Content Area -->
+            <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
+                <%- include('partials/dashboard/tab-bar') %>
+                
+                <div class="flex-1 relative">
+                    <!-- Iframes -->
+                    <iframe 
+                        v-for="tab in tabs"
+                        v-show="activeTabId === tab.id"
+                        :key="tab.id"
+                        :src="baseUrl + tab.path" 
+                        class="absolute inset-0 w-full h-full border-none"
+                        :id="'frame-' + tab.id"
+                    ></iframe>
+
+                    <!-- Empty State -->
+                    <div v-if="tabs.length === 0" class="flex items-center justify-center h-full text-gray-400">
+                        <div class="text-center">
+                            <i class="ti ti-layout-dashboard text-6xl mb-4 opacity-20"></i>
+                            <p class="text-lg font-medium">No open modules</p>
+                            <p class="text-sm opacity-60">Select a module from the sidebar or press Ctrl+K</p>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <%- include('partials/dashboard/palette') %>
+    </div>
+
+    <%- include('partials/dashboard/nav-items') %>
+
+    <script>
+        const { createApp, ref, computed, nextTick, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                const baseUrl = '<%= baseUrl %>';
+                const navSections = window.NAV_SECTIONS;
+                
+                // Tabs state
+                const tabs = ref([]);
+                const activeTabId = ref(null);
+
+                // Palette state
+                const showPalette = ref(false);
+                const paletteQuery = ref('');
+                const paletteCursor = ref(0);
+                const paletteInput = ref(null);
+
+                // Flattened modules for search
+                const allModules = computed(() => {
+                    const modules = [];
+                    navSections.forEach(section => {
+                        section.items.forEach(item => {
+                            modules.push({
+                                ...item,
+                                sectionTitle: section.title
+                            });
+                        });
+                    });
+                    return modules;
+                });
+
+                const filteredModules = computed(() => {
+                    if (!paletteQuery.value) return allModules.value;
+                    const query = paletteQuery.value.toLowerCase();
+                    return allModules.value.filter(m => 
+                        m.label.toLowerCase().includes(query) || 
+                        m.sectionTitle.toLowerCase().includes(query)
+                    );
+                });
+
+                // Tab methods
+                const openTab = (item) => {
+                    const existing = tabs.value.find(t => t.id === item.id);
+                    if (!existing) {
+                        tabs.value.push({
+                            id: item.id,
+                            label: item.label,
+                            icon: item.icon,
+                            path: item.path
+                        });
+                    }
+                    activeTabId.value = item.id;
+                    closePalette();
+                };
+
+                const closeTab = (id) => {
+                    const index = tabs.value.findIndex(t => t.id === id);
+                    if (index === -1) return;
+                    
+                    const wasActive = activeTabId.value === id;
+                    tabs.value.splice(index, 1);
+                    
+                    if (wasActive && tabs.value.length > 0) {
+                        const nextTab = tabs.value[Math.min(index, tabs.value.length - 1)];
+                        activeTabId.value = nextTab.id;
+                    } else if (tabs.value.length === 0) {
+                        activeTabId.value = null;
+                    }
+                };
+
+                // Palette methods
+                const togglePalette = () => {
+                    showPalette.value = !showPalette.value;
+                    if (showPalette.value) {
+                        paletteQuery.value = '';
+                        paletteCursor.value = 0;
+                        nextTick(() => {
+                            if (paletteInput.value) paletteInput.value.focus();
+                        });
+                    }
+                };
+
+                const closePalette = () => {
+                    showPalette.value = false;
+                };
+
+                const navigatePalette = (dir) => {
+                    const len = filteredModules.value.length;
+                    if (len === 0) return;
+                    paletteCursor.value = (paletteCursor.value + dir + len) % len;
+                    
+                    // Scroll active item into view
+                    nextTick(() => {
+                        const el = document.querySelectorAll('.palette-item')[paletteCursor.value];
+                        if (el) el.scrollIntoView({ block: 'nearest' });
+                    });
+                };
+
+                const selectPaletteItem = () => {
+                    const item = filteredModules.value[paletteCursor.value];
+                    if (item) openTab(item);
+                };
+
+                const selectModule = (item) => {
+                    openTab(item);
+                };
+
+                // Keyboard events
+                const handleKeydown = (e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                        e.preventDefault();
+                        togglePalette();
+                    }
+                };
+
+                onMounted(() => {
+                    window.addEventListener('keydown', handleKeydown);
+                    // Open default tab
+                    const defaultModule = allModules.value.find(m => m.id === 'users');
+                    if (defaultModule) openTab(defaultModule);
+                });
+
+                onUnmounted(() => {
+                    window.removeEventListener('keydown', handleKeydown);
+                });
+
+                return {
+                    baseUrl,
+                    navSections,
+                    tabs,
+                    activeTabId,
+                    openTab,
+                    closeTab,
+                    showPalette,
+                    paletteQuery,
+                    paletteCursor,
+                    paletteInput,
+                    filteredModules,
+                    togglePalette,
+                    closePalette,
+                    navigatePalette,
+                    selectPaletteItem,
+                    selectModule
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

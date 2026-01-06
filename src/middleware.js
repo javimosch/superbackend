@@ -201,6 +201,24 @@ function createMiddleware(options = {}) {
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));
 
+  // Admin dashboard (polished view)
+  router.get("/admin", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-dashboard.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   // Admin test page (protected by basic auth) - render manually to avoid view engine conflicts
   router.get("/admin/test", basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-test.ejs");
@@ -720,6 +738,23 @@ function createMiddleware(options = {}) {
 
   router.get("/admin/audit", basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-audit.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get("/admin/coolify-deploy", basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-coolify-deploy.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
         console.error("Error reading template:", err);
