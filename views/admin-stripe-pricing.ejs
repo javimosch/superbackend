@@ -546,5 +546,13 @@
     bindEvents();
     checkStatus();
   </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
 </body>
 </html>

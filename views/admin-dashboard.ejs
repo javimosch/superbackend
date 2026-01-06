@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaaSBackend Admin Dashboard</title>
+    <title>Superbackend Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
@@ -18,7 +18,9 @@
         <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
             <div class="flex items-center gap-4">
                 <i class="ti ti-layout-dashboard text-2xl text-blue-600"></i>
-                <h1 class="text-xl font-bold text-gray-800">SaaSBackend Admin</h1>
+                <h1 class="text-xl font-bold text-gray-800">
+                    Superbackend <span class="text-xs font-normal text-gray-500 ml-2 align-middle">(saasbackend)</span>
+                </h1>
             </div>
             <div class="flex items-center gap-6">
                 <div class="hidden md:flex items-center gap-2 text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
@@ -185,15 +187,24 @@
                     }
                 };
 
+                // Listen for messages from iframes to capture Ctrl+K globally
+                const handleMessage = (e) => {
+                    if (e.data && e.data.type === 'keydown' && e.data.ctrlK) {
+                        togglePalette();
+                    }
+                };
+
                 onMounted(() => {
                     window.addEventListener('keydown', handleKeydown);
+                    window.addEventListener('message', handleMessage);
                     // Open default tab
-                    const defaultModule = allModules.value.find(m => m.id === 'users');
+                    const defaultModule = allModules.value.find(m => m.id === 'overview');
                     if (defaultModule) openTab(defaultModule);
                 });
 
                 onUnmounted(() => {
                     window.removeEventListener('keydown', handleKeydown);
+                    window.removeEventListener('message', handleMessage);
                 });
 
                 return {
@@ -217,5 +228,13 @@
             }
         }).mount('#app');
     </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
 </body>
 </html>

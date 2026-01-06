@@ -268,5 +268,13 @@
         document.body.innerHTML = `<pre class="p-6 text-red-600">${escapeHtml(err.message || String(err))}</pre>`;
       });
     </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
   </body>
 </html>

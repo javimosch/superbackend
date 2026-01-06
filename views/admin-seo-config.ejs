@@ -254,6 +254,14 @@
 
     function setSvgPreview(svgRaw) {
       const iframe = document.getElementById('og-svg-preview');
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
       const html = `<!doctype html><html><head><meta charset="utf-8" />\n<style>html,body{margin:0;padding:0;background:#fff;}svg{width:100%;height:auto;display:block;}</style></head><body>${svgRaw || ''}</body></html>`;
       iframe.srcdoc = html;
     }
@@ -653,5 +661,13 @@
     buildSnippet();
     loadSeoConfig();
   </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
 </body>
 </html>

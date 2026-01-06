@@ -51,6 +51,10 @@
           <p class="text-gray-600">Select an endpoint from the left sidebar to begin testing.</p>
         </div>
       </div>
+      
+      <div class="max-w-4xl">
+        <%- include('partials/footer') %>
+      </div>
     </div>
   </div>
 
@@ -292,5 +296,13 @@
 
     renderSidebar();
   </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
 </body>
 </html>
