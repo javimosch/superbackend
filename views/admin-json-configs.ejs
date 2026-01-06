@@ -218,10 +218,10 @@
           return;
         }
         const slugUrl = `${API_BASE}/api/json-configs/${encodeURIComponent(slug)}`;
-        let urls = `<a href="${slugUrl}" class="text-blue-600 hover:text-blue-800" target="_blank" rel="noreferrer">${slugUrl}</a>`;
+        let urls = `<a href="${slugUrl}" class="text-blue-600 hover:text-blue-800"  rel="noreferrer">${slugUrl}</a>`;
         if (alias) {
           const aliasUrl = `${API_BASE}/api/json-configs/${encodeURIComponent(alias)}`;
-          urls += ` <span class="text-gray-500">or</span> <a href="${aliasUrl}" class="text-blue-600 hover:text-blue-800" target="_blank" rel="noreferrer">${aliasUrl}</a>`;
+          urls += ` <span class="text-gray-500">or</span> <a href="${aliasUrl}" class="text-blue-600 hover:text-blue-800"  rel="noreferrer">${aliasUrl}</a>`;
         }
         el.style.display = 'block';
         el.innerHTML = `<span class="text-gray-500">Public URL(s):</span> ${urls}`;
