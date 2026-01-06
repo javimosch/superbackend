@@ -144,11 +144,17 @@ class FormsService {
     }
 
     // Audit Log
-    await auditService.log({
+    await auditService.createAuditEvent({
       action: 'FORM_SUBMISSION',
-      entity: 'FormSubmission',
+      entityType: 'FormSubmission',
       entityId: submission._id,
-      details: { formId, email: fields.email }
+      actorType: submission.actorType,
+      actorId: submission.actorId,
+      meta: { 
+        formId, 
+        email: fields.email,
+        organizationId: orgId
+      }
     });
 
     return submission;
@@ -195,6 +201,13 @@ class FormsService {
       subject: `New Submission: ${formName}`,
       text: `New form submission received for ${formName}.\n\nData:\n${JSON.stringify(data, null, 2)}`
     }).catch(err => console.error(`[FormsService] Email notification failed:`, err.message));
+  }
+
+  /**
+   * Delete a form submission
+   */
+  async deleteSubmission(submissionId) {
+    await FormSubmission.findByIdAndDelete(submissionId);
   }
 }
 

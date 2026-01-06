@@ -62,6 +62,16 @@ exports.adminList = async (req, res) => {
   }
 };
 
+exports.deleteSubmission = async (req, res) => {
+  try {
+    await formsService.deleteSubmission(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[FormsController] Error deleting submission:', error);
+    res.status(500).json({ error: 'Failed to delete submission' });
+  }
+};
+
 // --- Public Submission ---
 
 function parseCookieHeader(cookieHeader) {
@@ -119,8 +129,8 @@ exports.submit = async (req, res) => {
   try {
     await tryAttachUser(req);
 
-    const formKey = String(req.body?.formKey || '').trim();
-    const fields = req.body?.fields;
+    const formKey = String(req.params.formId || req.body?.formKey || '').trim();
+    const fields = req.body; // In POST forms, fields are the body itself or nested in fields
 
     if (!formKey) {
       return res.status(400).json({ error: 'formKey is required' });
