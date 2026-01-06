@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SaaSBackend Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <style>
+    .stat-card { @apply bg-white p-5 rounded-xl border border-gray-200 shadow-sm transition-all hover:shadow-md flex flex-col justify-between; }
+    .category-title { @apply text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2; }
+    .chart-container { position: relative; height: 250px; width: 100%; }
+    .status-badge { @apply px-2 py-0.5 rounded-full text-[10px] font-bold uppercase; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-6">
+  <div id="app" class="max-w-7xl mx-auto space-y-8">
+    <!-- Header -->
+    <div class="flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Command Center</h1>
+        <p class="text-sm text-gray-500">System-wide health and growth metrics.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <div id="system-health-badge" class="flex items-center gap-2 text-xs font-semibold"></div>
+        <button onclick="fetchStats()" class="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+          <i class="ti ti-refresh text-gray-600"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Categorized Stats Grid -->
+    <div class="space-y-8">
+      <!-- Section: User Management -->
+      <div>
+        <h2 class="category-title"><i class="ti ti-users"></i> User Management</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Total Users</span>
+            <div class="flex items-end justify-between mt-2">
+              <h3 id="users-total" class="text-2xl font-bold">-</h3>
+              <span id="users-new" class="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded">+0 today</span>
+            </div>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Organizations</span>
+            <h3 id="users-orgs" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Active Invites</span>
+            <h3 id="users-invites" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Conversion (est)</span>
+            <h3 class="text-2xl font-bold mt-2 text-blue-600">84.2%</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Monitoring & Health -->
+      <div>
+        <h2 class="category-title"><i class="ti ti-activity"></i> System Monitoring</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="stat-card border-red-100 bg-red-50/10">
+            <span class="text-sm text-gray-500">Unresolved Errors</span>
+            <h3 id="mon-errors" class="text-2xl font-bold text-red-600 mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Audit Events (24h)</span>
+            <h3 id="mon-audit" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Emails Sent</span>
+            <h3 id="mon-emails-sent" class="text-2xl font-bold text-green-600 mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Emails Failed</span>
+            <h3 id="mon-emails-failed" class="text-2xl font-bold text-orange-600 mt-2">-</h3>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: Content & Configuration -->
+      <div>
+        <h2 class="category-title"><i class="ti ti-folder"></i> Content & Configuration</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Total Assets</span>
+            <h3 id="cont-assets" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Virtual EJS Files</span>
+            <h3 id="cont-ejs" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">JSON Configs</span>
+            <h3 id="cont-json" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+          <div class="stat-card">
+            <span class="text-sm text-gray-500">Active Plans</span>
+            <h3 id="saas-plans" class="text-2xl font-bold mt-2">-</h3>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 stat-card">
+        <h3 class="text-sm font-bold text-gray-900 mb-6">User Growth & Activity (7d)</h3>
+        <div class="chart-container">
+          <canvas id="growthChart"></canvas>
+        </div>
+      </div>
+      <div class="stat-card">
+        <h3 class="text-sm font-bold text-gray-900 mb-6">Email Delivery Trend</h3>
+        <div class="chart-container">
+          <canvas id="emailChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Activity Table -->
+    <div class="stat-card overflow-hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-bold text-gray-900">Latest Audit Logs</h3>
+        <a href="#" onclick="parent.window.app.openTab({id:'audit', label:'Audit Logs', path:'/admin/audit', icon:'ti-history'})" class="text-xs text-blue-600 hover:underline">View All</a>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left">
+          <thead class="bg-gray-50 text-[10px] font-bold text-gray-400 uppercase">
+            <tr>
+              <th class="px-4 py-2">Action</th>
+              <th class="px-4 py-2">Actor</th>
+              <th class="px-4 py-2">Details</th>
+              <th class="px-4 py-2">Time</th>
+            </tr>
+          </thead>
+          <tbody id="activity-list" class="divide-y divide-gray-100">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <%- include('partials/footer') %>
+  </div>
+
+  <script>
+    let growthChart, emailChart;
+
+    async function fetchStats() {
+      try {
+        const res = await fetch('<%= baseUrl %>/api/admin/stats/overview');
+        const data = await res.json();
+        updateUI(data);
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    function updateUI(data) {
+      const { categories, recentActivity, timeSeries } = data;
+
+      // Update Health Badge
+      const healthBadge = document.getElementById('system-health-badge');
+      const health = categories.monitoring.health;
+      const healthMeta = {
+        healthy: { cls: 'bg-green-100 text-green-700', icon: 'ti ti-heartbeat', label: 'Healthy' },
+        warning: { cls: 'bg-yellow-100 text-yellow-700', icon: 'ti ti-alert-triangle', label: 'Warnings present' },
+        critical: { cls: 'bg-red-100 text-red-700', icon: 'ti ti-flame', label: 'Critical issues' }
+      };
+      const meta = healthMeta[health] || healthMeta.healthy;
+      healthBadge.innerHTML = `<span class="status-badge ${meta.cls}" title="${meta.label}"><i class="${meta.icon}"></i></span>`;
+
+      // Update Users
+      document.getElementById('users-total').innerText = categories.users.total;
+      document.getElementById('users-new').innerText = `+${categories.users.newToday} today`;
+      document.getElementById('users-orgs').innerText = categories.users.orgs;
+      document.getElementById('users-invites').innerText = categories.users.invites;
+
+      // Update Monitoring
+      document.getElementById('mon-errors').innerText = categories.monitoring.errors;
+      document.getElementById('mon-audit').innerText = categories.monitoring.audit24h;
+      document.getElementById('mon-emails-sent').innerText = categories.monitoring.emailsSent;
+      document.getElementById('mon-emails-failed').innerText = categories.monitoring.emailsFailed;
+
+      // Update Content
+      document.getElementById('cont-assets').innerText = categories.content.assets;
+      document.getElementById('cont-ejs').innerText = categories.content.virtualEjs;
+      document.getElementById('cont-json').innerText = categories.content.jsonConfigs;
+      document.getElementById('saas-plans').innerText = categories.saas.plans;
+
+      // Update Activity
+      const activityBody = document.getElementById('activity-list');
+      activityBody.innerHTML = recentActivity.map(event => `
+        <tr class="text-xs text-gray-700">
+          <td class="px-4 py-3"><span class="font-medium text-gray-900">${event.action}</span></td>
+          <td class="px-4 py-3">${event.actorEmail || 'System'}</td>
+          <td class="px-4 py-3 truncate max-w-[200px] text-gray-400">${event.resourceId || '-'}</td>
+          <td class="px-4 py-3 text-gray-400">${new Date(event.createdAt).toLocaleTimeString()}</td>
+        </tr>
+      `).join('');
+
+      // Update Charts
+      updateCharts(timeSeries);
+    }
+
+    function updateCharts(timeSeries) {
+      const labels = timeSeries.map(d => d.date);
+      
+      // Growth & Activity Chart
+      if (growthChart) growthChart.destroy();
+      growthChart = new Chart(document.getElementById('growthChart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Signups',
+              data: timeSeries.map(d => d.users),
+              borderColor: 'rgb(59, 130, 246)',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              fill: true,
+              tension: 0.4
+            },
+            {
+              label: 'Activity',
+              data: timeSeries.map(d => d.activity),
+              borderColor: 'rgb(139, 92, 246)',
+              backgroundColor: 'transparent',
+              tension: 0.4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } },
+          scales: {
+            y: { grid: { display: false } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // Email Delivery Chart
+      if (emailChart) emailChart.destroy();
+      emailChart = new Chart(document.getElementById('emailChart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Sent Emails',
+            data: timeSeries.map(d => d.emails),
+            backgroundColor: 'rgba(34, 197, 94, 0.8)',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { grid: { display: false }, ticks: { stepSize: 1 } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    window.onload = fetchStats;
+  </script>
+<script>
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+      e.preventDefault();
+      window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
+    }
+  });
+</script>
+</body>
+</html>
