@@ -13,6 +13,7 @@ const {
   expressErrorMiddleware,
   requestIdMiddleware,
 } = require("./middleware/errorCapture");
+const { initMongooseAdapter, shouldUseSQLite } = require("./db/mongoose-adapter");
 
 let errorCaptureInitialized = false;
 
@@ -39,19 +40,35 @@ function createMiddleware(options = {}) {
   // Database connection
   const mongoUri =
     options.mongodbUri || options.dbConnection || process.env.MONGODB_URI || process.env.MONGO_URI;
+  
+  const useSQLite = !mongoUri || options.useSQLite === true;
 
-  if (!mongoUri && mongoose.connection.readyState !== 1) {
-    console.warn(
-      "⚠️  Warning: No MongoDB connection provided to middleware. Set MONGODB_URI or MONGO_URI in environment or pass mongodbUri/dbConnection option.",
-    );
+  let connectionPromise = null;
+
+  if (useSQLite) {
+    // Initialize SQLite fallback (async)
+    connectionPromise = initMongooseAdapter(true, {
+      dataDir: options.dataDir || './data',
+      dbPath: options.dbPath,
+      databaseOptions: options.sqliteOptions || {}
+    }).then(() => {
+      console.log("✅ Database: Using SQLite (ChikkaDB adapter)");
+      return true;
+    }).catch(err => {
+      console.error("❌ SQLite initialization error:", err);
+      return false;
+    });
+    
+    router.connectionPromise = connectionPromise;
   } else if (mongoUri && mongoose.connection.readyState !== 1) {
+    // Initialize MongoDB
+    initMongooseAdapter(false);
     const connectionOptions = options.mongooseOptions || {
       serverSelectionTimeoutMS: 5000,
       maxPoolSize: 10,
     };
     
-    // Return a promise that resolves when connection is established
-    const connectionPromise = mongoose
+    connectionPromise = mongoose
       .connect(mongoUri, connectionOptions)
       .then(() => {
         console.log("✅ Middleware: Connected to MongoDB");
@@ -62,7 +79,6 @@ function createMiddleware(options = {}) {
         return false;
       });
     
-    // Store the promise so it can be awaited if needed
     router.connectionPromise = connectionPromise;
   } else if (mongoose.connection.readyState === 1) {
     console.log("✅ Middleware: Using existing MongoDB connection");
