@@ -31,7 +31,7 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <span class="text-sm text-gray-500">v1.0.0</span>
-                    <a :href="baseUrl + adminPath + '/api/test'" target="_blank" class="text-sm text-blue-600 hover:underline">API Test</a>
+                    <a :href="baseUrl + adminBase + '/api/test'" target="_blank" class="text-sm text-blue-600 hover:underline">API Test</a>
                 </div>
             </div>
         </header>
@@ -69,6 +69,12 @@
         <%- include('partials/dashboard/palette') %>
     </div>
 
+    <script>
+        // Initialize globals from EJS locals first (must run before nav-items)
+        window.BASE_URL = '<%= baseUrl %>';
+        window.ADMIN_PATH = '<%= adminPath %>';
+    </script>
+
     <%- include('partials/dashboard/nav-items') %>
 
     <script>
@@ -76,9 +82,9 @@
 
         createApp({
             setup() {
-                const baseUrl = '<%= baseUrl %>';
-                const adminPath = '<%= adminPath %>';
-                const navSections = window.NAV_SECTIONS;
+                const baseUrl = window.BASE_URL;
+                const adminBase = window.ADMIN_PATH || '/admin';
+                const navSections = window.NAV_SECTIONS || [];
                 
                 // Tabs state
                 const tabs = ref([]);
@@ -93,28 +99,34 @@
                 // Flattened modules for search
                 const allModules = computed(() => {
                     const modules = [];
-                    navSections.forEach(section => {
-                        section.items.forEach(item => {
-                            modules.push({
-                                ...item,
-                                sectionTitle: section.title
-                            });
+                    if (Array.isArray(navSections)) {
+                        navSections.forEach(section => {
+                            if (section && Array.isArray(section.items)) {
+                                section.items.forEach(item => {
+                                    modules.push({
+                                        ...item,
+                                        sectionTitle: section.title || 'Other'
+                                    });
+                                });
+                            }
                         });
-                    });
+                    }
                     return modules;
                 });
 
                 const filteredModules = computed(() => {
-                    if (!paletteQuery.value) return allModules.value;
+                    const mods = allModules.value;
+                    if (!paletteQuery.value) return mods;
                     const query = paletteQuery.value.toLowerCase();
-                    return allModules.value.filter(m => 
-                        m.label.toLowerCase().includes(query) || 
-                        m.sectionTitle.toLowerCase().includes(query)
+                    return mods.filter(m => 
+                        (m.label && m.label.toLowerCase().includes(query)) || 
+                        (m.sectionTitle && m.sectionTitle.toLowerCase().includes(query))
                     );
                 });
 
                 // Tab methods
                 const openTab = (item) => {
+                    if (!item || !item.id) return;
                     const existing = tabs.value.find(t => t.id === item.id);
                     if (!existing) {
                         tabs.value.push({
@@ -164,9 +176,9 @@
                     if (len === 0) return;
                     paletteCursor.value = (paletteCursor.value + dir + len) % len;
                     
-                    // Scroll active item into view
                     nextTick(() => {
-                        const el = document.querySelectorAll('.palette-item')[paletteCursor.value];
+                        const items = document.querySelectorAll('.palette-item');
+                        const el = items[paletteCursor.value];
                         if (el) el.scrollIntoView({ block: 'nearest' });
                     });
                 };
@@ -188,7 +200,6 @@
                     }
                 };
 
-                // Listen for messages from iframes to capture Ctrl+K globally
                 const handleMessage = (e) => {
                     if (e.data && e.data.type === 'keydown' && e.data.ctrlK) {
                         togglePalette();
@@ -199,8 +210,10 @@
                     window.addEventListener('keydown', handleKeydown);
                     window.addEventListener('message', handleMessage);
                     // Open default tab
-                    const defaultModule = allModules.value.find(m => m.id === 'overview');
-                    if (defaultModule) openTab(defaultModule);
+                    if (allModules.value.length > 0) {
+                        const defaultModule = allModules.value.find(m => m.id === 'overview') || allModules.value[0];
+                        if (defaultModule) openTab(defaultModule);
+                    }
                 });
 
                 onUnmounted(() => {
@@ -210,6 +223,7 @@
 
                 return {
                     baseUrl,
+                    adminBase,
                     navSections,
                     tabs,
                     activeTabId,

@@ -1,6 +1,6 @@
 <script>
   (function() {
-    const adminPath = typeof adminPath !== 'undefined' ? adminPath : '<%= typeof adminPath !== "undefined" ? adminPath : "/admin" %>';
+    const adminPath = window.ADMIN_PATH || '<%= typeof adminPath !== "undefined" ? adminPath : "/admin" %>';
     window.NAV_SECTIONS = [
       {
         title: 'Dashboard',
