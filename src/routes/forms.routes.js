@@ -4,6 +4,6 @@ const formsController = require('../controllers/forms.controller');
 const asyncHandler = require('../utils/asyncHandler');
 const { auditMiddleware } = require('../services/auditLogger');
 
-router.post('/submit', auditMiddleware('public.form.submit', { entityType: 'FormSubmission' }), asyncHandler(formsController.submit));
+router.post('/submit/:formId', auditMiddleware('public.form.submit', { entityType: 'FormSubmission' }), asyncHandler(formsController.submit));
 
 module.exports = router;
