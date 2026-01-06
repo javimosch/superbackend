@@ -71,13 +71,29 @@ router.post('/:id/test', async (req, res) => {
 router.post('/:id/nodes/:nodeId/test', async (req, res) => {
   try {
     const { WorkflowService } = require('../services/workflow.service');
+    const Workflow = require('../models/Workflow');
+    
     const workflow = await Workflow.findById(req.params.id);
     if (!workflow) return res.status(404).json({ error: 'Workflow not found' });
 
+    // Use dirty node data from request body if provided, otherwise fallback to DB
+    const node = req.body.node || workflow.nodes.find(n => n.id === req.params.nodeId);
+    if (!node) return res.status(404).json({ error: 'Node not found' });
+
     const service = new WorkflowService(req.params.id);
-    const result = await service.runNodeById(req.params.id, req.params.nodeId, req.body.context || {});
+    // Standard runNode logic but with the provided node object
+    service.context = {
+      ...req.body.context,
+      entrypoint: req.body.context?.entrypoint || workflow.testDataset || {},
+      payload: req.body.context?.payload || workflow.testDataset || {},
+      nodes: req.body.context?.nodes || {},
+      lastNode: req.body.context?.lastNode || workflow.testDataset || {},
+      env: process.env
+    };
     
-    // Persist result in the node's testResult field
+    const result = await service.executeNode(node);
+    
+    // Persist result in the node's testResult field in DB
     const nodeIndex = workflow.nodes.findIndex(n => n.id === req.params.nodeId);
     if (nodeIndex !== -1) {
       workflow.nodes[nodeIndex].testResult = result;
