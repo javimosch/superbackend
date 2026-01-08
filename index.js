@@ -1,13 +1,18 @@
 require("dotenv").config({ path: process.env.ENV_FILE || ".env" });
 const express = require("express");
 
-// Initialize database adapter BEFORE loading models
+// Initialize database adapter BEFORE loading middleware/services
 const { initMongooseAdapter, shouldUseSQLite } = require("./src/db/mongoose-adapter");
+let dbInitPromise = null;
+
 if (shouldUseSQLite()) {
-  initMongooseAdapter(true, {
+  dbInitPromise = initMongooseAdapter(true, {
     dataDir: process.env.DATA_DIR || './data',
     dbPath: process.env.DB_PATH
-  }).catch(err => console.error("Failed to initialize SQLite:", err));
+  });
+} else {
+  // MongoDB will be initialized in middleware
+  dbInitPromise = Promise.resolve();
 }
 
 /**
@@ -65,33 +70,43 @@ const saasbackend = {
     webhooks: require("./src/services/webhook.service"),
     workflow: require("./src/services/workflow.service"),
   },
-  models: {
-    ActionEvent: require("./src/models/ActionEvent"),
-    ActivityLog: require("./src/models/ActivityLog"),
-    Asset: require("./src/models/Asset"),
-    AuditEvent: require("./src/models/AuditEvent"),
-    EmailLog: require("./src/models/EmailLog"),
-    ErrorAggregate: require("./src/models/ErrorAggregate"),
-    FormSubmission: require("./src/models/FormSubmission"),
-    GlobalSetting: require("./src/models/GlobalSetting"),
-    I18nEntry: require("./src/models/I18nEntry"),
-    I18nLocale: require("./src/models/I18nLocale"),
-    Invite: require("./src/models/Invite"),
-    JsonConfig: require("./src/models/JsonConfig"),
-    Notification: require("./src/models/Notification"),
-    Organization: require("./src/models/Organization"),
-    OrganizationMember: require("./src/models/OrganizationMember"),
-    StripeCatalogItem: require("./src/models/StripeCatalogItem"),
-    StripeWebhookEvent: require("./src/models/StripeWebhookEvent"),
-    User: require("./src/models/User"),
-    WaitingList: require("./src/models/WaitingList"),
-    VirtualEjsFile: require("./src/models/VirtualEjsFile"),
-    VirtualEjsFileVersion: require("./src/models/VirtualEjsFileVersion"),
-    VirtualEjsGroupChange: require("./src/models/VirtualEjsGroupChange"),
-    Webhook: require("./src/models/Webhook"),
-    Workflow: require("./src/models/Workflow"),
-    WorkflowExecution: require("./src/models/WorkflowExecution"),
-  },
+  models: new Proxy({}, {
+    get(target, prop) {
+      if (!target[prop]) {
+        const modelFiles = {
+          ActionEvent: "./src/models/ActionEvent",
+          ActivityLog: "./src/models/ActivityLog",
+          Asset: "./src/models/Asset",
+          AuditEvent: "./src/models/AuditEvent",
+          EmailLog: "./src/models/EmailLog",
+          ErrorAggregate: "./src/models/ErrorAggregate",
+          FormSubmission: "./src/models/FormSubmission",
+          GlobalSetting: "./src/models/GlobalSetting",
+          I18nEntry: "./src/models/I18nEntry",
+          I18nLocale: "./src/models/I18nLocale",
+          Invite: "./src/models/Invite",
+          JsonConfig: "./src/models/JsonConfig",
+          Notification: "./src/models/Notification",
+          Organization: "./src/models/Organization",
+          OrganizationMember: "./src/models/OrganizationMember",
+          StripeCatalogItem: "./src/models/StripeCatalogItem",
+          StripeWebhookEvent: "./src/models/StripeWebhookEvent",
+          User: "./src/models/User",
+          WaitingList: "./src/models/WaitingList",
+          VirtualEjsFile: "./src/models/VirtualEjsFile",
+          VirtualEjsFileVersion: "./src/models/VirtualEjsFileVersion",
+          VirtualEjsGroupChange: "./src/models/VirtualEjsGroupChange",
+          Webhook: "./src/models/Webhook",
+          Workflow: "./src/models/Workflow",
+          WorkflowExecution: "./src/models/WorkflowExecution",
+        };
+        if (modelFiles[prop]) {
+          target[prop] = require(modelFiles[prop]);
+        }
+      }
+      return target[prop];
+    }
+  }),
   helpers: {
     auth: require("./src/middleware/auth"),
     org: require("./src/middleware/org"),

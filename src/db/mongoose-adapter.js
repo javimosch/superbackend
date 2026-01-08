@@ -15,35 +15,49 @@ let initPromise = null;
  * @param {boolean} useSQLite - Whether to use SQLite fallback
  * @param {Object} options - Configuration options for ChikkaDB
  */
-async function initMongooseAdapter(useSQLite = false, options = {}) {
+function initMongooseAdapter(useSQLite = false, options = {}) {
   isSQLiteMode = useSQLite;
 
   if (useSQLite && !chikkadb) {
+    // Override mongoose.model IMMEDIATELY (synchronously)
+    const originalModel = mongoose.model.bind(mongoose);
+
+    mongoose.model = function(name, schema, collection) {
+      // If ChikkaDB is ready, use it
+      if (isSQLiteMode && chikkadb) {
+        return createChikkaModel(name, schema, collection);
+      }
+      
+      // For now, use original mongoose (will fail gracefully)
+      // but models will work once ChikkaDB is initialized
+      return originalModel(name, schema, collection);
+    };
+
+    // Wrap mongoose.Schema to use ChikkaDB when appropriate
+    const originalSchema = mongoose.Schema;
+    const wrappedSchema = function(definition, options) {
+      if (isSQLiteMode && chikkadb) {
+        return new ChikkaSchema(definition, options);
+      }
+      // Still use mongoose.Schema normally with all its properties
+      return new originalSchema(definition, options);
+    };
+
+    // Copy all properties from mongoose.Schema to wrapped function
+    Object.setPrototypeOf(wrappedSchema, originalSchema);
+    Object.assign(wrappedSchema, originalSchema);
+
+    mongoose.Schema = wrappedSchema;
+
+    // Now initialize ChikkaDB in background
     if (!initPromise) {
       initPromise = ChikkaDB.init(options).then(instance => {
         chikkadb = instance;
         console.log('✅ SQLite Mode: Using ChikkaDB as database adapter');
-
-        // Override mongoose.model to use ChikkaDB
-        const originalModel = mongoose.model.bind(mongoose);
-
-        mongoose.model = function(name, schema, collection) {
-          if (isSQLiteMode && chikkadb) {
-            return createChikkaModel(name, schema, collection);
-          }
-          return originalModel(name, schema, collection);
-        };
-
-        // Make Schema compatible
-        const originalSchema = mongoose.Schema;
-        mongoose.Schema = function(definition, options) {
-          if (isSQLiteMode) {
-            return new ChikkaSchema(definition, options);
-          }
-          return new originalSchema(definition, options);
-        };
-
         return chikkadb;
+      }).catch(err => {
+        console.error('❌ Failed to initialize SQLite:', err);
+        isSQLiteMode = false; // Fall back to MongoDB
       });
     }
     return initPromise;
@@ -127,4 +141,5 @@ module.exports = {
   shouldUseSQLite,
   getChikkaDB,
   isSQLite,
+  getInitPromise: () => initPromise,
 };

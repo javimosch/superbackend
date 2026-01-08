@@ -13,7 +13,7 @@ const {
   expressErrorMiddleware,
   requestIdMiddleware,
 } = require("./middleware/errorCapture");
-const { initMongooseAdapter, shouldUseSQLite } = require("./db/mongoose-adapter");
+const { initMongooseAdapter, shouldUseSQLite, getInitPromise } = require("./db/mongoose-adapter");
 
 let errorCaptureInitialized = false;
 
@@ -46,20 +46,18 @@ function createMiddleware(options = {}) {
   let connectionPromise = null;
 
   if (useSQLite) {
-    // Initialize SQLite fallback (async)
-    connectionPromise = initMongooseAdapter(true, {
-      dataDir: options.dataDir || './data',
-      dbPath: options.dbPath,
-      databaseOptions: options.sqliteOptions || {}
-    }).then(() => {
-      console.log("✅ Database: Using SQLite (ChikkaDB adapter)");
-      return true;
-    }).catch(err => {
-      console.error("❌ SQLite initialization error:", err);
-      return false;
-    });
+    // Add wait-for-db middleware at the very beginning
+    const initPromise = getInitPromise();
+    if (initPromise) {
+      router.use((req, res, next) => {
+        initPromise.then(() => next()).catch(err => {
+          console.error('Database initialization error:', err);
+          res.status(500).json({ error: 'Database initialization failed' });
+        });
+      });
+    }
     
-    router.connectionPromise = connectionPromise;
+    console.log("✅ Database: Using SQLite (ChikkaDB adapter)");
   } else if (mongoUri && mongoose.connection.readyState !== 1) {
     // Initialize MongoDB
     initMongooseAdapter(false);
