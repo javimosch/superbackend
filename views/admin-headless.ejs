@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Headless CMS - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Headless CMS</h1>
+            <p class="text-sm text-gray-600 mt-1">Define tables (models), manage data (collections), and issue API tokens</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="btn-refresh" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="bg-white rounded-lg shadow">
+        <div class="border-b border-gray-200">
+          <nav class="-mb-px flex gap-6 px-6" aria-label="Tabs">
+            <button data-tab="collections" class="tab-btn border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Collections</button>
+            <button data-tab="data" class="tab-btn border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">Data</button>
+            <button data-tab="api" class="tab-btn border-transparent text-gray-600 hover:text-gray-800 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">API</button>
+          </nav>
+        </div>
+
+        <div id="tab-collections" class="p-6">
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-1">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-semibold">Collections</h2>
+                <button id="btn-new-model" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-sm">New</button>
+              </div>
+              <div id="models-list" class="space-y-2">
+                <div class="text-gray-500 text-sm">Loading…</div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-2">
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                <div>
+                  <div class="text-sm text-gray-500">Selected collection</div>
+                  <div id="selected-model-title" class="text-xl font-semibold">None</div>
+                </div>
+                <div class="flex gap-2">
+                  <button id="btn-save-model" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" disabled>Save schema</button>
+                  <button id="btn-delete-model" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 text-sm" disabled>Disable</button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 gap-6">
+                <div class="bg-gray-50 border border-gray-200 rounded p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold">Schema</h3>
+                    <button id="btn-add-field" class="bg-gray-900 text-white px-3 py-2 rounded hover:bg-black text-sm" disabled>Add field</button>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Display name</label>
+                      <input id="model-displayName" class="border rounded px-3 py-2 w-full" placeholder="e.g. Products" disabled />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium mb-1">Code identifier</label>
+                      <input id="model-code" class="border rounded px-3 py-2 w-full mono" placeholder="e.g. products" disabled />
+                      <div class="text-xs text-gray-500 mt-1">Stored as Mongo collection <span class="mono">headless_&lt;code&gt;</span></div>
+                    </div>
+                  </div>
+
+                  <div class="overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                      <thead>
+                        <tr class="text-left text-gray-500 border-b">
+                          <th class="py-2 pr-3">Name</th>
+                          <th class="py-2 pr-3">Type</th>
+                          <th class="py-2 pr-3">Required</th>
+                          <th class="py-2 pr-3">Unique</th>
+                          <th class="py-2 pr-3">Default</th>
+                          <th class="py-2 pr-3">Ref</th>
+                          <th class="py-2 pr-3"></th>
+                        </tr>
+                      </thead>
+                      <tbody id="fields-tbody">
+                        <tr><td class="py-3 text-gray-500" colspan="7">Select a collection</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-data" class="p-6 hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="lg:col-span-1">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-semibold">Collections</h2>
+                <button id="btn-data-refresh-models" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm">Refresh</button>
+              </div>
+              <div id="data-models-list" class="space-y-2">
+                <div class="text-gray-500 text-sm">Loading…</div>
+              </div>
+            </div>
+
+            <div class="lg:col-span-3">
+              <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4">
+                <div>
+                  <div class="text-sm text-gray-500">Selected collection</div>
+                  <div id="data-selected-title" class="text-xl font-semibold">None</div>
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-2 md:items-end">
+                  <div>
+                    <label class="block text-xs text-gray-500 mb-1">Filter (Mongo JSON)</label>
+                    <input id="data-filter" class="border rounded px-3 py-2 w-80 mono" placeholder='{"field":"value"}' />
+                  </div>
+                  <div class="flex gap-2">
+                    <button id="btn-data-apply" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" disabled>Apply</button>
+                    <button id="btn-data-clear" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Clear</button>
+                    <button id="btn-data-new-row" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-sm" disabled>New row</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between mb-3">
+                <div class="text-sm text-gray-600" id="data-meta">&nbsp;</div>
+                <div class="flex items-center gap-2">
+                  <button id="btn-page-prev" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Prev</button>
+                  <button id="btn-page-next" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Next</button>
+                </div>
+              </div>
+
+              <div id="data-table" class="overflow-x-auto text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded p-4">
+                <div class="py-6 text-center text-gray-500">Select a collection</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-api" class="p-6 hidden">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-gray-50 border border-gray-200 rounded p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h2 class="text-lg font-semibold">API tokens</h2>
+                <button id="btn-new-token" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-sm">New</button>
+              </div>
+              <div id="tokens-list" class="space-y-2">
+                <div class="text-gray-500 text-sm">Loading…</div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded p-4">
+              <h2 class="text-lg font-semibold mb-3">cURL examples</h2>
+              <div class="text-sm text-gray-600 mb-2">Use <span class="mono">Authorization: Bearer</span> or <span class="mono">X-API-Token</span>:</div>
+              <pre class="mono text-xs bg-white border rounded p-3 overflow-x-auto" id="curl-examples"></pre>
+            </div>
+          </div>
+
+          <div class="mt-6 bg-white border border-gray-200 rounded p-4">
+            <h3 class="font-semibold mb-2">Token permissions</h3>
+            <div class="text-sm text-gray-600 mb-4">Each token has per-table permissions: create/read/update/delete.</div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Name</label>
+                <input id="token-name" class="border rounded px-3 py-2 w-full" placeholder="e.g. Website" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">TTL (seconds, optional)</label>
+                <input id="token-ttl" type="number" class="border rounded px-3 py-2 w-full" placeholder="e.g. 3600" />
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-medium">Permissions</div>
+                <button id="btn-add-permission" class="bg-gray-900 text-white px-3 py-2 rounded hover:bg-black text-sm">Add</button>
+              </div>
+              <div id="permissions-list" class="space-y-2"></div>
+            </div>
+
+            <div class="mt-4 flex gap-2">
+              <button id="btn-create-token" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Create token</button>
+            </div>
+
+            <div id="created-token" class="mt-4 hidden">
+              <div class="text-sm text-gray-600 mb-1">Created token (copy now):</div>
+              <div class="mono bg-white border rounded p-3 text-sm" id="created-token-value"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+  </div>
+
+<script>
+  const baseUrl = '<%= baseUrl %>';
+  const adminPath = '<%= adminPath %>';
+
+  let state = {
+    activeTab: 'collections',
+    models: [],
+    selectedModel: null,
+    data: { items: [], total: 0 },
+    dataUi: {
+      selectedModelCode: null,
+      limit: 25,
+      skip: 0,
+      filterRaw: '',
+    },
+    tokens: [],
+    permissionsDraft: [],
+  };
+
+  function toast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    const color = type === 'error' ? 'bg-red-600' : type === 'success' ? 'bg-green-600' : 'bg-gray-900';
+    el.className = `toast ${color} text-white px-4 py-2 rounded shadow`;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('fade-out');
+      setTimeout(() => el.remove(), 350);
+    }, 2500);
+  }
+
+  function renderDataModelsList() {
+    const list = document.getElementById('data-models-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!state.models.length) {
+      list.innerHTML = '<div class="text-gray-500 text-sm">No collections yet</div>';
+      return;
+    }
+
+    state.models.forEach((m) => {
+      const btn = document.createElement('button');
+      const active = state.dataUi.selectedModelCode === m.codeIdentifier;
+      btn.className = `w-full text-left px-3 py-2 rounded border ${active ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
+      btn.innerHTML = `<div class="font-medium">${m.displayName}</div><div class="text-xs text-gray-500 mono">${m.codeIdentifier}</div>`;
+      btn.addEventListener('click', () => selectDataModel(m.codeIdentifier));
+      list.appendChild(btn);
+    });
+  }
+
+  function setTab(tab) {
+    state.activeTab = tab;
+    document.getElementById('tab-collections').classList.toggle('hidden', tab !== 'collections');
+    document.getElementById('tab-data').classList.toggle('hidden', tab !== 'data');
+    document.getElementById('tab-api').classList.toggle('hidden', tab !== 'api');
+
+    document.querySelectorAll('.tab-btn').forEach((b) => {
+      const isActive = b.dataset.tab === tab;
+      b.classList.toggle('border-blue-600', isActive);
+      b.classList.toggle('text-blue-700', isActive);
+      b.classList.toggle('border-transparent', !isActive);
+      b.classList.toggle('text-gray-600', !isActive);
+    });
+
+    if (tab === 'api') {
+      renderCurlExamples();
+      loadTokens();
+      loadModels();
+    }
+
+    if (tab === 'data') {
+      loadModels();
+      renderDataModelsList();
+      renderDataSelectedHeader();
+    }
+  }
+
+  document.querySelectorAll('.tab-btn').forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
+
+  async function api(path, opts = {}) {
+    const res = await fetch(baseUrl + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...opts,
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(json.error || `Request failed (${res.status})`);
+    }
+    return json;
+  }
+
+  function renderModelsList() {
+    const list = document.getElementById('models-list');
+    list.innerHTML = '';
+
+    if (!state.models.length) {
+      list.innerHTML = '<div class="text-gray-500 text-sm">No tables yet</div>';
+      return;
+    }
+
+    state.models.forEach((m) => {
+      const btn = document.createElement('button');
+      const active = state.selectedModel && state.selectedModel.codeIdentifier === m.codeIdentifier;
+      btn.className = `w-full text-left px-3 py-2 rounded border ${active ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
+      btn.innerHTML = `<div class="font-medium">${m.displayName}</div><div class="text-xs text-gray-500 mono">${m.codeIdentifier}</div>`;
+      btn.addEventListener('click', () => selectModel(m.codeIdentifier));
+      list.appendChild(btn);
+    });
+  }
+
+  function setModelFormEnabled(enabled, isNew = false) {
+    document.getElementById('model-displayName').disabled = !enabled;
+    document.getElementById('model-code').disabled = !enabled || !isNew;
+    document.getElementById('btn-add-field').disabled = !enabled;
+    document.getElementById('btn-save-model').disabled = !enabled;
+    document.getElementById('btn-delete-model').disabled = !enabled || isNew;
+    // Data tab controls are managed separately
+  }
+
+  function renderSelectedModel() {
+    const title = document.getElementById('selected-model-title');
+    const codeInput = document.getElementById('model-code');
+    const nameInput = document.getElementById('model-displayName');
+
+    const m = state.selectedModel;
+    if (!m) {
+      title.textContent = 'None';
+      codeInput.value = '';
+      nameInput.value = '';
+      setModelFormEnabled(false);
+      renderFieldsTable();
+      return;
+    }
+
+    title.textContent = m.displayName;
+    codeInput.value = m.codeIdentifier;
+    nameInput.value = m.displayName;
+    setModelFormEnabled(true, !!m.__isNew);
+    renderFieldsTable();
+  }
+
+  function renderFieldsTable() {
+    const tbody = document.getElementById('fields-tbody');
+    const m = state.selectedModel;
+
+    if (!m) {
+      tbody.innerHTML = '<tr><td class="py-3 text-gray-500" colspan="7">Select a table</td></tr>';
+      return;
+    }
+
+    const fields = Array.isArray(m.fields) ? m.fields : [];
+    if (!fields.length) {
+      tbody.innerHTML = '<tr><td class="py-3 text-gray-500" colspan="7">No fields yet</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = '';
+
+    fields.forEach((f, idx) => {
+      const tr = document.createElement('tr');
+      tr.className = 'border-t';
+
+      const typeOptions = ['string','number','boolean','date','object','array','ref'];
+      const opts = typeOptions.map((t) => `<option value="${t}" ${String(f.type).toLowerCase()===t?'selected':''}>${t}</option>`).join('');
+
+      tr.innerHTML = `
+        <td class="py-2 pr-3"><input class="field-name border rounded px-2 py-1 w-40 mono" value="${f.name || ''}" data-idx="${idx}" /></td>
+        <td class="py-2 pr-3"><select class="field-type border rounded px-2 py-1" data-idx="${idx}">${opts}</select></td>
+        <td class="py-2 pr-3"><input type="checkbox" class="field-required" data-idx="${idx}" ${f.required?'checked':''} /></td>
+        <td class="py-2 pr-3"><input type="checkbox" class="field-unique" data-idx="${idx}" ${f.unique?'checked':''} /></td>
+        <td class="py-2 pr-3"><input class="field-default border rounded px-2 py-1 w-40" value="${f.default===undefined?'':String(f.default)}" data-idx="${idx}" placeholder="(optional)" /></td>
+        <td class="py-2 pr-3"><input class="field-ref border rounded px-2 py-1 w-40 mono" value="${f.refModelCode||''}" data-idx="${idx}" placeholder="ref model code" /></td>
+        <td class="py-2 pr-3 text-right"><button class="btn-remove-field text-red-600 hover:underline" data-idx="${idx}">Remove</button></td>
+      `;
+
+      tbody.appendChild(tr);
+    });
+
+    tbody.querySelectorAll('input,select').forEach((el) => {
+      el.addEventListener('change', () => syncFieldsFromUI());
+      el.addEventListener('input', () => syncFieldsFromUI());
+    });
+
+    tbody.querySelectorAll('.btn-remove-field').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        const fields = Array.isArray(state.selectedModel.fields) ? state.selectedModel.fields : [];
+        fields.splice(idx, 1);
+        state.selectedModel.fields = fields;
+        renderFieldsTable();
+      });
+    });
+
+    updateRefVisibility();
+  }
+
+  function updateRefVisibility() {
+    const tbody = document.getElementById('fields-tbody');
+    tbody.querySelectorAll('tr').forEach((tr) => {
+      const select = tr.querySelector('.field-type');
+      const ref = tr.querySelector('.field-ref');
+      if (!select || !ref) return;
+      ref.disabled = String(select.value).toLowerCase() !== 'ref';
+      if (ref.disabled) ref.value = '';
+    });
+  }
+
+  function syncFieldsFromUI() {
+    const m = state.selectedModel;
+    if (!m) return;
+
+    m.displayName = document.getElementById('model-displayName').value;
+
+    const rows = Array.from(document.querySelectorAll('#fields-tbody tr'));
+    const fields = [];
+    rows.forEach((tr) => {
+      const name = tr.querySelector('.field-name')?.value?.trim();
+      const type = tr.querySelector('.field-type')?.value?.trim();
+      const required = tr.querySelector('.field-required')?.checked;
+      const unique = tr.querySelector('.field-unique')?.checked;
+      const def = tr.querySelector('.field-default')?.value;
+      const refModelCode = tr.querySelector('.field-ref')?.value?.trim();
+      if (!name) return;
+
+      const field = { name, type, required: !!required, unique: !!unique };
+      if (def !== undefined && String(def).trim() !== '') {
+        field.default = def;
+      }
+      if (String(type).toLowerCase() === 'ref' && refModelCode) {
+        field.refModelCode = refModelCode;
+      }
+      fields.push(field);
+    });
+
+    m.fields = fields;
+    updateRefVisibility();
+  }
+
+  async function loadModels() {
+    try {
+      const { items } = await api('/api/admin/headless/models');
+      state.models = items || [];
+      renderModelsList();
+      renderDataModelsList();
+
+      if (state.selectedModel && !state.selectedModel.__isNew) {
+        const still = state.models.find((m) => m.codeIdentifier === state.selectedModel.codeIdentifier);
+        if (still) {
+          state.selectedModel = still;
+          renderSelectedModel();
+        }
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function selectModel(codeIdentifier) {
+    const m = state.models.find((x) => x.codeIdentifier === codeIdentifier);
+    state.selectedModel = m || null;
+    renderSelectedModel();
+    renderCurlExamples();
+  }
+
+  function renderDataSelectedHeader() {
+    const title = document.getElementById('data-selected-title');
+    if (!title) return;
+
+    const code = state.dataUi.selectedModelCode;
+    const m = state.models.find((x) => x.codeIdentifier === code);
+    title.textContent = m ? m.displayName : 'None';
+
+    const applyBtn = document.getElementById('btn-data-apply');
+    const clearBtn = document.getElementById('btn-data-clear');
+    const newRowBtn = document.getElementById('btn-data-new-row');
+    if (applyBtn) applyBtn.disabled = !m;
+    if (clearBtn) clearBtn.disabled = !m;
+    if (newRowBtn) newRowBtn.disabled = !m;
+
+    const filterInput = document.getElementById('data-filter');
+    if (filterInput) {
+      filterInput.disabled = !m;
+      if (!m) filterInput.value = '';
+      if (m && !filterInput.value && state.dataUi.filterRaw) {
+        filterInput.value = state.dataUi.filterRaw;
+      }
+    }
+
+    renderDataPagination();
+  }
+
+  async function selectDataModel(codeIdentifier) {
+    state.dataUi.selectedModelCode = codeIdentifier;
+    state.dataUi.skip = 0;
+    renderDataModelsList();
+    renderDataSelectedHeader();
+    await loadDataPage();
+  }
+
+  async function saveModel() {
+    try {
+      const m = state.selectedModel;
+      if (!m) return;
+      syncFieldsFromUI();
+
+      const payload = {
+        codeIdentifier: document.getElementById('model-code').value.trim(),
+        displayName: document.getElementById('model-displayName').value.trim(),
+        fields: m.fields || [],
+      };
+
+      let res;
+      if (m.__isNew) {
+        res = await api('/api/admin/headless/models', { method: 'POST', body: JSON.stringify(payload) });
+        toast('Table created', 'success');
+        state.selectedModel = null;
+        await loadModels();
+        await selectModel(res.item.codeIdentifier);
+      } else {
+        res = await api(`/api/admin/headless/models/${encodeURIComponent(m.codeIdentifier)}`, { method: 'PUT', body: JSON.stringify(payload) });
+        toast('Schema saved', 'success');
+        await loadModels();
+        await selectModel(res.item.codeIdentifier);
+      }
+
+      return res;
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function disableModel() {
+    try {
+      const m = state.selectedModel;
+      if (!m || m.__isNew) return;
+      await api(`/api/admin/headless/models/${encodeURIComponent(m.codeIdentifier)}`, { method: 'DELETE' });
+      toast('Table disabled', 'success');
+      state.selectedModel = null;
+      renderSelectedModel();
+      await loadModels();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function loadDataPage() {
+    const code = state.dataUi.selectedModelCode;
+    if (!code) {
+      state.data = { items: [], total: 0 };
+      renderDataMeta();
+      renderDataTable();
+      renderDataPagination();
+      return;
+    }
+
+    let filterObj = null;
+    const filterRaw = String(state.dataUi.filterRaw || '').trim();
+    if (filterRaw) {
+      try {
+        filterObj = JSON.parse(filterRaw);
+      } catch {
+        toast('Invalid filter JSON', 'error');
+        return;
+      }
+    }
+
+    const params = new URLSearchParams();
+    params.set('limit', String(state.dataUi.limit));
+    params.set('skip', String(state.dataUi.skip));
+    if (filterObj) params.set('filter', JSON.stringify(filterObj));
+
+    try {
+      const { items, total, limit, skip } = await api(`/api/admin/headless/collections/${encodeURIComponent(code)}?${params.toString()}`);
+      state.data = { items: items || [], total: total || 0, limit: limit || state.dataUi.limit, skip: skip || state.dataUi.skip };
+      state.dataUi.limit = state.data.limit;
+      state.dataUi.skip = state.data.skip;
+      renderDataMeta();
+      renderDataTable();
+      renderDataPagination();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function renderDataMeta() {
+    const meta = document.getElementById('data-meta');
+    if (!meta) return;
+    const code = state.dataUi.selectedModelCode;
+    if (!code) {
+      meta.textContent = '';
+      return;
+    }
+
+    const total = Number(state.data.total || 0);
+    const limit = Number(state.data.limit || state.dataUi.limit);
+    const skip = Number(state.data.skip || state.dataUi.skip);
+    const from = total === 0 ? 0 : skip + 1;
+    const to = Math.min(skip + limit, total);
+    meta.textContent = `Showing ${from}-${to} of ${total}`;
+  }
+
+  function renderDataPagination() {
+    const prev = document.getElementById('btn-page-prev');
+    const next = document.getElementById('btn-page-next');
+    if (!prev || !next) return;
+    const total = Number(state.data.total || 0);
+    const limit = Number(state.data.limit || state.dataUi.limit);
+    const skip = Number(state.data.skip || state.dataUi.skip);
+
+    prev.disabled = skip <= 0;
+    next.disabled = skip + limit >= total;
+  }
+
+  function renderDataTable() {
+    const container = document.getElementById('data-table');
+
+    const code = state.dataUi.selectedModelCode;
+    const m = state.models.find((x) => x.codeIdentifier === code);
+
+    if (!m) {
+      container.innerHTML = '<div class="py-6 text-center text-gray-500">Select a collection</div>';
+      return;
+    }
+
+    const items = state.data.items || [];
+    const fields = (m.fields || []).map((f) => f.name).filter((n) => n);
+    const cols = ['_id', ...fields];
+
+    if (!items.length) {
+      container.innerHTML = '<div class="py-6 text-center text-gray-500">No rows yet</div>';
+      return;
+    }
+
+    let html = '<table class="min-w-full text-sm"><thead><tr class="text-left text-gray-500 border-b">';
+    cols.forEach((c) => { html += `<th class="py-2 pr-3 mono">${c}</th>`; });
+    html += '<th class="py-2 pr-3"></th></tr></thead><tbody>';
+
+    items.forEach((it) => {
+      html += '<tr class="border-t">';
+      cols.forEach((c) => {
+        const val = it[c];
+        const s = val === undefined ? '' : typeof val === 'object' ? JSON.stringify(val) : String(val);
+        const ro = c === '_id' ? 'readonly' : '';
+        html += `<td class="py-2 pr-3"><input ${ro} data-id="${it._id}" data-field="${c}" class="cell border rounded px-2 py-1 w-56 mono ${ro?'bg-gray-100':''}" value="${s.replace(/"/g,'&quot;')}" /></td>`;
+      });
+      html += `<td class="py-2 pr-3 text-right"><button class="btn-del-row text-red-600 hover:underline" data-id="${it._id}">Delete</button></td>`;
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    container.querySelectorAll('.cell').forEach((inp) => {
+      inp.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        await saveCell(inp);
+      });
+      inp.addEventListener('blur', async () => {
+        if (inp.dataset.field === '_id') return;
+        await saveCell(inp);
+      });
+    });
+
+    container.querySelectorAll('.btn-del-row').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        await deleteRow(btn.dataset.id);
+      });
+    });
+  }
+
+  function parseValue(v) {
+    const s = String(v ?? '').trim();
+    if (!s) return null;
+    if (s === 'true') return true;
+    if (s === 'false') return false;
+    if (!Number.isNaN(Number(s)) && s.match(/^[+-]?(\d+\.?\d*|\d*\.?\d+)$/)) return Number(s);
+    try {
+      return JSON.parse(s);
+    } catch {
+      return s;
+    }
+  }
+
+  async function saveCell(input) {
+    const code = state.dataUi.selectedModelCode;
+    const m = state.models.find((x) => x.codeIdentifier === code);
+    if (!m) return;
+
+    const id = input.dataset.id;
+    const field = input.dataset.field;
+    if (!id || !field || field === '_id') return;
+
+    const isTemp = String(id || '').startsWith('temp-');
+
+    try {
+      const value = parseValue(input.value);
+
+      if (isTemp) {
+        const payload = { [field]: value };
+        const { item } = await api(`/api/admin/headless/collections/${encodeURIComponent(m.codeIdentifier)}`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        const realId = item._id;
+        const idx = state.data.items.findIndex((it) => it._id === id);
+        if (idx !== -1) {
+          state.data.items[idx] = { ...state.data.items[idx], _id: realId, [field]: value };
+        }
+        toast('Row created', 'success');
+        await loadDataPage();
+      } else {
+        await api(`/api/admin/headless/collections/${encodeURIComponent(m.codeIdentifier)}/${encodeURIComponent(id)}`, {
+          method: 'PUT',
+          body: JSON.stringify({ [field]: value }),
+        });
+        toast('Saved', 'success');
+        await loadDataPage();
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function newRow() {
+    const code = state.dataUi.selectedModelCode;
+    const m = state.models.find((x) => x.codeIdentifier === code);
+    if (!m) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const fields = (m.fields || []).map((f) => f.name).filter((n) => n);
+    const cols = ['_id', ...fields];
+
+    const newRowData = { _id: tempId };
+    fields.forEach((f) => {
+      const fieldDef = m.fields.find((fd) => fd.name === f);
+      if (fieldDef) {
+        if (fieldDef.default !== undefined) {
+          newRowData[f] = fieldDef.default;
+        } else if (fieldDef.type === 'boolean') {
+          newRowData[f] = false;
+        } else if (fieldDef.type === 'number') {
+          newRowData[f] = 0;
+        } else if (fieldDef.type === 'date') {
+          newRowData[f] = new Date().toISOString().slice(0, 16);
+        } else {
+          newRowData[f] = '';
+        }
+      }
+    });
+
+    state.data.items = [...(state.data.items || []), newRowData];
+    renderDataTable();
+  }
+
+  async function deleteRow(id) {
+    const code = state.dataUi.selectedModelCode;
+    const m = state.models.find((x) => x.codeIdentifier === code);
+    if (!m) return;
+
+    const isTemp = String(id || '').startsWith('temp-');
+    if (isTemp) {
+      const idx = state.data.items.findIndex((it) => it._id === id);
+      if (idx !== -1) {
+        state.data.items.splice(idx, 1);
+        renderDataTable();
+      }
+      return;
+    }
+
+    try {
+      await api(`/api/admin/headless/collections/${encodeURIComponent(m.codeIdentifier)}/${encodeURIComponent(id)}`, { method: 'DELETE' });
+      toast('Row deleted', 'success');
+      await loadDataPage();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // API token UI
+  function renderTokens() {
+    const list = document.getElementById('tokens-list');
+    list.innerHTML = '';
+
+    if (!state.tokens.length) {
+      list.innerHTML = '<div class="text-gray-500 text-sm">No tokens yet</div>';
+      return;
+    }
+
+    state.tokens.forEach((t) => {
+      const el = document.createElement('div');
+      el.className = 'bg-white border border-gray-200 rounded p-3';
+      const exp = t.expiresAt ? new Date(t.expiresAt).toISOString() : 'never';
+      el.innerHTML = `
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-medium">${t.name}</div>
+            <div class="text-xs text-gray-500">expires: <span class="mono">${exp}</span></div>
+          </div>
+          <button class="btn-del-token text-red-600 hover:underline" data-id="${t._id}">Delete</button>
+        </div>
+      `;
+      list.appendChild(el);
+    });
+
+    list.querySelectorAll('.btn-del-token').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await api(`/api/admin/headless/tokens/${encodeURIComponent(btn.dataset.id)}`, { method: 'DELETE' });
+          toast('Token deleted', 'success');
+          await loadTokens();
+        } catch (e) {
+          toast(e.message, 'error');
+        }
+      });
+    });
+  }
+
+  async function loadTokens() {
+    try {
+      const { items } = await api('/api/admin/headless/tokens');
+      state.tokens = items || [];
+      renderTokens();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function renderPermissionsDraft() {
+    const container = document.getElementById('permissions-list');
+    container.innerHTML = '';
+
+    if (!state.permissionsDraft.length) {
+      container.innerHTML = '<div class="text-gray-500 text-sm">No permissions yet</div>';
+      return;
+    }
+
+    state.permissionsDraft.forEach((p, idx) => {
+      const el = document.createElement('div');
+      el.className = 'bg-white border border-gray-200 rounded p-3';
+
+      const modelOptions = (state.models || []).map((m) => `<option value="${m.codeIdentifier}" ${m.codeIdentifier===p.modelCode?'selected':''}>${m.displayName} (${m.codeIdentifier})</option>`).join('');
+
+      const ops = ['create','read','update','delete'];
+      const opsHtml = ops.map((o) => {
+        const checked = Array.isArray(p.operations) && p.operations.includes(o);
+        return `<label class="inline-flex items-center gap-2 mr-3"><input type="checkbox" data-idx="${idx}" data-op="${o}" class="perm-op" ${checked?'checked':''} /> <span class="text-sm">${o}</span></label>`;
+      }).join('');
+
+      el.innerHTML = `
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div class="flex-1">
+            <div class="text-xs text-gray-500 mb-1">Table</div>
+            <select class="perm-model border rounded px-2 py-2 w-full" data-idx="${idx}">
+              <option value="">Select table…</option>
+              ${modelOptions}
+            </select>
+          </div>
+          <div class="flex-1">
+            <div class="text-xs text-gray-500 mb-1">Operations</div>
+            <div>${opsHtml}</div>
+          </div>
+          <div class="text-right">
+            <button class="perm-remove text-red-600 hover:underline" data-idx="${idx}">Remove</button>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(el);
+    });
+
+    container.querySelectorAll('.perm-model').forEach((sel) => {
+      sel.addEventListener('change', () => {
+        const idx = Number(sel.dataset.idx);
+        state.permissionsDraft[idx].modelCode = sel.value;
+      });
+    });
+
+    container.querySelectorAll('.perm-op').forEach((chk) => {
+      chk.addEventListener('change', () => {
+        const idx = Number(chk.dataset.idx);
+        const op = chk.dataset.op;
+        const p = state.permissionsDraft[idx];
+        p.operations = Array.isArray(p.operations) ? p.operations : [];
+        if (chk.checked) {
+          if (!p.operations.includes(op)) p.operations.push(op);
+        } else {
+          p.operations = p.operations.filter((x) => x !== op);
+        }
+      });
+    });
+
+    container.querySelectorAll('.perm-remove').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.idx);
+        state.permissionsDraft.splice(idx, 1);
+        renderPermissionsDraft();
+      });
+    });
+  }
+
+  function renderCurlExamples() {
+    const el = document.getElementById('curl-examples');
+    const model = state.selectedModel ? state.selectedModel.codeIdentifier : 'your_model_code';
+
+    el.textContent = `# List\ncurl -s \"${baseUrl}/api/headless/${model}?limit=10&skip=0\" \\\n  -H \"Authorization: Bearer \${API_TOKEN}\"\n\n# Create\ncurl -s -X POST \"${baseUrl}/api/headless/${model}\" \\\n  -H \"Authorization: Bearer \${API_TOKEN}\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{"name":"example"}'\n\n# Update\ncurl -s -X PUT \"${baseUrl}/api/headless/${model}/\${ID}\" \\\n  -H \"X-API-Token: \${API_TOKEN}\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{"name":"changed"}'\n\n# Delete\ncurl -s -X DELETE \"${baseUrl}/api/headless/${model}/\${ID}\" \\\n  -H \"X-API-Token: \${API_TOKEN}\"`;
+  }
+
+  async function createToken() {
+    try {
+      const name = document.getElementById('token-name').value.trim();
+      const ttlSeconds = document.getElementById('token-ttl').value;
+
+      const permissions = (state.permissionsDraft || []).filter((p) => p.modelCode);
+
+      const payload = { name, permissions };
+      if (ttlSeconds) payload.ttlSeconds = Number(ttlSeconds);
+
+      const { token } = await api('/api/admin/headless/tokens', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      document.getElementById('created-token').classList.remove('hidden');
+      document.getElementById('created-token-value').textContent = token;
+      toast('Token created', 'success');
+      await loadTokens();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  // Buttons
+  document.getElementById('btn-refresh').addEventListener('click', async () => {
+    await loadModels();
+    await loadDataPage();
+    await loadTokens();
+  });
+
+  document.getElementById('btn-new-model').addEventListener('click', () => {
+    state.selectedModel = {
+      __isNew: true,
+      codeIdentifier: '',
+      displayName: '',
+      fields: [],
+    };
+    renderSelectedModel();
+    document.getElementById('fields-tbody').innerHTML = '<tr><td class="py-3 text-gray-500" colspan="7">No fields yet</td></tr>';
+    setModelFormEnabled(true, true);
+  });
+
+  document.getElementById('btn-add-field').addEventListener('click', () => {
+    if (!state.selectedModel) return;
+    state.selectedModel.fields = Array.isArray(state.selectedModel.fields) ? state.selectedModel.fields : [];
+    state.selectedModel.fields.push({ name: '', type: 'string', required: false, unique: false });
+    renderFieldsTable();
+  });
+
+  document.getElementById('btn-save-model').addEventListener('click', saveModel);
+  document.getElementById('btn-delete-model').addEventListener('click', disableModel);
+
+  document.getElementById('model-displayName').addEventListener('input', () => {
+    if (!state.selectedModel) return;
+    state.selectedModel.displayName = document.getElementById('model-displayName').value;
+  });
+
+  document.getElementById('model-code').addEventListener('input', () => {
+    if (!state.selectedModel) return;
+    state.selectedModel.codeIdentifier = document.getElementById('model-code').value;
+  });
+
+  document.getElementById('btn-data-refresh-models').addEventListener('click', async () => {
+    await loadModels();
+    renderDataModelsList();
+  });
+
+  document.getElementById('btn-data-apply').addEventListener('click', async () => {
+    state.dataUi.filterRaw = document.getElementById('data-filter').value;
+    state.dataUi.skip = 0;
+    await loadDataPage();
+  });
+
+  document.getElementById('btn-data-clear').addEventListener('click', async () => {
+    document.getElementById('data-filter').value = '';
+    state.dataUi.filterRaw = '';
+    state.dataUi.skip = 0;
+    await loadDataPage();
+  });
+
+  document.getElementById('btn-data-new-row').addEventListener('click', () => newRow());
+
+  document.getElementById('btn-page-prev').addEventListener('click', async () => {
+    state.dataUi.skip = Math.max(0, Number(state.dataUi.skip || 0) - Number(state.dataUi.limit || 25));
+    await loadDataPage();
+  });
+
+  document.getElementById('btn-page-next').addEventListener('click', async () => {
+    state.dataUi.skip = Number(state.dataUi.skip || 0) + Number(state.dataUi.limit || 25);
+    await loadDataPage();
+  });
+
+  document.getElementById('btn-add-permission').addEventListener('click', () => {
+    state.permissionsDraft.push({ modelCode: '', operations: ['read'] });
+    renderPermissionsDraft();
+  });
+
+  document.getElementById('btn-create-token').addEventListener('click', createToken);
+  document.getElementById('btn-new-token').addEventListener('click', () => {
+    document.getElementById('created-token').classList.add('hidden');
+    document.getElementById('created-token-value').textContent = '';
+    document.getElementById('token-name').value = '';
+    document.getElementById('token-ttl').value = '';
+    state.permissionsDraft = [];
+    renderPermissionsDraft();
+  });
+
+  // Init
+  setTab('collections');
+  const originalLoadModels = loadModels;
+  loadModels = async function() {
+    await originalLoadModels();
+    renderDataModelsList();
+    renderDataSelectedHeader();
+  };
+  loadModels();
+
+</script>
+</body>
+</html>
