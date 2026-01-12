@@ -199,6 +199,7 @@ function createMiddleware(options = {}) {
     require("./routes/adminSeoConfig.routes"),
   );
   router.use("/api/admin/i18n", require("./routes/adminI18n.routes"));
+  router.use("/api/admin/headless", require("./routes/adminHeadless.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
     "/api/admin/upload-namespaces",
@@ -217,6 +218,7 @@ function createMiddleware(options = {}) {
   router.use("/api/json-configs", require("./routes/jsonConfigs.routes"));
   router.use("/api/assets", require("./routes/assets.routes"));
   router.use("/api/i18n", require("./routes/i18n.routes"));
+  router.use("/api/headless", require("./routes/headless.routes"));
   router.use("/api", require("./routes/notifications.routes"));
   router.use("/api/user", require("./routes/user.routes"));
   router.use("/api/orgs", require("./routes/org.routes"));
@@ -476,6 +478,39 @@ function createMiddleware(options = {}) {
       "..",
       "views",
       "admin-feature-flags.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+            endpointRegistry,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin headless CMS page (protected by basic auth)
+  router.get(`${adminPath}/headless`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-headless.ejs",
     );
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
