@@ -20,10 +20,10 @@ function normalizeCodeIdentifier(codeIdentifier) {
   return normalized;
 }
 
-function computeFieldsHash(fields) {
+function computeSchemaHash({ fields, indexes }) {
   return crypto
     .createHash('sha256')
-    .update(JSON.stringify(fields || []))
+    .update(JSON.stringify({ fields: fields || [], indexes: indexes || [] }))
     .digest('hex');
 }
 
@@ -38,6 +38,8 @@ function toMongooseField(field) {
   if (field.validation && typeof field.validation === 'object') {
     if (field.validation.min !== undefined) base.min = field.validation.min;
     if (field.validation.max !== undefined) base.max = field.validation.max;
+    if (field.validation.minLength !== undefined) base.minlength = field.validation.minLength;
+    if (field.validation.maxLength !== undefined) base.maxlength = field.validation.maxLength;
     if (field.validation.enum !== undefined) base.enum = field.validation.enum;
     if (field.validation.match !== undefined) base.match = field.validation.match;
   }
@@ -59,6 +61,17 @@ function toMongooseField(field) {
     }
     const refModelName = getMongooseModelName(refModelCode);
     return { ...base, type: mongoose.Schema.Types.ObjectId, ref: refModelName };
+  }
+
+  if (type === 'ref[]' || type === 'ref_array' || type === 'refarray') {
+    const refModelCode = String(field.refModelCode || '').trim();
+    if (!refModelCode) {
+      const err = new Error(`Field ${field.name} is reference array type but refModelCode is missing`);
+      err.code = 'VALIDATION';
+      throw err;
+    }
+    const refModelName = getMongooseModelName(refModelCode);
+    return [{ ...base, type: mongoose.Schema.Types.ObjectId, ref: refModelName }];
   }
 
   const err = new Error(`Unsupported field type: ${field.type}`);
@@ -89,11 +102,43 @@ function buildSchemaFromDefinition(def) {
   schemaShape._headlessModelCode = { type: String, default: def.codeIdentifier, index: true };
   schemaShape._headlessSchemaVersion = { type: Number, default: def.version, index: true };
 
-  return new mongoose.Schema(schemaShape, {
+  const schema = new mongoose.Schema(schemaShape, {
     timestamps: true,
     collection: getMongoCollectionName(def.codeIdentifier),
     strict: false,
   });
+
+  const indexes = Array.isArray(def.indexes) ? def.indexes : [];
+  for (const idx of indexes) {
+    if (!idx || typeof idx !== 'object') continue;
+    const fields = idx.fields;
+    if (!fields) continue;
+    const options = idx.options && typeof idx.options === 'object' ? idx.options : {};
+    schema.index(fields, options);
+  }
+
+  return schema;
+}
+
+async function ensureIndexesBestEffort(Model) {
+  try {
+    if (!Model || !Model.collection || typeof Model.collection.createIndex !== 'function') return;
+    const declared = Array.isArray(Model.schema && Model.schema.indexes)
+      ? Model.schema.indexes()
+      : [];
+    for (const idx of declared) {
+      const fields = idx && idx[0];
+      const options = idx && idx[1];
+      if (!fields) continue;
+      try {
+        await Model.collection.createIndex(fields, options || {});
+      } catch (e) {
+        // best-effort
+      }
+    }
+  } catch (e) {
+    // best-effort
+  }
 }
 
 async function listModelDefinitions() {
@@ -115,7 +160,8 @@ async function createModelDefinition(payload) {
   }
 
   const fields = Array.isArray(payload.fields) ? payload.fields : [];
-  const fieldsHash = computeFieldsHash(fields);
+  const indexes = Array.isArray(payload.indexes) ? payload.indexes : [];
+  const fieldsHash = computeSchemaHash({ fields, indexes });
 
   const existing = await HeadlessModelDefinition.findOne({ codeIdentifier }).lean();
   if (existing) {
@@ -129,9 +175,11 @@ async function createModelDefinition(payload) {
     displayName,
     description: String(payload.description || ''),
     fields,
+    indexes,
     fieldsHash,
     version: 1,
     previousFields: [],
+    previousIndexes: [],
     isActive: true,
   });
 
@@ -163,10 +211,23 @@ async function updateModelDefinition(codeIdentifier, updates) {
 
   if (updates.fields !== undefined) {
     const fields = Array.isArray(updates.fields) ? updates.fields : [];
-    const newHash = computeFieldsHash(fields);
+    const indexes = Array.isArray(doc.indexes) ? doc.indexes : [];
+    const newHash = computeSchemaHash({ fields, indexes });
     if (newHash !== doc.fieldsHash) {
       doc.previousFields = doc.fields;
       doc.fields = fields;
+      doc.fieldsHash = newHash;
+      doc.version = Number(doc.version || 1) + 1;
+    }
+  }
+
+  if (updates.indexes !== undefined) {
+    const nextIndexes = Array.isArray(updates.indexes) ? updates.indexes : [];
+    const fields = Array.isArray(doc.fields) ? doc.fields : [];
+    const newHash = computeSchemaHash({ fields, indexes: nextIndexes });
+    if (newHash !== doc.fieldsHash) {
+      doc.previousIndexes = doc.indexes;
+      doc.indexes = nextIndexes;
       doc.fieldsHash = newHash;
       doc.version = Number(doc.version || 1) + 1;
     }
@@ -274,6 +335,7 @@ async function getDynamicModel(codeIdentifier) {
   const Model = mongoose.model(modelName, schema);
 
   await ensureAutoMigration(def);
+  await ensureIndexesBestEffort(Model);
 
   modelCache.set(cacheKey, Model);
   return Model;
@@ -284,6 +346,7 @@ module.exports = {
   normalizeCodeIdentifier,
   getMongooseModelName,
   getMongoCollectionName,
+  computeSchemaHash,
   listModelDefinitions,
   getModelDefinitionByCode,
   createModelDefinition,

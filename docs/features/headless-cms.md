@@ -27,6 +27,8 @@ Example:
 What it can do:
 
 - Define tables (schema editor)
+- Define tables via advanced JSON (validate + save)
+- Use AI assistance to propose multi-model changes (creates + updates) and apply them (best-effort)
 - CRUD table rows (editable grid)
 - Create API tokens + per-table permissions
 - Copy/paste cURL examples
@@ -52,6 +54,104 @@ Model definitions:
 - `GET /api/admin/headless/models/:codeIdentifier`
 - `PUT /api/admin/headless/models/:codeIdentifier`
 - `DELETE /api/admin/headless/models/:codeIdentifier`
+
+Advanced model helpers:
+
+- `POST /api/admin/headless/models/validate`
+- `POST /api/admin/headless/models/apply`
+
+AI model builder:
+
+- `POST /api/admin/headless/ai/model-builder/chat`
+
+## Model definition JSON
+
+### Shape
+
+```json
+{
+  "codeIdentifier": "posts",
+  "displayName": "Posts",
+  "description": "Blog posts",
+  "fields": [
+    {
+      "name": "title",
+      "type": "string",
+      "required": true,
+      "unique": false,
+      "default": "",
+      "validation": { "minLength": 3, "maxLength": 200 }
+    },
+    {
+      "name": "author",
+      "type": "ref",
+      "refModelCode": "users"
+    },
+    {
+      "name": "tags",
+      "type": "ref[]",
+      "refModelCode": "tags"
+    }
+  ],
+  "indexes": [
+    { "fields": { "title": 1 }, "options": { "unique": true } }
+  ]
+}
+```
+
+### Supported field types
+
+- `string`
+- `number`
+- `boolean`
+- `date`
+- `object`
+- `array`
+- `ref` (requires `refModelCode`)
+- `ref[]` (requires `refModelCode`)
+
+### Validation keys
+
+- Number: `min`, `max`
+- String: `minLength`, `maxLength`, `enum`, `match`
+
+### Notes
+
+- Reserved field names: `_id`, `_headlessModelCode`, `_headlessSchemaVersion`
+- Server-owned fields in JSON input are ignored with warnings: `version`, `fieldsHash`, `previousFields`, `previousIndexes`, `isActive`, timestamps
+
+## Proposal apply (best-effort)
+
+`POST /api/admin/headless/models/apply` applies multiple model operations in one request.
+
+Request:
+
+```json
+{
+  "creates": [ { "...full model definitions...": true } ],
+  "updates": [
+    {
+      "codeIdentifier": "posts",
+      "ops": [
+        { "op": "addField", "field": { "name": "slug", "type": "string", "unique": true } },
+        { "op": "addIndex", "index": { "fields": { "slug": 1 }, "options": { "unique": true } } }
+      ]
+    }
+  ]
+}
+```
+
+Supported patch ops:
+
+- `setDisplayName`
+- `setDescription`
+- `addField`
+- `removeField`
+- `replaceField` (rename is not supported)
+- `addIndex`
+- `removeIndex`
+
+Response includes `created`, `updated`, and aggregated `errors`/`warnings`.
 
 Admin collections (UI helper APIs):
 

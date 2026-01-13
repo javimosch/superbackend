@@ -63,8 +63,19 @@
                 </div>
               </div>
 
+              <div class="bg-white border border-gray-200 rounded p-3 mb-4">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div class="text-sm text-gray-600">Mode</div>
+                  <div class="flex gap-2">
+                    <button id="btn-mode-simple" class="bg-gray-900 text-white px-3 py-2 rounded text-sm" disabled>Simple</button>
+                    <button id="btn-mode-advanced" class="bg-white border px-3 py-2 rounded hover:bg-gray-50 text-sm" disabled>Advanced JSON</button>
+                    <button id="btn-mode-ai" class="bg-white border px-3 py-2 rounded hover:bg-gray-50 text-sm" disabled>AI assist</button>
+                  </div>
+                </div>
+              </div>
+
               <div class="grid grid-cols-1 gap-6">
-                <div class="bg-gray-50 border border-gray-200 rounded p-4">
+                <div id="panel-simple" class="bg-gray-50 border border-gray-200 rounded p-4">
                   <div class="flex items-center justify-between mb-3">
                     <h3 class="font-semibold">Schema</h3>
                     <button id="btn-add-field" class="bg-gray-900 text-white px-3 py-2 rounded hover:bg-black text-sm" disabled>Add field</button>
@@ -99,6 +110,65 @@
                         <tr><td class="py-3 text-gray-500" colspan="7">Select a model</td></tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                <div id="panel-advanced" class="bg-gray-50 border border-gray-200 rounded p-4 hidden">
+                  <div class="flex items-center justify-between mb-3">
+                    <h3 class="font-semibold">Advanced (JSON)</h3>
+                    <div class="flex gap-2">
+                      <button id="btn-advanced-load" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Load selected</button>
+                      <button id="btn-advanced-validate" class="bg-gray-900 text-white px-3 py-2 rounded hover:bg-black text-sm" disabled>Validate</button>
+                      <button id="btn-advanced-save" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" disabled>Save</button>
+                    </div>
+                  </div>
+                  <div class="text-xs text-gray-600 mb-2">Paste a full model definition JSON. Server-owned fields are ignored with warnings.</div>
+                  <textarea id="advanced-json" class="w-full h-72 border rounded px-3 py-2 mono text-xs" placeholder='{"codeIdentifier":"posts","displayName":"Posts","fields":[],"indexes":[]}'></textarea>
+                  <div id="advanced-result" class="mt-3 hidden">
+                    <div class="text-xs text-gray-600 mb-1">Validation</div>
+                    <pre id="advanced-result-pre" class="mono text-xs bg-white border rounded p-3 overflow-x-auto"></pre>
+                  </div>
+                </div>
+
+                <div id="panel-ai" class="bg-gray-50 border border-gray-200 rounded p-4 hidden">
+                  <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                      <h3 class="font-semibold">AI assist</h3>
+                      <span class="group relative inline-block">
+                        <svg class="w-4 h-4 text-gray-400 cursor-help" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/>
+                        </svg>
+                        <div class="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 w-80 p-2 bg-gray-900 text-white text-xs rounded shadow-lg">
+                          <div class="font-semibold mb-1">Customize AI provider & model</div>
+                          <div>Set these GlobalSetting keys (fallback to env vars):</div>
+                          <ul class="mt-1 space-y-1">
+                            <li><code class="bg-gray-800 px-1 rounded">headless.aiProviderKey</code> (default: openrouter)</li>
+                            <li><code class="bg-gray-800 px-1 rounded">headless.aiModel</code> (default: google/gemini-2.5-flash-lite)</li>
+                          </ul>
+                          <div class="mt-1 text-gray-300">Configure providers in /admin/llm.</div>
+                          <div class="absolute left-1/2 transform -translate-x-1/2 top-full mt-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+                        </div>
+                      </span>
+                    </div>
+                    <div class="flex gap-2">
+                      <button id="btn-ai-clear" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Clear history</button>
+                      <button id="btn-ai-apply" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" disabled>Apply proposal</button>
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <div class="text-xs text-gray-600 mb-2">Chat</div>
+                      <div id="ai-history" class="bg-white border rounded p-3 h-64 overflow-y-auto text-xs"></div>
+                      <div class="mt-2 flex gap-2">
+                        <input id="ai-input" class="border rounded px-3 py-2 w-full" placeholder="Describe the models you want, then refine with follow-ups" disabled />
+                        <button id="btn-ai-send" class="bg-gray-900 text-white px-3 py-2 rounded hover:bg-black text-sm" disabled>Send</button>
+                      </div>
+                    </div>
+                    <div>
+                      <div class="text-xs text-gray-600 mb-2">Latest proposal</div>
+                      <pre id="ai-proposal" class="mono text-xs bg-white border rounded p-3 h-64 overflow-x-auto overflow-y-auto"></pre>
+                      <div class="text-xs text-gray-500 mt-2">Use “Apply proposal” to execute best-effort creates/updates.</div>
+                    </div>
                   </div>
                 </div>
 
@@ -280,6 +350,13 @@
     activeTab: 'models',
     models: [],
     selectedModel: null,
+    modelUi: {
+      mode: 'simple',
+      advancedJson: '',
+      advancedValidation: null,
+      aiHistory: [],
+      aiLastProposal: null,
+    },
     data: { items: [], total: 0 },
     dataUi: {
       selectedModelCode: null,
@@ -306,6 +383,159 @@
       el.classList.add('fade-out');
       setTimeout(() => el.remove(), 350);
     }, 2500);
+  }
+
+  async function advancedLoadSelected() {
+    const m = state.selectedModel;
+    if (!m) return;
+    const def = {
+      codeIdentifier: m.codeIdentifier,
+      displayName: m.displayName,
+      description: m.description || '',
+      fields: m.fields || [],
+      indexes: m.indexes || [],
+    };
+    const text = JSON.stringify(def, null, 2);
+    state.modelUi.advancedJson = text;
+    document.getElementById('advanced-json').value = text;
+    state.modelUi.advancedValidation = null;
+    renderAdvancedValidation();
+    toast('Loaded selected model into JSON editor', 'success');
+  }
+
+  async function advancedValidate() {
+    try {
+      const raw = document.getElementById('advanced-json').value;
+      state.modelUi.advancedJson = raw;
+      const definition = safeJsonParse(raw);
+      if (!definition) {
+        toast('Invalid JSON', 'error');
+        return;
+      }
+      const result = await api('/api/admin/headless/models/validate', {
+        method: 'POST',
+        body: JSON.stringify({ definition }),
+      });
+      state.modelUi.advancedValidation = result;
+      renderAdvancedValidation();
+      toast(result.valid ? 'Valid' : 'Invalid', result.valid ? 'success' : 'error');
+      return result;
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function advancedSave() {
+    try {
+      const v = await advancedValidate();
+      if (!v || !v.valid) return;
+      const normalized = v.normalized;
+      if (!normalized || !normalized.codeIdentifier) {
+        toast('Missing codeIdentifier', 'error');
+        return;
+      }
+
+      const exists = (state.models || []).some((m) => m.codeIdentifier === normalized.codeIdentifier);
+
+      if (exists) {
+        await api(`/api/admin/headless/models/${encodeURIComponent(normalized.codeIdentifier)}`, {
+          method: 'PUT',
+          body: JSON.stringify(normalized),
+        });
+        toast('Model updated', 'success');
+      } else {
+        await api('/api/admin/headless/models', {
+          method: 'POST',
+          body: JSON.stringify(normalized),
+        });
+        toast('Model created', 'success');
+      }
+
+      await loadModels();
+      await selectModel(normalized.codeIdentifier);
+      setModelMode('simple');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  async function aiSend() {
+    try {
+      const input = document.getElementById('ai-input');
+      const msg = String(input.value || '').trim();
+      if (!msg) return;
+
+      state.modelUi.aiHistory = Array.isArray(state.modelUi.aiHistory) ? state.modelUi.aiHistory : [];
+      state.modelUi.aiHistory.push({ role: 'user', content: msg });
+      input.value = '';
+      renderAiHistory();
+
+      const currentJson = safeJsonParse(document.getElementById('advanced-json').value);
+      const currentDefinition = currentJson || (state.selectedModel ? {
+        codeIdentifier: state.selectedModel.codeIdentifier,
+        displayName: state.selectedModel.displayName,
+        description: state.selectedModel.description || '',
+        fields: state.selectedModel.fields || [],
+        indexes: state.selectedModel.indexes || [],
+      } : null);
+
+      const res = await api('/api/admin/headless/ai/model-builder/chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          message: msg,
+          history: state.modelUi.aiHistory,
+          currentDefinition,
+        }),
+      });
+
+      const assistantMessage = res.assistantMessage || '';
+      state.modelUi.aiHistory.push({ role: 'assistant', content: assistantMessage });
+      renderAiHistory();
+
+      state.modelUi.aiLastProposal = res.proposal || null;
+      renderAiProposal();
+
+      if (res.validation && res.validation.valid === false) {
+        toast('Proposal has validation errors', 'error');
+      } else {
+        toast('Proposal ready', 'success');
+      }
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  }
+
+  function aiClear() {
+    state.modelUi.aiHistory = [];
+    state.modelUi.aiLastProposal = null;
+    renderAiHistory();
+    renderAiProposal();
+    toast('History cleared', 'success');
+  }
+
+  async function aiApply() {
+    try {
+      const proposal = state.modelUi.aiLastProposal;
+      if (!proposal) {
+        toast('No proposal', 'error');
+        return;
+      }
+      const res = await api('/api/admin/headless/models/apply', {
+        method: 'POST',
+        body: JSON.stringify({
+          creates: proposal.creates || [],
+          updates: proposal.updates || [],
+        }),
+      });
+      if (res.errors && res.errors.length) {
+        toast(`Applied with errors (${res.errors.length})`, 'error');
+      } else {
+        toast('Applied', 'success');
+      }
+      await loadModels();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   }
 
   function loadTokenCache() {
@@ -446,7 +676,85 @@
     document.getElementById('btn-add-field').disabled = !enabled;
     document.getElementById('btn-save-model').disabled = !enabled;
     document.getElementById('btn-delete-model').disabled = !enabled || isNew;
+    document.getElementById('btn-mode-simple').disabled = !enabled;
+    document.getElementById('btn-mode-advanced').disabled = !enabled;
+    document.getElementById('btn-mode-ai').disabled = !enabled;
+
+    document.getElementById('btn-advanced-load').disabled = !enabled;
+    document.getElementById('btn-advanced-validate').disabled = !enabled;
+    document.getElementById('btn-advanced-save').disabled = !enabled;
+
+    document.getElementById('ai-input').disabled = !enabled;
+    document.getElementById('btn-ai-send').disabled = !enabled;
+    document.getElementById('btn-ai-clear').disabled = !enabled;
+    document.getElementById('btn-ai-apply').disabled = !enabled;
     // Data tab controls are managed separately
+  }
+
+  function setModelMode(mode) {
+    state.modelUi.mode = mode;
+    document.getElementById('panel-simple').classList.toggle('hidden', mode !== 'simple');
+    document.getElementById('panel-advanced').classList.toggle('hidden', mode !== 'advanced');
+    document.getElementById('panel-ai').classList.toggle('hidden', mode !== 'ai');
+
+    const btnSimple = document.getElementById('btn-mode-simple');
+    const btnAdv = document.getElementById('btn-mode-advanced');
+    const btnAi = document.getElementById('btn-mode-ai');
+
+    btnSimple.className = mode === 'simple'
+      ? 'bg-gray-900 text-white px-3 py-2 rounded text-sm'
+      : 'bg-white border px-3 py-2 rounded hover:bg-gray-50 text-sm';
+    btnAdv.className = mode === 'advanced'
+      ? 'bg-gray-900 text-white px-3 py-2 rounded text-sm'
+      : 'bg-white border px-3 py-2 rounded hover:bg-gray-50 text-sm';
+    btnAi.className = mode === 'ai'
+      ? 'bg-gray-900 text-white px-3 py-2 rounded text-sm'
+      : 'bg-white border px-3 py-2 rounded hover:bg-gray-50 text-sm';
+  }
+
+  function safeJsonParse(text) {
+    try {
+      return JSON.parse(String(text || ''));
+    } catch {
+      return null;
+    }
+  }
+
+  function renderAdvancedValidation() {
+    const container = document.getElementById('advanced-result');
+    const pre = document.getElementById('advanced-result-pre');
+    const v = state.modelUi.advancedValidation;
+    if (!v) {
+      container.classList.add('hidden');
+      pre.textContent = '';
+      return;
+    }
+    container.classList.remove('hidden');
+    pre.textContent = JSON.stringify(v, null, 2);
+  }
+
+  function renderAiHistory() {
+    const container = document.getElementById('ai-history');
+    const history = Array.isArray(state.modelUi.aiHistory) ? state.modelUi.aiHistory : [];
+    if (!history.length) {
+      container.innerHTML = '<div class="text-gray-500">No messages yet</div>';
+      return;
+    }
+    container.innerHTML = '';
+    history.forEach((m) => {
+      const role = m.role === 'assistant' ? 'assistant' : 'user';
+      const el = document.createElement('div');
+      el.className = 'mb-2';
+      el.innerHTML = `<div class="text-[10px] uppercase text-gray-500 mb-1">${role}</div><div class="whitespace-pre-wrap">${String(m.content || '').replace(/</g,'&lt;')}</div>`;
+      container.appendChild(el);
+    });
+    container.scrollTop = container.scrollHeight;
+  }
+
+  function renderAiProposal() {
+    const pre = document.getElementById('ai-proposal');
+    const proposal = state.modelUi.aiLastProposal;
+    pre.textContent = proposal ? JSON.stringify(proposal, null, 2) : '';
   }
 
   function renderSelectedModel() {
@@ -492,7 +800,7 @@
       const tr = document.createElement('tr');
       tr.className = 'border-t';
 
-      const typeOptions = ['string','number','boolean','date','object','array','ref'];
+      const typeOptions = ['string','number','boolean','date','object','array','ref','ref[]'];
       const opts = typeOptions.map((t) => `<option value="${t}" ${String(f.type).toLowerCase()===t?'selected':''}>${t}</option>`).join('');
 
       tr.innerHTML = `
@@ -532,7 +840,8 @@
       const select = tr.querySelector('.field-type');
       const ref = tr.querySelector('.field-ref');
       if (!select || !ref) return;
-      ref.disabled = String(select.value).toLowerCase() !== 'ref';
+      const t = String(select.value).toLowerCase();
+      ref.disabled = !(t === 'ref' || t === 'ref[]');
       if (ref.disabled) ref.value = '';
     });
   }
@@ -558,7 +867,8 @@
       if (def !== undefined && String(def).trim() !== '') {
         field.default = def;
       }
-      if (String(type).toLowerCase() === 'ref' && refModelCode) {
+      const t = String(type).toLowerCase();
+      if ((t === 'ref' || t === 'ref[]') && refModelCode) {
         field.refModelCode = refModelCode;
       }
       fields.push(field);
@@ -592,6 +902,13 @@
     state.selectedModel = m || null;
     renderSelectedModel();
     renderCurlExamples();
+
+    if (state.selectedModel) {
+      state.modelUi.advancedValidation = null;
+      renderAdvancedValidation();
+      renderAiHistory();
+      renderAiProposal();
+    }
   }
 
   function renderDataSelectedHeader() {
@@ -1214,6 +1531,7 @@
     renderSelectedModel();
     document.getElementById('fields-tbody').innerHTML = '<tr><td class="py-3 text-gray-500" colspan="7">No fields yet</td></tr>';
     setModelFormEnabled(true, true);
+    setModelMode('simple');
   });
 
   document.getElementById('btn-add-field').addEventListener('click', () => {
@@ -1222,6 +1540,23 @@
     state.selectedModel.fields.push({ name: '', type: 'string', required: false, unique: false });
     renderFieldsTable();
   });
+
+  document.getElementById('btn-mode-simple').addEventListener('click', () => setModelMode('simple'));
+  document.getElementById('btn-mode-advanced').addEventListener('click', () => setModelMode('advanced'));
+  document.getElementById('btn-mode-ai').addEventListener('click', () => setModelMode('ai'));
+
+  document.getElementById('btn-advanced-load').addEventListener('click', advancedLoadSelected);
+  document.getElementById('btn-advanced-validate').addEventListener('click', advancedValidate);
+  document.getElementById('btn-advanced-save').addEventListener('click', advancedSave);
+
+  document.getElementById('btn-ai-send').addEventListener('click', aiSend);
+  document.getElementById('ai-input').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    aiSend();
+  });
+  document.getElementById('btn-ai-clear').addEventListener('click', aiClear);
+  document.getElementById('btn-ai-apply').addEventListener('click', aiApply);
 
   document.getElementById('btn-save-model').addEventListener('click', saveModel);
   document.getElementById('btn-delete-model').addEventListener('click', disableModel);

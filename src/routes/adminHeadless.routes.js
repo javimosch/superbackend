@@ -13,6 +13,13 @@ router.post('/models', adminHeadlessController.createModel);
 router.put('/models/:codeIdentifier', adminHeadlessController.updateModel);
 router.delete('/models/:codeIdentifier', adminHeadlessController.deleteModel);
 
+// Advanced JSON / bulk helpers
+router.post('/models/validate', adminHeadlessController.validateModelDefinition);
+router.post('/models/apply', adminHeadlessController.applyModelProposal);
+
+// AI model builder
+router.post('/ai/model-builder/chat', adminHeadlessController.aiModelBuilderChat);
+
 // Admin collections CRUD (UI)
 router.get('/collections/:modelCode', adminHeadlessController.listCollectionItems);
 router.post('/collections/:modelCode', adminHeadlessController.createCollectionItem);

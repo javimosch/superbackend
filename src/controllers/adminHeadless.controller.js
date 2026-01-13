@@ -7,6 +7,9 @@ const {
   getDynamicModel,
 } = require('../services/headlessModels.service');
 
+const llmService = require('../services/llm.service');
+const { getSettingValue } = require('../services/globalSettings.service');
+
 const {
   listApiTokens,
   getApiTokenById,
@@ -24,6 +27,275 @@ function handleServiceError(res, error) {
   if (code === 'CONFLICT') return res.status(409).json({ error: msg });
 
   return res.status(500).json({ error: msg });
+}
+
+function toSafeJsonError(error) {
+  const msg = error?.message || 'Operation failed';
+  const code = error?.code;
+  if (code === 'VALIDATION') return { status: 400, body: { error: msg } };
+  if (code === 'NOT_FOUND') return { status: 404, body: { error: msg } };
+  if (code === 'CONFLICT') return { status: 409, body: { error: msg } };
+  return { status: 500, body: { error: msg } };
+}
+
+function normalizeIndex(idx) {
+  if (!idx || typeof idx !== 'object') return null;
+  const fields = idx.fields;
+  if (!fields || typeof fields !== 'object') return null;
+  const options = idx.options && typeof idx.options === 'object' ? idx.options : {};
+  return { fields, options };
+}
+
+function normalizeField(field) {
+  if (!field || typeof field !== 'object') return null;
+  const name = String(field.name || '').trim();
+  if (!name) return null;
+  const type = String(field.type || '').trim();
+  if (!type) return null;
+  const normalized = {
+    name,
+    type,
+    required: Boolean(field.required),
+    unique: Boolean(field.unique),
+  };
+  if (field.default !== undefined) normalized.default = field.default;
+  if (field.validation && typeof field.validation === 'object') {
+    normalized.validation = { ...field.validation };
+  }
+  if (field.refModelCode !== undefined && field.refModelCode !== null) {
+    normalized.refModelCode = String(field.refModelCode || '').trim() || null;
+  }
+  return normalized;
+}
+
+function validateDefinitionShape(definition, { allowedRefModelCodes } = {}) {
+  const errors = [];
+  const warnings = [];
+
+  const serverOwnedFields = [
+    'version',
+    'fieldsHash',
+    'previousFields',
+    'previousIndexes',
+    'isActive',
+    'createdAt',
+    'updatedAt',
+  ];
+
+  const raw = definition && typeof definition === 'object' ? definition : {};
+  for (const k of serverOwnedFields) {
+    if (raw[k] !== undefined) {
+      warnings.push(`Ignored server-owned field: ${k}`);
+    }
+  }
+
+  const codeIdentifier = String(raw.codeIdentifier || '').trim();
+  if (!codeIdentifier) errors.push('codeIdentifier is required');
+  if (codeIdentifier && !/^[a-z][a-z0-9_]*$/.test(codeIdentifier)) {
+    errors.push('codeIdentifier must match /^[a-z][a-z0-9_]*$/');
+  }
+
+  const displayName = String(raw.displayName || codeIdentifier || '').trim();
+  if (!displayName) errors.push('displayName is required');
+
+  const fieldsIn = Array.isArray(raw.fields) ? raw.fields : [];
+  const fields = fieldsIn.map(normalizeField).filter(Boolean);
+
+  const reserved = new Set(['_id', '_headlessModelCode', '_headlessSchemaVersion']);
+  const names = new Set();
+  for (const f of fields) {
+    if (reserved.has(f.name)) {
+      errors.push(`Field name is reserved: ${f.name}`);
+      continue;
+    }
+    if (names.has(f.name)) {
+      errors.push(`Duplicate field name: ${f.name}`);
+      continue;
+    }
+    names.add(f.name);
+
+    const type = String(f.type || '').toLowerCase();
+    const isRef = type === 'ref' || type === 'reference';
+    const isRefArray = type === 'ref[]' || type === 'ref_array' || type === 'refarray';
+
+    const supported = new Set([
+      'string',
+      'number',
+      'boolean',
+      'date',
+      'object',
+      'array',
+      'ref',
+      'reference',
+      'ref[]',
+      'ref_array',
+      'refarray',
+    ]);
+
+    if (!supported.has(type)) {
+      errors.push(`Unsupported field type: ${f.type}`);
+    }
+
+    if ((isRef || isRefArray) && !String(f.refModelCode || '').trim()) {
+      errors.push(`Field ${f.name} is reference type but refModelCode is missing`);
+    }
+
+    if ((isRef || isRefArray) && String(f.refModelCode || '').trim() && allowedRefModelCodes) {
+      const refCode = String(f.refModelCode || '').trim();
+      if (!allowedRefModelCodes.has(refCode)) {
+        warnings.push(`refModelCode does not exist yet: ${refCode}`);
+      }
+    }
+
+    if (f.validation && typeof f.validation === 'object') {
+      const v = f.validation;
+      if (v.minLength !== undefined && !Number.isFinite(Number(v.minLength))) {
+        errors.push(`Field ${f.name} validation.minLength must be a number`);
+      }
+      if (v.maxLength !== undefined && !Number.isFinite(Number(v.maxLength))) {
+        errors.push(`Field ${f.name} validation.maxLength must be a number`);
+      }
+      if (v.minLength !== undefined && v.maxLength !== undefined) {
+        const minL = Number(v.minLength);
+        const maxL = Number(v.maxLength);
+        if (Number.isFinite(minL) && Number.isFinite(maxL) && minL > maxL) {
+          errors.push(`Field ${f.name} validation.minLength must be <= maxLength`);
+        }
+      }
+    }
+  }
+
+  const indexesIn = Array.isArray(raw.indexes) ? raw.indexes : [];
+  const indexes = indexesIn.map(normalizeIndex).filter(Boolean);
+  for (const idx of indexes) {
+    if (!idx.fields || typeof idx.fields !== 'object') {
+      errors.push('Index fields must be an object');
+    }
+  }
+
+  const normalized = {
+    codeIdentifier,
+    displayName,
+    description: String(raw.description || ''),
+    fields,
+    indexes,
+  };
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+    normalized,
+  };
+}
+
+function applyPatchOpsToModel(definition, ops = []) {
+  const next = {
+    ...definition,
+    fields: Array.isArray(definition.fields) ? [...definition.fields] : [],
+    indexes: Array.isArray(definition.indexes) ? [...definition.indexes] : [],
+  };
+
+  const operations = Array.isArray(ops) ? ops : [];
+  const errors = [];
+  const warnings = [];
+
+  for (const op of operations) {
+    if (!op || typeof op !== 'object') continue;
+    const kind = String(op.op || '').trim();
+
+    if (kind === 'setDisplayName') {
+      const value = String(op.value || '').trim();
+      if (!value) errors.push('setDisplayName requires non-empty value');
+      else next.displayName = value;
+      continue;
+    }
+
+    if (kind === 'setDescription') {
+      next.description = String(op.value || '');
+      continue;
+    }
+
+    if (kind === 'addField') {
+      const f = normalizeField(op.field);
+      if (!f) {
+        errors.push('addField requires a valid field');
+        continue;
+      }
+      const exists = next.fields.some((x) => x && x.name === f.name);
+      if (exists) {
+        errors.push(`addField duplicate field: ${f.name}`);
+        continue;
+      }
+      next.fields.push(f);
+      continue;
+    }
+
+    if (kind === 'removeField') {
+      const name = String(op.name || '').trim();
+      if (!name) {
+        errors.push('removeField requires name');
+        continue;
+      }
+      const before = next.fields.length;
+      next.fields = next.fields.filter((x) => x && x.name !== name);
+      if (next.fields.length === before) warnings.push(`removeField: field not found: ${name}`);
+      continue;
+    }
+
+    if (kind === 'replaceField') {
+      const name = String(op.name || '').trim();
+      const f = normalizeField(op.field);
+      if (!name || !f) {
+        errors.push('replaceField requires name and a valid field');
+        continue;
+      }
+      const idx = next.fields.findIndex((x) => x && x.name === name);
+      if (idx === -1) {
+        errors.push(`replaceField: field not found: ${name}`);
+        continue;
+      }
+      if (f.name !== name) {
+        errors.push('replaceField field.name must match op.name (rename not supported)');
+        continue;
+      }
+      next.fields[idx] = f;
+      continue;
+    }
+
+    if (kind === 'addIndex') {
+      const idx = normalizeIndex(op.index);
+      if (!idx) {
+        errors.push('addIndex requires valid index');
+        continue;
+      }
+      next.indexes.push(idx);
+      continue;
+    }
+
+    if (kind === 'removeIndex') {
+      const fields = op.fields;
+      if (!fields || typeof fields !== 'object') {
+        errors.push('removeIndex requires fields object');
+        continue;
+      }
+      const before = next.indexes.length;
+      next.indexes = next.indexes.filter((x) => {
+        if (!x || typeof x !== 'object') return false;
+        try {
+          return JSON.stringify(x.fields) !== JSON.stringify(fields);
+        } catch {
+          return true;
+        }
+      });
+      if (next.indexes.length === before) warnings.push('removeIndex: index not found');
+      continue;
+    }
+
+    warnings.push(`Unknown patch op ignored: ${kind || '(empty op)'}`);
+  }
+
+  return { next, errors, warnings };
 }
 
 exports.listModels = async (req, res) => {
@@ -74,6 +346,296 @@ exports.deleteModel = async (req, res) => {
   } catch (error) {
     console.error('Error deleting headless model:', error);
     return handleServiceError(res, error);
+  }
+};
+
+exports.validateModelDefinition = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const definition = body.definition;
+
+    const existing = await listModelDefinitions();
+    const allowedRefModelCodes = new Set((existing || []).map((m) => m.codeIdentifier));
+
+    const result = validateDefinitionShape(definition, { allowedRefModelCodes });
+    return res.json(result);
+  } catch (error) {
+    console.error('Error validating headless model definition:', error);
+    const mapped = toSafeJsonError(error);
+    return res.status(mapped.status).json(mapped.body);
+  }
+};
+
+exports.applyModelProposal = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const creates = Array.isArray(body.creates) ? body.creates : [];
+    const updates = Array.isArray(body.updates) ? body.updates : [];
+
+    const existing = await listModelDefinitions();
+    const allowedRefModelCodes = new Set((existing || []).map((m) => m.codeIdentifier));
+    for (const c of creates) {
+      const code = String(c?.codeIdentifier || '').trim();
+      if (code) allowedRefModelCodes.add(code);
+    }
+
+    const results = {
+      created: [],
+      updated: [],
+      errors: [],
+      warnings: [],
+    };
+
+    for (const def of creates) {
+      const v = validateDefinitionShape(def, { allowedRefModelCodes });
+      results.warnings.push(...(v.warnings || []).map((w) => `[create:${v.normalized?.codeIdentifier || '?'}] ${w}`));
+      if (!v.valid) {
+        results.errors.push({
+          op: 'create',
+          codeIdentifier: v.normalized?.codeIdentifier || null,
+          errors: v.errors,
+        });
+        continue;
+      }
+      try {
+        const created = await createModelDefinition(v.normalized);
+        results.created.push(created);
+      } catch (e) {
+        results.errors.push({
+          op: 'create',
+          codeIdentifier: v.normalized?.codeIdentifier || null,
+          error: e.message,
+        });
+      }
+    }
+
+    for (const up of updates) {
+      const codeIdentifier = String(up?.codeIdentifier || '').trim();
+      if (!codeIdentifier) {
+        results.errors.push({ op: 'update', codeIdentifier: null, error: 'codeIdentifier is required' });
+        continue;
+      }
+      let current;
+      try {
+        current = await getModelDefinitionByCode(codeIdentifier);
+      } catch (e) {
+        results.errors.push({ op: 'update', codeIdentifier, error: e.message });
+        continue;
+      }
+      if (!current) {
+        results.errors.push({ op: 'update', codeIdentifier, error: 'Model not found' });
+        continue;
+      }
+
+      const { next, errors, warnings } = applyPatchOpsToModel(current, up.ops);
+      results.warnings.push(...(warnings || []).map((w) => `[update:${codeIdentifier}] ${w}`));
+      if (errors && errors.length) {
+        results.errors.push({ op: 'update', codeIdentifier, errors });
+        continue;
+      }
+
+      const v = validateDefinitionShape({ ...next, codeIdentifier }, { allowedRefModelCodes });
+      results.warnings.push(...(v.warnings || []).map((w) => `[update:${codeIdentifier}] ${w}`));
+      if (!v.valid) {
+        results.errors.push({ op: 'update', codeIdentifier, errors: v.errors });
+        continue;
+      }
+
+      try {
+        const updated = await updateModelDefinition(codeIdentifier, {
+          displayName: v.normalized.displayName,
+          description: v.normalized.description,
+          fields: v.normalized.fields,
+          indexes: v.normalized.indexes,
+        });
+        results.updated.push(updated);
+      } catch (e) {
+        results.errors.push({ op: 'update', codeIdentifier, error: e.message });
+      }
+    }
+
+    return res.json(results);
+  } catch (error) {
+    console.error('Error applying headless model proposal:', error);
+    const mapped = toSafeJsonError(error);
+    return res.status(mapped.status).json(mapped.body);
+  }
+};
+
+exports.aiModelBuilderChat = async (req, res) => {
+  try {
+    const body = req.body || {};
+    const message = String(body.message || '').trim();
+    const history = Array.isArray(body.history) ? body.history : [];
+    const currentDefinition = body.currentDefinition && typeof body.currentDefinition === 'object'
+      ? body.currentDefinition
+      : null;
+
+    if (!message) {
+      return res.status(400).json({ error: 'message is required' });
+    }
+
+    const existing = await listModelDefinitions();
+    const allowedRefModelCodes = new Set((existing || []).map((m) => m.codeIdentifier));
+
+    const cheatSheet = [
+      'You are helping define Headless CMS models for a Mongo-backed dynamic schema system.',
+      'Return STRICT JSON only (no markdown, no prose outside JSON).',
+      '',
+      'Model definition shape:',
+      '{ codeIdentifier, displayName, description?, fields: [], indexes: [] }',
+      '',
+      'Field shape:',
+      '{ name, type, required?, unique?, default?, validation?, refModelCode? }',
+      '',
+      'Supported field types:',
+      '- string, number, boolean, date, object, array',
+      '- ref (requires refModelCode)',
+      '- ref[] (requires refModelCode)',
+      '',
+      'Supported string validation keys:',
+      '- minLength, maxLength, enum, match',
+      '',
+      'Supported number validation keys:',
+      '- min, max',
+      '',
+      'Model-level indexes:',
+      'indexes: [{ fields: { fieldName: 1, other: -1 }, options: { unique?: true } }]',
+      '',
+      'Your task: propose changes as a multi-operation proposal:',
+      '{ creates: [<modelDef>], updates: [{ codeIdentifier, ops: [<patchOp>] }] }',
+      '',
+      'Patch ops supported:',
+      '- { op: "setDisplayName", value: string }',
+      '- { op: "setDescription", value: string }',
+      '- { op: "addField", field: <field> }',
+      '- { op: "removeField", name: string }',
+      '- { op: "replaceField", name: string, field: <field with same name> }',
+      '- { op: "addIndex", index: <index> }',
+      '- { op: "removeIndex", fields: <index fields object> }',
+      '',
+      'Do not include server-owned fields like version/fieldsHash/previousFields.',
+      'Prefer minimal diffs: if currentDefinition exists, use updates instead of creating from scratch.',
+    ].join('\n');
+
+    const context = currentDefinition
+      ? `Current model JSON (may be partial):\n${JSON.stringify(currentDefinition, null, 2)}`
+      : 'Current model JSON: (none)';
+
+    const messages = [
+      { role: 'user', content: cheatSheet },
+      { role: 'user', content: context },
+      ...history.map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' : 'user',
+        content: String(m.content || ''),
+      })),
+      { role: 'user', content: message },
+    ];
+
+    const providerKey = (await getSettingValue('headless.aiProviderKey')) || process.env.HEADLESS_AI_PROVIDER_KEY || 'openrouter';
+    const model = (await getSettingValue('headless.aiModel')) || process.env.HEADLESS_AI_MODEL || 'google/gemini-2.5-flash-lite';
+
+    console.log('[headless aiModelBuilder] Resolved providerKey:', providerKey);
+    console.log('[headless aiModelBuilder] Resolved model:', model);
+
+    const llm = await llmService.callAdhoc(
+      { providerKey, model, messages, promptKeyForAudit: 'headless.aiModelBuilder' },
+      { temperature: 0.2 },
+    );
+
+    let parsed;
+    const rawResponse = String(llm.content || '').trim();
+    console.log('[headless aiModelBuilder] Raw LLM response:', rawResponse);
+    
+    try {
+      parsed = JSON.parse(rawResponse);
+    } catch (e) {
+      console.log('[headless aiModelBuilder] Direct JSON parse failed, attempting markdown extraction:', e.message);
+      
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = rawResponse.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      const extracted = jsonMatch ? jsonMatch[1].trim() : rawResponse;
+      
+      try {
+        parsed = JSON.parse(extracted);
+        console.log('[headless aiModelBuilder] Successfully parsed JSON from markdown block');
+      } catch (e2) {
+        console.error('[headless aiModelBuilder] JSON extraction also failed:', e2.message);
+        console.error('[headless aiModelBuilder] Attempted to parse:', extracted);
+        return res.status(502).json({ 
+          error: 'LLM did not return valid JSON', 
+          details: e.message,
+          rawResponse: rawResponse.substring(0, 500) + (rawResponse.length > 500 ? '...' : '')
+        });
+      }
+    }
+
+    const assistantMessage = String(parsed.assistantMessage || '').trim();
+    const proposal = parsed.proposal && typeof parsed.proposal === 'object' ? parsed.proposal : null;
+    const questions = Array.isArray(parsed.questions) ? parsed.questions : [];
+    const warnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+
+    if (!proposal) {
+      return res.status(400).json({ error: 'LLM response missing proposal' });
+    }
+
+    const creates = Array.isArray(proposal.creates) ? proposal.creates : [];
+    const updates = Array.isArray(proposal.updates) ? proposal.updates : [];
+
+    for (const c of creates) {
+      const code = String(c?.codeIdentifier || '').trim();
+      if (code) allowedRefModelCodes.add(code);
+    }
+
+    const validation = { valid: true, errors: [], warnings: [] };
+    for (const def of creates) {
+      const v = validateDefinitionShape(def, { allowedRefModelCodes });
+      validation.warnings.push(...(v.warnings || []).map((w) => `[create:${v.normalized?.codeIdentifier || '?'}] ${w}`));
+      if (!v.valid) {
+        validation.valid = false;
+        validation.errors.push({ op: 'create', codeIdentifier: v.normalized?.codeIdentifier || null, errors: v.errors });
+      }
+    }
+
+    for (const up of updates) {
+      const codeIdentifier = String(up?.codeIdentifier || '').trim();
+      if (!codeIdentifier) {
+        validation.valid = false;
+        validation.errors.push({ op: 'update', codeIdentifier: null, error: 'codeIdentifier is required' });
+        continue;
+      }
+      const current = await getModelDefinitionByCode(codeIdentifier);
+      if (!current) {
+        validation.valid = false;
+        validation.errors.push({ op: 'update', codeIdentifier, error: 'Model not found' });
+        continue;
+      }
+      const { next, errors, warnings: patchWarnings } = applyPatchOpsToModel(current, up.ops);
+      validation.warnings.push(...(patchWarnings || []).map((w) => `[update:${codeIdentifier}] ${w}`));
+      if (errors && errors.length) {
+        validation.valid = false;
+        validation.errors.push({ op: 'update', codeIdentifier, errors });
+        continue;
+      }
+      const v = validateDefinitionShape({ ...next, codeIdentifier }, { allowedRefModelCodes });
+      validation.warnings.push(...(v.warnings || []).map((w) => `[update:${codeIdentifier}] ${w}`));
+      if (!v.valid) {
+        validation.valid = false;
+        validation.errors.push({ op: 'update', codeIdentifier, errors: v.errors });
+      }
+    }
+
+    return res.json({
+      assistantMessage,
+      proposal: { creates, updates },
+      questions,
+      warnings,
+      validation,
+    });
+  } catch (error) {
+    console.error('Error in AI model builder chat:', error);
+    const mapped = toSafeJsonError(error);
+    return res.status(mapped.status).json(mapped.body);
   }
 };
 
