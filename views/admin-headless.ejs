@@ -301,6 +301,101 @@
           </div>
 
           <div class="mt-6 bg-white border border-gray-200 rounded p-4">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="font-semibold">Test request</h3>
+              <div class="text-xs text-gray-500">Executes real <span class="mono">/api/headless/*</span> endpoints via admin proxy and logs an audit event</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Operation</label>
+                <select id="api-test-op" class="border rounded px-3 py-2 w-full">
+                  <option value="list">List</option>
+                  <option value="create">Create</option>
+                  <option value="update">Update</option>
+                  <option value="delete">Delete</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">Model</label>
+                <select id="api-test-model" class="border rounded px-3 py-2 w-full"></select>
+                <div class="text-xs text-gray-500 mt-1">Uses the selected collection model</div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">API token</label>
+                <input id="api-test-token" class="border rounded px-3 py-2 w-full mono" placeholder="paste API token" />
+                <div class="text-xs text-gray-500 mt-1">Not stored server-side. Cached token can be used if available.</div>
+              </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4" id="api-test-pathvars">
+              <div>
+                <label class="block text-sm font-medium mb-1">ID (for update/delete)</label>
+                <input id="api-test-id" class="border rounded px-3 py-2 w-full mono" placeholder="row id" />
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="font-medium text-sm mb-2">Query parameters</div>
+              <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <div>
+                  <label class="block text-xs font-medium mb-1">limit</label>
+                  <input id="api-test-limit" type="number" class="border rounded px-3 py-2 w-full" placeholder="10" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium mb-1">skip</label>
+                  <input id="api-test-skip" type="number" class="border rounded px-3 py-2 w-full" placeholder="0" />
+                </div>
+                <div class="md:col-span-2">
+                  <label class="block text-xs font-medium mb-1">populate</label>
+                  <input id="api-test-populate" class="border rounded px-3 py-2 w-full" placeholder="field1,field2" />
+                </div>
+              </div>
+
+              <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-medium">filter (builder)</label>
+                    <button id="btn-filter-add" class="text-xs text-blue-600 hover:underline" type="button">Add</button>
+                  </div>
+                  <div id="api-test-filter-rows" class="space-y-2"></div>
+                  <div class="text-xs text-gray-500 mt-1">Produces JSON object used as <span class="mono">filter</span> query param.</div>
+                </div>
+                <div>
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-medium">sort (builder)</label>
+                    <button id="btn-sort-add" class="text-xs text-blue-600 hover:underline" type="button">Add</button>
+                  </div>
+                  <div id="api-test-sort-rows" class="space-y-2"></div>
+                  <div class="text-xs text-gray-500 mt-1">Values should be <span class="mono">1</span> or <span class="mono">-1</span>.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="font-medium text-sm">Body payload</div>
+                <div class="text-xs text-gray-500">Generated from selected model fields</div>
+              </div>
+              <div id="api-test-body-fields" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+              <div class="mt-2 text-xs text-gray-500" id="api-test-body-help"></div>
+            </div>
+
+            <div class="mt-4 flex gap-2">
+              <button id="btn-api-test-execute" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700" type="button">Execute</button>
+              <button id="btn-api-test-clear" class="bg-gray-200 text-gray-900 px-4 py-2 rounded hover:bg-gray-300" type="button">Clear</button>
+            </div>
+
+            <div id="api-test-result" class="mt-4 hidden">
+              <div class="text-sm text-gray-600 mb-1">Result</div>
+              <div class="border rounded p-3 bg-gray-50">
+                <div class="text-xs text-gray-600 mb-2" id="api-test-result-meta"></div>
+                <pre class="mono text-xs overflow-x-auto" id="api-test-result-body"></pre>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 bg-white border border-gray-200 rounded p-4">
             <h3 class="font-semibold mb-2">Token permissions</h3>
             <div class="text-sm text-gray-600 mb-4">Each token has per-table permissions: create/read/update/delete.</div>
 
@@ -1498,6 +1593,274 @@
     });
   }
 
+  function apiTestSetVisible() {
+    const op = document.getElementById('api-test-op').value;
+    const needsId = op === 'update' || op === 'delete';
+    document.getElementById('api-test-pathvars').classList.toggle('hidden', !needsId);
+    const needsBody = op === 'create' || op === 'update';
+    document.getElementById('api-test-body-fields').parentElement.classList.toggle('hidden', !needsBody);
+  }
+
+  function apiTestRenderModelOptions() {
+    const sel = document.getElementById('api-test-model');
+    if (!sel) return;
+    sel.innerHTML = '';
+    (state.models || []).forEach((m) => {
+      const opt = document.createElement('option');
+      opt.value = m.codeIdentifier;
+      opt.textContent = `${m.displayName} (${m.codeIdentifier})`;
+      sel.appendChild(opt);
+    });
+    const preferred = state.selectedModel ? state.selectedModel.codeIdentifier : null;
+    if (preferred && (state.models || []).some((m) => m.codeIdentifier === preferred)) {
+      sel.value = preferred;
+    }
+  }
+
+  function apiTestCurrentModel() {
+    const code = document.getElementById('api-test-model').value;
+    return (state.models || []).find((m) => m.codeIdentifier === code) || null;
+  }
+
+  function apiTestFieldInput(field) {
+    const type = String(field.type || '').toLowerCase();
+    const name = field.name;
+
+    const container = document.createElement('div');
+    container.className = 'bg-white border rounded p-3';
+
+    const label = document.createElement('div');
+    label.className = 'text-xs font-medium mb-1';
+    label.textContent = `${name} (${type}${field.required ? ', required' : ''})`;
+    container.appendChild(label);
+
+    const inputId = `api-test-body-${name}`;
+    let input;
+
+    if (type === 'boolean') {
+      input = document.createElement('input');
+      input.type = 'checkbox';
+      input.id = inputId;
+      input.className = 'border rounded';
+    } else if (type === 'number') {
+      input = document.createElement('input');
+      input.type = 'number';
+      input.id = inputId;
+      input.className = 'border rounded px-3 py-2 w-full';
+    } else if (type === 'date') {
+      input = document.createElement('input');
+      input.type = 'datetime-local';
+      input.id = inputId;
+      input.className = 'border rounded px-3 py-2 w-full';
+    } else if (type === 'object' || type === 'array' || type === 'ref[]') {
+      input = document.createElement('textarea');
+      input.id = inputId;
+      input.className = 'border rounded px-3 py-2 w-full mono text-xs';
+      input.rows = 3;
+      if (type === 'object') input.placeholder = '{"key":"value"}';
+      if (type === 'array') input.placeholder = '["value1","value2"]';
+      if (type === 'ref[]') input.placeholder = '["<id1>","<id2>"]';
+    } else {
+      input = document.createElement('input');
+      input.type = 'text';
+      input.id = inputId;
+      input.className = 'border rounded px-3 py-2 w-full';
+    }
+
+    input.dataset.fieldName = name;
+    input.dataset.fieldType = type;
+    container.appendChild(input);
+
+    const info = document.createElement('div');
+    info.className = 'text-xs text-gray-500 mt-1';
+    if (type === 'object' || type === 'array' || type === 'ref[]') {
+      info.textContent = `Example schema: ${input.placeholder}`;
+    } else if (type === 'ref') {
+      info.textContent = 'Provide referenced id as string';
+    } else {
+      info.textContent = '';
+    }
+    container.appendChild(info);
+
+    return container;
+  }
+
+  function apiTestRenderBodyFields() {
+    const wrap = document.getElementById('api-test-body-fields');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const model = apiTestCurrentModel();
+    const help = document.getElementById('api-test-body-help');
+
+    if (!model) {
+      if (help) help.textContent = 'Select a model to generate fields.';
+      return;
+    }
+
+    const fields = Array.isArray(model.fields) ? model.fields : [];
+    if (help) help.textContent = 'Complex fields accept per-field JSON. Empty fields are not sent.';
+    fields.forEach((f) => {
+      if (!f || !f.name) return;
+      wrap.appendChild(apiTestFieldInput(f));
+    });
+  }
+
+  function apiTestRenderPairs(containerId, kind) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = '';
+    const arr = state.apiTestUi[kind];
+    arr.forEach((row, idx) => {
+      const el = document.createElement('div');
+      el.className = 'grid grid-cols-12 gap-2';
+      el.innerHTML = `
+        <input class="border rounded px-2 py-1 col-span-5" placeholder="key" data-kind="${kind}" data-idx="${idx}" data-part="key" value="${row.key || ''}" />
+        <input class="border rounded px-2 py-1 col-span-5" placeholder="value" data-kind="${kind}" data-idx="${idx}" data-part="value" value="${row.value || ''}" />
+        <button class="col-span-2 text-xs text-red-600 hover:underline" type="button" data-kind="${kind}" data-idx="${idx}" data-action="remove">Remove</button>
+      `;
+      container.appendChild(el);
+    });
+
+    container.querySelectorAll('input').forEach((inp) => {
+      inp.addEventListener('input', () => {
+        const k = inp.dataset.kind;
+        const i = Number(inp.dataset.idx);
+        const part = inp.dataset.part;
+        state.apiTestUi[k][i][part] = inp.value;
+      });
+    });
+
+    container.querySelectorAll('button[data-action="remove"]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.kind;
+        const i = Number(btn.dataset.idx);
+        state.apiTestUi[k].splice(i, 1);
+        apiTestRenderPairs(containerId, k);
+      });
+    });
+  }
+
+  function apiTestBuildObject(kind) {
+    const out = {};
+    (state.apiTestUi[kind] || []).forEach((row) => {
+      const key = String(row.key || '').trim();
+      if (!key) return;
+      if (kind === 'sort') {
+        const n = Number(row.value);
+        if (n === 1 || n === -1) out[key] = n;
+        return;
+      }
+
+      const raw = row.value;
+      const trimmed = String(raw || '').trim();
+      if (!trimmed) return;
+      if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+        try {
+          out[key] = JSON.parse(trimmed);
+          return;
+        } catch {
+          out[key] = trimmed;
+          return;
+        }
+      }
+      out[key] = trimmed;
+    });
+    return out;
+  }
+
+  function apiTestCollectBody() {
+    const out = {};
+    document.querySelectorAll('#api-test-body-fields [data-field-name]').forEach((el) => {
+      const name = el.dataset.fieldName;
+      const type = el.dataset.fieldType;
+
+      if (el.tagName.toLowerCase() === 'input' && el.type === 'checkbox') {
+        if (el.checked) out[name] = true;
+        return;
+      }
+
+      const value = String(el.value || '').trim();
+      if (!value) return;
+
+      if (type === 'number') {
+        out[name] = Number(value);
+        return;
+      }
+      if (type === 'date') {
+        const dt = new Date(value);
+        out[name] = isNaN(dt.getTime()) ? value : dt.toISOString();
+        return;
+      }
+      if (type === 'object' || type === 'array' || type === 'ref[]') {
+        const parsed = safeJsonParse(value);
+        if (parsed === null) {
+          throw new Error(`Invalid JSON for field: ${name}`);
+        }
+        out[name] = parsed;
+        return;
+      }
+      out[name] = value;
+    });
+    return out;
+  }
+
+  async function apiTestExecute() {
+    const op = document.getElementById('api-test-op').value;
+    const modelCode = document.getElementById('api-test-model').value;
+    const token = document.getElementById('api-test-token').value.trim() || state.apiUi.selectedTokenValue || '';
+    const id = document.getElementById('api-test-id').value.trim();
+
+    const query = {
+      limit: document.getElementById('api-test-limit').value,
+      skip: document.getElementById('api-test-skip').value,
+      populate: document.getElementById('api-test-populate').value,
+    };
+    const filter = apiTestBuildObject('filter');
+    const sort = apiTestBuildObject('sort');
+    if (Object.keys(filter).length) query.filter = filter;
+    if (Object.keys(sort).length) query.sort = sort;
+
+    let body;
+    if (op === 'create' || op === 'update') {
+      body = apiTestCollectBody();
+    }
+
+    const payload = {
+      op,
+      modelCode,
+      pathVars: { id },
+      query,
+      body,
+      auth: { type: 'bearer', token },
+    };
+
+    const result = await api('/api/admin/headless/collections-api-test', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    const box = document.getElementById('api-test-result');
+    box.classList.remove('hidden');
+    document.getElementById('api-test-result-meta').textContent = `status=${result.status} durationMs=${result.durationMs}${result.bodyTruncated ? ' (audit body truncated)' : ''}`;
+    document.getElementById('api-test-result-body').textContent = JSON.stringify(result.body, null, 2);
+  }
+
+  function apiTestClear() {
+    document.getElementById('api-test-limit').value = '';
+    document.getElementById('api-test-skip').value = '';
+    document.getElementById('api-test-populate').value = '';
+    document.getElementById('api-test-id').value = '';
+    document.getElementById('api-test-token').value = '';
+    state.apiTestUi.filter = [];
+    state.apiTestUi.sort = [];
+    apiTestRenderPairs('api-test-filter-rows', 'filter');
+    apiTestRenderPairs('api-test-sort-rows', 'sort');
+    document.getElementById('api-test-result').classList.add('hidden');
+    document.getElementById('api-test-result-meta').textContent = '';
+    document.getElementById('api-test-result-body').textContent = '';
+    apiTestRenderBodyFields();
+  }
+
   // Init
   setTab('models');
   const originalLoadModels = loadModels;
@@ -1505,6 +1868,8 @@
     await originalLoadModels();
     renderDataModelsList();
     renderDataSelectedHeader();
+    apiTestRenderModelOptions();
+    apiTestRenderBodyFields();
   };
   loadModels();
 
@@ -1514,6 +1879,40 @@
   } else {
     setupCurlCopyButtons();
   }
+
+  state.apiTestUi = { filter: [], sort: [] };
+
+  document.getElementById('api-test-op').addEventListener('change', () => {
+    apiTestSetVisible();
+    renderCurlExamples();
+  });
+  document.getElementById('api-test-model').addEventListener('change', () => {
+    apiTestRenderBodyFields();
+    renderCurlExamples();
+  });
+
+  document.getElementById('btn-filter-add').addEventListener('click', () => {
+    state.apiTestUi.filter.push({ key: '', value: '' });
+    apiTestRenderPairs('api-test-filter-rows', 'filter');
+  });
+  document.getElementById('btn-sort-add').addEventListener('click', () => {
+    state.apiTestUi.sort.push({ key: '', value: '1' });
+    apiTestRenderPairs('api-test-sort-rows', 'sort');
+  });
+
+  apiTestRenderPairs('api-test-filter-rows', 'filter');
+  apiTestRenderPairs('api-test-sort-rows', 'sort');
+  apiTestSetVisible();
+
+  document.getElementById('btn-api-test-execute').addEventListener('click', async () => {
+    try {
+      await apiTestExecute();
+      toast('Executed', 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+  document.getElementById('btn-api-test-clear').addEventListener('click', apiTestClear);
 
   // If apis tab is active on load, ensure tokens are loaded
   if (state.activeTab === 'apis') {

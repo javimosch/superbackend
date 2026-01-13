@@ -26,6 +26,8 @@ router.post('/collections/:modelCode', adminHeadlessController.createCollectionI
 router.put('/collections/:modelCode/:id', adminHeadlessController.updateCollectionItem);
 router.delete('/collections/:modelCode/:id', adminHeadlessController.deleteCollectionItem);
 
+router.post('/collections-api-test', adminHeadlessController.executeCollectionsApiTest);
+
 // API tokens
 router.get('/tokens', adminHeadlessController.listTokens);
 router.get('/tokens/:id', adminHeadlessController.getToken);

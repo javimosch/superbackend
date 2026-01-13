@@ -10,6 +10,8 @@ const {
 const llmService = require('../services/llm.service');
 const { getSettingValue } = require('../services/globalSettings.service');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
+const axios = require('axios');
+const { logAudit, scrubObject } = require('../services/auditLogger');
 
 const {
   listApiTokens,
@@ -37,6 +39,53 @@ function toSafeJsonError(error) {
   if (code === 'NOT_FOUND') return { status: 404, body: { error: msg } };
   if (code === 'CONFLICT') return { status: 409, body: { error: msg } };
   return { status: 500, body: { error: msg } };
+}
+
+function safeJsonParse(value) {
+  try {
+    return JSON.parse(String(value || ''));
+  } catch {
+    return null;
+  }
+}
+
+function truncateStringByBytes(value, maxBytes) {
+  const str = String(value || '');
+  if (!maxBytes || maxBytes <= 0) return '';
+  const buf = Buffer.from(str, 'utf8');
+  if (buf.length <= maxBytes) return str;
+  return buf.slice(0, maxBytes).toString('utf8');
+}
+
+function sanitizeAndTruncateMeta(value, maxBytes) {
+  const scrubbed = scrubObject(value);
+  let json;
+  try {
+    json = JSON.stringify(scrubbed);
+  } catch {
+    json = JSON.stringify({ error: 'Non-serializable response body' });
+  }
+
+  const buf = Buffer.from(json, 'utf8');
+  if (buf.length <= maxBytes) {
+    return { truncated: false, value: scrubbed };
+  }
+
+  return {
+    truncated: true,
+    value: {
+      _truncated: true,
+      _maxBytes: maxBytes,
+      preview: truncateStringByBytes(json, maxBytes),
+    },
+  };
+}
+
+function buildLoopbackBaseUrl(req) {
+  const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+  const host = req.get('host');
+  const basePrefix = String(req.baseUrl || '').replace(/\/api\/admin\/headless$/, '');
+  return `${proto}://${host}${basePrefix}`;
 }
 
 function normalizeIndex(idx) {
@@ -792,6 +841,180 @@ exports.deleteCollectionItem = async (req, res) => {
   } catch (error) {
     console.error('Error deleting headless collection item:', error);
     return handleServiceError(res, error);
+  }
+};
+
+exports.executeCollectionsApiTest = async (req, res) => {
+  const startedAt = Date.now();
+  const MAX_META_BYTES = 10 * 1024;
+
+  const actor = getBasicAuthActor(req);
+  const payload = req.body && typeof req.body === 'object' ? req.body : {};
+
+  const op = String(payload.op || '').trim();
+  const modelCode = String(payload.modelCode || '').trim();
+  const tokenType = String(payload?.auth?.type || 'bearer').trim();
+  const token = String(payload?.auth?.token || '').trim();
+  const pathVars = payload.pathVars && typeof payload.pathVars === 'object' ? payload.pathVars : {};
+  const query = payload.query && typeof payload.query === 'object' ? payload.query : {};
+  const body = payload.body && typeof payload.body === 'object' ? payload.body : undefined;
+
+  if (!['list', 'create', 'update', 'delete'].includes(op)) {
+    return res.status(400).json({ error: 'Invalid op' });
+  }
+  if (!modelCode || !/^[a-z][a-z0-9_]*$/.test(modelCode)) {
+    return res.status(400).json({ error: 'Invalid modelCode' });
+  }
+  if (!token) {
+    return res.status(400).json({ error: 'Missing API token' });
+  }
+
+  const id = String(pathVars.id || '').trim();
+  if ((op === 'update' || op === 'delete') && !id) {
+    return res.status(400).json({ error: 'Missing id' });
+  }
+
+  let method;
+  let path;
+  if (op === 'list') {
+    method = 'GET';
+    path = `/api/headless/${encodeURIComponent(modelCode)}`;
+  } else if (op === 'create') {
+    method = 'POST';
+    path = `/api/headless/${encodeURIComponent(modelCode)}`;
+  } else if (op === 'update') {
+    method = 'PUT';
+    path = `/api/headless/${encodeURIComponent(modelCode)}/${encodeURIComponent(id)}`;
+  } else {
+    method = 'DELETE';
+    path = `/api/headless/${encodeURIComponent(modelCode)}/${encodeURIComponent(id)}`;
+  }
+
+  const params = {};
+  if (query.limit !== undefined && query.limit !== null && query.limit !== '') params.limit = Number(query.limit);
+  if (query.skip !== undefined && query.skip !== null && query.skip !== '') params.skip = Number(query.skip);
+  if (query.populate) params.populate = String(query.populate);
+
+  if (query.filter && typeof query.filter === 'object') {
+    params.filter = JSON.stringify(query.filter);
+  } else if (typeof query.filter === 'string' && query.filter.trim()) {
+    const parsed = safeJsonParse(query.filter);
+    if (parsed && typeof parsed === 'object') params.filter = JSON.stringify(parsed);
+  }
+
+  if (query.sort && typeof query.sort === 'object') {
+    params.sort = JSON.stringify(query.sort);
+  } else if (typeof query.sort === 'string' && query.sort.trim()) {
+    const parsed = safeJsonParse(query.sort);
+    if (parsed && typeof parsed === 'object') params.sort = JSON.stringify(parsed);
+  }
+
+  const headers = {};
+  if (tokenType === 'x-api-token') headers['X-API-Token'] = token;
+  else if (tokenType === 'x-api-key') headers['X-API-Key'] = token;
+  else headers.Authorization = `Bearer ${token}`;
+
+  let outcome = 'success';
+  let responseStatus = 0;
+  let responseHeaders = {};
+  let responseBody = null;
+
+  try {
+    const base = buildLoopbackBaseUrl(req);
+    const url = `${base}${path}`;
+
+    const axiosRes = await axios.request({
+      url,
+      method,
+      headers,
+      params,
+      data: op === 'create' || op === 'update' ? (body || {}) : undefined,
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+
+    responseStatus = axiosRes.status;
+    responseHeaders = axiosRes.headers || {};
+    responseBody = axiosRes.data;
+    if (responseStatus >= 400) outcome = 'failure';
+
+    const durationMs = Date.now() - startedAt;
+    const sanitized = sanitizeAndTruncateMeta(responseBody, MAX_META_BYTES);
+
+    await logAudit({
+      req,
+      actor,
+      action: 'headless.collections_api_test',
+      entityType: 'headless_collection',
+      entityId: modelCode,
+      targetType: 'headless_collection',
+      targetId: id || modelCode,
+      outcome,
+      meta: {
+        op,
+        modelCode,
+        request: {
+          method,
+          path,
+          query: scrubObject(query),
+          hasBody: Boolean(op === 'create' || op === 'update'),
+        },
+        response: {
+          status: responseStatus,
+          durationMs,
+          headers: {
+            'content-type': responseHeaders['content-type'],
+            'content-length': responseHeaders['content-length'],
+            'x-request-id': responseHeaders['x-request-id'],
+          },
+          body: sanitized.value,
+          bodyTruncated: sanitized.truncated,
+        },
+      },
+    });
+
+    return res.status(200).json({
+      ok: responseStatus < 400,
+      status: responseStatus,
+      durationMs,
+      headers: {
+        'content-type': responseHeaders['content-type'],
+        'content-length': responseHeaders['content-length'],
+        'x-request-id': responseHeaders['x-request-id'],
+      },
+      body: responseBody,
+      bodyTruncated: sanitized.truncated,
+    });
+  } catch (error) {
+    outcome = 'failure';
+    const durationMs = Date.now() - startedAt;
+
+    await logAudit({
+      req,
+      actor,
+      action: 'headless.collections_api_test',
+      entityType: 'headless_collection',
+      entityId: modelCode,
+      targetType: 'headless_collection',
+      targetId: id || modelCode,
+      outcome,
+      meta: {
+        op,
+        modelCode,
+        request: {
+          method,
+          path,
+          query: scrubObject(query),
+          hasBody: Boolean(op === 'create' || op === 'update'),
+        },
+        error: {
+          message: String(error?.message || 'Request failed'),
+        },
+        durationMs,
+      },
+    });
+
+    return res.status(502).json({ error: error?.message || 'Request failed' });
   }
 };
 

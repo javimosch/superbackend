@@ -32,6 +32,7 @@ What it can do:
 - CRUD table rows (editable grid)
 - Create API tokens + per-table permissions
 - Copy/paste cURL examples
+- Execute API requests from the Admin UI via a test form (uses real `/api/headless/*` endpoints through an admin proxy)
 
 ## API
 
@@ -160,6 +161,10 @@ Admin collections (UI helper APIs):
 - `PUT /api/admin/headless/collections/:modelCode/:id`
 - `DELETE /api/admin/headless/collections/:modelCode/:id`
 
+Admin API test execution:
+
+- `POST /api/admin/headless/collections-api-test`
+
 API tokens:
 
 - `GET /api/admin/headless/tokens`
@@ -183,6 +188,20 @@ Query params (GET list):
 - `filter` (JSON string)
 - `sort` (JSON string)
 - `populate` (comma-separated fields)
+
+## API test execution (Admin UI)
+
+The Admin UI provides a test form that executes real Headless CRUD requests by calling:
+
+- `POST /api/admin/headless/collections-api-test`
+
+The server performs the request against the corresponding `/api/headless/:modelCode` endpoint using the provided API token and returns the downstream response to the UI.
+
+Each test execution is logged to the audit system with action:
+
+- `headless.collections_api_test`
+
+The audit event includes request and response metadata (scrubbed) and stores a truncated response preview (10KB) in `meta`.
 
 ## cURL examples
 
