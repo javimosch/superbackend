@@ -262,9 +262,90 @@ const sendAccountDeletionEmail = async (email) => {
   });
 };
 
+const sendWelcomeEmail = async (email, name) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Welcome ${name}!</h2>
+      <p>Thank you for joining our service. We're excited to have you on board.</p>
+      <p>If you have any questions, feel free to reach out to our support team.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Welcome ${name}!`,
+    html,
+    type: "welcome",
+  });
+};
+
+const sendNotificationEmail = async (email, title, message) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>${title}</h2>
+      <p>${message}</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Notification: ${title}`,
+    html,
+    type: "notification",
+  });
+};
+
+const sendSubscriptionEmail = async (email, planName, status) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Subscription ${status}</h2>
+      <p>Plan: ${planName}</p>
+      <p>Status: ${status}</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Subscription ${status}`,
+    html,
+    type: "subscription",
+  });
+};
+
+const sendWaitingListEmail = async (email) => {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2>Welcome to our waiting list!</h2>
+      <p>Thanks for joining, ${email}!</p>
+      <p>We'll notify you as soon as a spot becomes available.</p>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: "Welcome to our waiting list!",
+    html,
+    type: "waiting-list",
+  });
+};
+
+const replaceTemplateVariables = (template, variables) => {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    const regex = new RegExp(`{{${key}}}`, "g");
+    result = result.replace(regex, value);
+  }
+  return result;
+};
+
 module.exports = {
   sendEmail,
   sendPasswordResetEmail,
   sendPasswordChangedEmail,
   sendAccountDeletionEmail,
+  sendWelcomeEmail,
+  sendNotificationEmail,
+  sendSubscriptionEmail,
+  sendWaitingListEmail,
+  replaceTemplateVariables,
 };

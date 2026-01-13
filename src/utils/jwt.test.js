@@ -35,7 +35,7 @@ describe('JWT Utilities', () => {
       expect(jwt.sign).toHaveBeenCalledWith(
         { userId: 'user123', role: 'user' },
         'test-access-secret',
-        { expiresIn: '15m' }
+        { expiresIn: '30d' }
       );
       expect(result).toBe(mockToken);
     });
@@ -49,7 +49,7 @@ describe('JWT Utilities', () => {
       expect(jwt.sign).toHaveBeenCalledWith(
         { userId: 'admin123', role: 'admin' },
         'test-access-secret',
-        { expiresIn: '15m' }
+        { expiresIn: '30d' }
       );
       expect(result).toBe(mockToken);
     });
@@ -63,7 +63,7 @@ describe('JWT Utilities', () => {
       expect(jwt.sign).toHaveBeenCalledWith(
         { userId: 'user123', role: 'user' },
         'access-secret-change-me',
-        { expiresIn: '15m' }
+        { expiresIn: '30d' }
       );
     });
   });
@@ -78,7 +78,7 @@ describe('JWT Utilities', () => {
       expect(jwt.sign).toHaveBeenCalledWith(
         { userId: 'user123' },
         'test-refresh-secret',
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
       );
       expect(result).toBe(mockToken);
     });
@@ -92,7 +92,7 @@ describe('JWT Utilities', () => {
       expect(jwt.sign).toHaveBeenCalledWith(
         { userId: 'user123' },
         'refresh-secret-change-me',
-        { expiresIn: '7d' }
+        { expiresIn: '30d' }
       );
     });
   });
