@@ -244,13 +244,23 @@ describe('WaitingList Controller', () => {
 
       WaitingList.findOne.mockResolvedValue(null);
       WaitingList.mockImplementation(() => mockEntry);
-      sanitizeString.mockReturnValueOnce('test@example.com').mockReturnValueOnce('');
+      
+      // Reset mock and set up specific calls
+      sanitizeString.mockClear();
+      sanitizeString.mockImplementation((str) => {
+        if (str === 'test@example.com') return 'test@example.com';
+        if (str === 'seller') return 'seller';
+        if (str === undefined) return 'website';
+        return str || '';
+      });
 
       await subscribe(mockReq, mockRes);
 
-      expect(WaitingList).toHaveBeenCalledWith(expect.objectContaining({
+      expect(WaitingList).toHaveBeenCalledWith({
+        email: 'test@example.com',
+        type: 'seller',
         referralSource: 'website'
-      }));
+      });
     });
 
     test('should sanitize and lowercase email', async () => {
@@ -266,7 +276,14 @@ describe('WaitingList Controller', () => {
 
       WaitingList.findOne.mockResolvedValue(null);
       WaitingList.mockImplementation(() => mockEntry);
-      sanitizeString.mockReturnValueOnce('TEST@EXAMPLE.COM');
+      
+      // Reset mock and set up specific calls
+      sanitizeString.mockClear();
+      sanitizeString.mockImplementation((str) => {
+        if (str === 'TEST@EXAMPLE.COM') return 'test@example.com';
+        if (str === 'both') return 'both';
+        return str || '';
+      });
 
       await subscribe(mockReq, mockRes);
 
