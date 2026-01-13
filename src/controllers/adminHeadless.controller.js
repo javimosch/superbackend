@@ -9,6 +9,7 @@ const {
 
 const llmService = require('../services/llm.service');
 const { getSettingValue } = require('../services/globalSettings.service');
+const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
 
 const {
   listApiTokens,
@@ -482,6 +483,43 @@ exports.aiModelBuilderChat = async (req, res) => {
       'You are helping define Headless CMS models for a Mongo-backed dynamic schema system.',
       'Return STRICT JSON only (no markdown, no prose outside JSON).',
       '',
+      'RESPONSE FORMAT (required):',
+      '{',
+      '  "assistantMessage": "Brief explanation of what you changed and why",',
+      '  "proposal": {',
+      '    "creates": [<modelDef>],',
+      '    "updates": [{ codeIdentifier, ops: [<patchOp>] }]',
+      '  },',
+      '  "questions": [],',
+      '  "warnings": []',
+      '}',
+      '',
+      'EXAMPLE RESPONSE:',
+      '{',
+      '  "assistantMessage": "Added age field as a number with optional validation",',
+      '  "proposal": {',
+      '    "creates": [],',
+      '    "updates": [',
+      '      {',
+      '        "codeIdentifier": "products",',
+      '        "ops": [',
+      '          {',
+      '            "op": "addField",',
+      '            "field": {',
+      '              "name": "age",',
+      '              "type": "number",',
+      '              "required": false',
+      '              "validation": { "min": 0, "max": 150 }',
+      '            }',
+      '          }',
+      '        ]',
+      '      }',
+      '    ]',
+      '  },',
+      '  "questions": [],',
+      '  "warnings": []',
+      '}',
+      '',
       'Model definition shape:',
       '{ codeIdentifier, displayName, description?, fields: [], indexes: [] }',
       '',
@@ -501,9 +539,6 @@ exports.aiModelBuilderChat = async (req, res) => {
       '',
       'Model-level indexes:',
       'indexes: [{ fields: { fieldName: 1, other: -1 }, options: { unique?: true } }]',
-      '',
-      'Your task: propose changes as a multi-operation proposal:',
-      '{ creates: [<modelDef>], updates: [{ codeIdentifier, ops: [<patchOp>] }] }',
       '',
       'Patch ops supported:',
       '- { op: "setDisplayName", value: string }',
@@ -546,6 +581,21 @@ exports.aiModelBuilderChat = async (req, res) => {
     let parsed;
     const rawResponse = String(llm.content || '').trim();
     console.log('[headless aiModelBuilder] Raw LLM response:', rawResponse);
+    
+    // Audit the interaction
+    const actor = getBasicAuthActor(req);
+    await createAuditEvent({
+      ...actor,
+      action: 'headless.aiModelBuilder.chat',
+      entityType: 'HeadlessModelDefinition',
+      metadata: {
+        providerKey,
+        model,
+        message,
+        rawResponse,
+        responseLength: rawResponse.length,
+      },
+    });
     
     try {
       parsed = JSON.parse(rawResponse);
