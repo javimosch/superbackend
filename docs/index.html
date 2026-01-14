@@ -3,23 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaasBackend</title>
+    <title>SuperBackend</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <meta name="description" content="SaasBackend documentation portal">
+    <meta name="description" content="SuperBackend documentation portal">
 </head>
 <body>
     <main class="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-slate-100">
         <div class="max-w-5xl mx-auto px-6 py-16">
             <header class="mb-12">
-                <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight">SaasBackend</h1>
+                <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight">SuperBackend</h1>
                 <p class="mt-4 text-lg text-slate-300">
-                    Documentation portal for the SaasBackend backend template.
+                    Documentation portal for the SuperBackend backend template.
                 </p>
                 <div class="mt-8 flex flex-col sm:flex-row gap-3">
                     <a href="documentation.html" class="inline-flex items-center justify-center rounded-lg bg-white text-slate-900 px-5 py-3 font-semibold hover:bg-slate-200">
                         Open documentation
                     </a>
-                    <a href="https://github.com/javimosch/saasbackend" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-lg border border-slate-500 px-5 py-3 font-semibold hover:bg-slate-800">
+                    <a href="https://github.com/javimosch/superbackend" target="_blank" rel="noreferrer" class="inline-flex items-center justify-center rounded-lg border border-slate-500 px-5 py-3 font-semibold hover:bg-slate-800">
                         GitHub
                     </a>
                 </div>
@@ -28,12 +28,12 @@
             <section class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
                 <h2 class="text-xl font-bold">60-second quickstart (npm)</h2>
                 <p class="mt-2 text-slate-300">
-                    SaasBackend is an npm package. Mount it into your existing Express app (recommended).
+                    SuperBackend is an npm package. Mount it into your existing Express app (recommended).
                 </p>
-                <pre class="mt-4 overflow-x-auto rounded-lg bg-slate-950 p-4 text-sm text-slate-200"><code>npm i saasbackend
+                <pre class="mt-4 overflow-x-auto rounded-lg bg-slate-950 p-4 text-sm text-slate-200"><code>npm i @intranefr/superbackend
 
 # .env (minimum)
-MONGODB_URI=mongodb://localhost:27017/saasbackend
+MONGODB_URI=mongodb://localhost:27017/superbackend
 JWT_ACCESS_SECRET=replace-me
 JWT_REFRESH_SECRET=replace-me
 ADMIN_USERNAME=admin
@@ -41,7 +41,7 @@ ADMIN_PASSWORD=admin
 
 # app.js
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 const app = express();
 app.use('/saas', middleware({ mongodbUri: process.env.MONGODB_URI }));
@@ -85,7 +85,7 @@ curl http://localhost:3000/saas/health</code></pre>
 
             <footer class="mt-16 text-sm text-slate-400">
                 <p>
-                    © SaasBackend documentation
+                    © SuperBackend documentation
                 </p>
             </footer>
         </div>

@@ -1436,10 +1436,10 @@
       const publicUrl = selected?.publicUrl ? `${API_BASE}${selected.publicUrl}` : null;
 
       const snippet =
-`const saasbackend = require('saasbackend');
+`const superbackend = require('@intranefr/superbackend');
 
-// Works when your host app mounts saasbackend.middleware(...) and shares the same process/DB connection
-const { assets } = saasbackend.services;
+// Works when your host app mounts superbackend.middleware(...) and shares the same process/DB connection
+const { assets } = superbackend.services;
 
 // 1) List assets (metadata)
 const { assets: list } = await assets.listAssets({

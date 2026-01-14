@@ -1,7 +1,7 @@
 # Stripe webhook testing guide
 
 ## What it is
-Quick reference for testing and monitoring Stripe webhooks in SaasBackend.
+Quick reference for testing and monitoring Stripe webhooks in SuperBackend.
 
 ## Base URL / mount prefix
 When mounted at `/saas`, all routes are prefixed:

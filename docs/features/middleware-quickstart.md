@@ -1,7 +1,7 @@
 # Middleware quickstart
 
 ## What it is
-Quick start guide for mounting SaasBackend into an existing Express app. This is the recommended integration path.
+Quick start guide for mounting SuperBackend into an existing Express app. This is the recommended integration path.
 
 ## Base URL / mount prefix
 When mounted at `/saas`, all routes are prefixed:

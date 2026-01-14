@@ -1,25 +1,25 @@
 # Middleware mode
 
 ## What it is
-Middleware mode lets you mount SaasBackend inside an existing Express app, instead of running it as its own server.
+Middleware mode lets you mount SuperBackend inside an existing Express app, instead of running it as its own server.
 
 Middleware mode is the recommended integration approach. Standalone mode may be deprecated in the future.
 
 This is useful when:
-- You already have an API server and want SaasBackend under a route prefix (for example `/saas`).
+- You already have an API server and want SuperBackend under a route prefix (for example `/saas`).
 - You want to share infrastructure (reverse proxy, auth, logging, deployment) with a parent app.
 
 ## Standalone vs middleware
-- **Standalone**: SaasBackend owns the Express app and listens on its own port.
-- **Middleware**: SaasBackend returns an Express router that you mount into a parent Express app.
+- **Standalone**: SuperBackend owns the Express app and listens on its own port.
+- **Middleware**: SuperBackend returns an Express router that you mount into a parent Express app.
 
 ## Basic usage
 
-Mount SaasBackend under `/saas`:
+Mount SuperBackend under `/saas`:
 
 ```js
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 const app = express();
 
@@ -49,8 +49,8 @@ Middleware mode accepts an options object.
 
 ### `mongodbUri`
 MongoDB connection string.
-- If provided, SaasBackend can connect using it.
-- If not provided, SaasBackend falls back to `process.env.MONGODB_URI`.
+- If provided, SuperBackend can connect using it.
+- If not provided, SuperBackend falls back to `process.env.MONGODB_URI`.
 
 ### `corsOrigin`
 Controls CORS behavior.
@@ -61,7 +61,7 @@ Supported formats:
 
 ## Important routing notes
 
-When you mount the router at `/saas`, all SaasBackend routes are prefixed.
+When you mount the router at `/saas`, all SuperBackend routes are prefixed.
 
 Examples:
 - Health check: `GET /saas/health`
@@ -70,11 +70,11 @@ Examples:
 
 ## Admin UI and assets
 
-In middleware mode, SaasBackend intentionally avoids changing your parent app’s view engine configuration.
+In middleware mode, SuperBackend intentionally avoids changing your parent app’s view engine configuration.
 
 That means:
 - Admin HTML pages are rendered without calling `app.set('view engine', ...)` on your app.
-- Admin static assets are served under the SaasBackend mount.
+- Admin static assets are served under the SuperBackend mount.
 
 Example (when mounted at `/saas`):
 - Admin UI: `GET /saas/admin/test`

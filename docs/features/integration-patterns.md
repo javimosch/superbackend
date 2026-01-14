@@ -9,12 +9,12 @@ Middleware mode is the recommended integration approach. Standalone mode may be 
 ```js
 require('dotenv').config();
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 const app = express();
 
 // Important: do NOT apply express.json() to the Stripe webhook path.
-// Safest approach: mount SaasBackend before your global body parsers.
+// Safest approach: mount SuperBackend before your global body parsers.
 app.use('/saas', middleware({
   mongodbUri: process.env.MONGODB_URI,
   corsOrigin: process.env.CORS_ORIGIN || '*'
@@ -27,7 +27,7 @@ app.listen(3000);
 
 ## Mounting under a prefix
 
-If you mount under `/saas`, all SaasBackend routes are prefixed.
+If you mount under `/saas`, all SuperBackend routes are prefixed.
 
 ```js
 app.use('/saas', middleware({ mongodbUri: process.env.MONGODB_URI }));
@@ -46,11 +46,11 @@ Examples:
 
 ### 1. Microservices architecture
 
-When integrating SaasBackend into a microservices setup:
+When integrating SuperBackend into a microservices setup:
 
 ```js
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 // Auth service
 const authApp = express();
@@ -88,7 +88,7 @@ CMD ["node", "server.js"]
 ```yaml
 version: '3.8'
 services:
-  saasbackend:
+  superbackend:
     build: .
     environment:
       - MONGODB_URI=mongodb://mongo:27017/saasbackend
@@ -115,32 +115,32 @@ volumes:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: saasbackend
+  name: superbackend
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: saasbackend
+      app: superbackend
   template:
     metadata:
       labels:
-        app: saasbackend
+        app: superbackend
     spec:
       containers:
-      - name: saasbackend
-        image: your-registry/saasbackend:latest
+      - name: superbackend
+        image: your-registry/superbackend:latest
         ports:
         - containerPort: 3000
         env:
         - name: MONGODB_URI
           valueFrom:
             secretKeyRef:
-              name: saasbackend-secrets
+              name: superbackend-secrets
               key: mongodb-uri
         - name: JWT_ACCESS_SECRET
           valueFrom:
             secretKeyRef:
-              name: saasbackend-secrets
+              name: superbackend-secrets
               key: jwt-secret
         livenessProbe:
           httpGet:
@@ -159,10 +159,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: saasbackend-service
+  name: superbackend-service
 spec:
   selector:
-    app: saasbackend
+    app: superbackend
   ports:
   - protocol: TCP
     port: 80
@@ -178,7 +178,7 @@ server {
     server_name your-domain.com;
 
     location /saas/ {
-        proxy_pass http://saasbackend:3000/;
+        proxy_pass http://superbackend:3000/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -205,8 +205,8 @@ server {
     ServerName your-domain.com
     
     ProxyPreserveHost On
-    ProxyPass /saas/ http://saasbackend:3000/
-    ProxyPassReverse /saas/ http://saasbackend:3000/
+    ProxyPass /saas/ http://superbackend:3000/
+    ProxyPassReverse /saas/ http://superbackend:3000/
     
     # Your main application
     ProxyPass / http://your-frontend:3000/
@@ -218,7 +218,7 @@ server {
 
 Stripe signature verification requires the raw request body.
 
-SaasBackend registers webhook handlers using `express.raw({ type: 'application/json' })` for:
+SuperBackend registers webhook handlers using `express.raw({ type: 'application/json' })` for:
 
 - `POST /api/stripe/webhook`
 - `POST /api/stripe-webhook` (legacy)
@@ -226,7 +226,7 @@ SaasBackend registers webhook handlers using `express.raw({ type: 'application/j
 ### Rule of thumb
 
 - If your parent app uses `app.use(express.json())` globally, it can break Stripe signature validation.
-- Prefer mounting SaasBackend **before** your global JSON body parser.
+- Prefer mounting SuperBackend **before** your global JSON body parser.
 
 When mounting under a prefix (example `/saas`):
 
@@ -281,7 +281,7 @@ curl -u "$ADMIN_USERNAME:$ADMIN_PASSWORD" \
 
 ## CORS patterns
 
-### Let SaasBackend handle CORS
+### Let SuperBackend handle CORS
 
 ```js
 app.use('/saas', middleware({
@@ -529,6 +529,6 @@ MONGODB_URI=mongodb://mongo:27017/saasbackend
 
 **Solution:** Ensure you're using the middleware export correctly:
 ```js
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 app.use('/saas', middleware({ ... }));
 ```

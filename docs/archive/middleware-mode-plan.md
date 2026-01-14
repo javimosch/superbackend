@@ -12,9 +12,9 @@ This document outlines the plan to enable a middleware mode for the SaaS backend
 
 ## Proposed Changes
 
-### 1. `saasbackend` NPM Package Structure
+### 1. `@intranefr/superbackend` NPM Package Structure
 
-The application will be published as an npm package named `saasbackend`. This package will expose two primary ways to use the backend:
+The application will be published as an npm package named `@intranefr/superbackend`. This package will expose two primary ways to use the backend:
 
 *   **Standalone Server:** A function to start the full SaaS backend application, including the landing page and its own static asset serving.
 *   **Express Middleware:** A function that returns an `express.Router()` instance, exposing only the API routes and admin views, suitable for mounting within another Express.js application.
@@ -23,15 +23,15 @@ The application will be published as an npm package named `saasbackend`. This pa
 
 The `package.json` `main` entry will point to a file (e.g., `index.js`) that exports these two functionalities.
 
-*   **`saasbackend.server(options)`:** A function that initializes and starts the standalone server. `options` can include configuration like port, database connection, etc.
-*   **`saasbackend.middleware(options)`:** A function that returns an `express.Router()` instance. `options` can include configuration like database connection, CORS origin, JWT secret, etc.
+*   **`@intranefr/superbackend.server(options)`:** A function that initializes and starts the standalone server. `options` can include configuration like port, database connection, etc.
+*   **`@intranefr/superbackend.middleware(options)`:** A function that returns an `express.Router()` instance. `options` can include configuration like database connection, CORS origin, JWT secret, etc.
 
 ### 3. Internal Logic
 
 The internal implementation will still leverage conditional logic based on an internal `mode` parameter or environment variable if needed, but the external interface will be through the exported functions.
 
-*   **Conditional Root Route & Static Files:** The landing page route and the primary static file serving will only be registered when `saasbackend.server()` is used.
-*   **Admin Static Assets:** When `saasbackend.middleware()` is used, static assets for admin views will be served under a configurable path (defaulting to `/admin/assets`) within the returned router.
+*   **Conditional Root Route & Static Files:** The landing page route and the primary static file serving will only be registered when `@intranefr/superbackend.server()` is used.
+*   **Admin Static Assets:** When `@intranefr/superbackend.middleware()` is used, static assets for admin views will be served under a configurable path (defaulting to `/admin/assets`) within the returned router.
 
 ### 5. Documentation
 

@@ -369,9 +369,9 @@
         <div class="mt-4 bg-blue-50 border-l-4 border-blue-500 p-4 text-sm text-blue-900">
           <p class="font-semibold mb-1">Storage model</p>
           <p>Providers and prompts are stored in <code>GlobalSetting</code> rows as JSON under keys <code>llm.providers</code> and <code>llm.prompts</code>. Use the internal service:</p>
-          <pre class="mt-2 bg-blue-100 rounded p-2 text-xs overflow-auto">const saasbackend = require('saasbackend');
+          <pre class="mt-2 bg-blue-100 rounded p-2 text-xs overflow-auto">const superbackend = require('@intranefr/superbackend');
 
-const result = await saasbackend.services.llm.call('tell_joke', {
+const result = await superbackend.services.llm.call('tell_joke', {
   theme: 'universe',
 }, {
   temperature: 0.8,

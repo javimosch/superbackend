@@ -4,7 +4,7 @@
 
 This feature stores an append-only audit log of key actions in MongoDB.
 
-It is intended for apps that mount `saasbackend` as Express middleware and want:
+It is intended for apps that mount `@intranefr/superbackend` as Express middleware and want:
 
 - A server-side record of admin actions (example: admin updates a user).
 - A server-side record of user actions on key endpoints.
@@ -38,8 +38,8 @@ In this document we use `${BASE_URL}` which should include the mount prefix.
 ### Headers
 
 - `X-Request-Id`
-  - If the client provides it, `saasbackend` will propagate it.
-  - If not provided, `saasbackend` will generate one and echo it back in responses.
+  - If the client provides it, `@intranefr/superbackend` will propagate it.
+  - If not provided, `@intranefr/superbackend` will generate one and echo it back in responses.
 
 ## API
 

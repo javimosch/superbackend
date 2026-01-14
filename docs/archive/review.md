@@ -21,7 +21,7 @@ This is a solid foundation for a SaaS backend. It's well-structured, uses good t
 *   **Error Handling:** The error handling is very basic. A more advanced error handling middleware could be implemented to handle different types of errors (e.g., validation errors, database errors, etc.) in a more consistent way.
 *   **Documentation:** While the code is relatively easy to understand, adding more comprehensive documentation, especially for the API endpoints, would be beneficial. The `index.js` file has a good list of endpoints, but it could be expanded into a more formal API documentation using a tool like Swagger or by generating it from the code.
 *   **Configuration Management:** While `dotenv` is used, a more structured approach to configuration management could be beneficial, especially as the application grows. This could involve using a dedicated configuration library or a more structured configuration file.
-*   **Naming:** The project name "saasbackend" in `package.json` is not ideal. A better name would be "saas-backend" or "SaaS Backend" to improve readability.
+*   **Naming:** The project name "@intranefr/superbackend" in `package.json` is not ideal. A better name would be "saas-backend" or "SaaS Backend" to improve readability.
 
 ## Scoring Breakdown
 

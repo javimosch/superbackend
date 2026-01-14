@@ -2,7 +2,7 @@
 
 ## What it is
 
-SaasBackend includes an email service used for user-facing lifecycle emails such as:
+SuperBackend includes an email service used for user-facing lifecycle emails such as:
 
 - Password reset
 - Password changed confirmation

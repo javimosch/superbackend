@@ -1,7 +1,7 @@
 # Production checklist
 
 ## What it is
-Copy/paste oriented checklist to harden SaasBackend for production. Middleware mode is the recommended integration approach.
+Copy/paste oriented checklist to harden SuperBackend for production. Middleware mode is the recommended integration approach.
 
 ## Base URL / mount prefix
 When mounted at `/saas`, all routes are prefixed:

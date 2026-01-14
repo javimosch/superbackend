@@ -1,20 +1,20 @@
 # Getting started
 
-This guide assumes you are consuming **SaasBackend as an npm package** and mounting it into your existing Express app (recommended).
+This guide assumes you are consuming **SuperBackend as an npm package** and mounting it into your existing Express app (recommended).
 
 ## Install
 
 ```bash
-npm i saasbackend
+npm i @intranefr/superbackend
 ```
 
 ## Minimal setup (middleware mode)
 
-Create an Express app and mount SaasBackend under a prefix (example: `/saas`).
+Create an Express app and mount SuperBackend under a prefix (example: `/saas`).
 
 ```js
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 const app = express();
 
@@ -38,7 +38,7 @@ At minimum:
 
 If you use global settings encryption:
 
-- `SAASBACKEND_ENCRYPTION_KEY`
+- `SUPERBACKEND_ENCRYPTION_KEY`
 
 ## Verify it’s running
 

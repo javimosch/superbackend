@@ -2,7 +2,7 @@
 
 ## What it is
 
-Global settings are key/value records stored in MongoDB that let you configure SaasBackend at runtime.
+Global settings are key/value records stored in MongoDB that let you configure SuperBackend at runtime.
 
 Use cases:
 
@@ -19,7 +19,7 @@ Encrypted settings are stored encrypted at rest and decrypted by the backend whe
 
 Important:
 
-- To use encrypted settings, you must provide `SAASBACKEND_ENCRYPTION_KEY` in the environment.
+- To use encrypted settings, you must provide `SUPERBACKEND_ENCRYPTION_KEY` in the environment.
 - If the encryption key changes, previously stored encrypted values may become undecryptable.
 
 Example encrypted keys you may store:
@@ -103,6 +103,6 @@ curl -X PUT -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
 
 Common causes:
 
-- `SAASBACKEND_ENCRYPTION_KEY` is missing.
-- `SAASBACKEND_ENCRYPTION_KEY` is different from the key that was used to encrypt the stored value.
+- `SUPERBACKEND_ENCRYPTION_KEY` is missing.
+- `SUPERBACKEND_ENCRYPTION_KEY` is different from the key that was used to encrypt the stored value.
 - The stored value is not valid for its consumer (for example a Stripe key that doesn’t start with `sk_`).

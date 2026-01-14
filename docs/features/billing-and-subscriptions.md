@@ -2,7 +2,7 @@
 
 ## What it is
 
-SaasBackend integrates with Stripe to:
+SuperBackend integrates with Stripe to:
 
 - Create Checkout sessions for subscriptions or one-time payments
 - Redirect users to the Billing Portal

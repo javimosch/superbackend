@@ -25,7 +25,7 @@ S3_ENDPOINT=http://localhost:9000
 S3_REGION=us-east-1
 S3_ACCESS_KEY_ID=minioadmin
 S3_SECRET_ACCESS_KEY=minioadmin
-S3_BUCKET=saasbackend
+S3_BUCKET=superbackend
 S3_FORCE_PATH_STYLE=true
 ```
 
@@ -40,7 +40,7 @@ Each asset is tracked in MongoDB via the `Asset` model:
   _id: ObjectId,
   key: "assets/2024/01/abc123.jpg",      // storage path
   provider: "s3" | "fs",
-  bucket: "saasbackend" | "fs",
+  bucket: "superbackend" | "fs",
   originalName: "photo.jpg",
   contentType: "image/jpeg",
   sizeBytes: 102400,

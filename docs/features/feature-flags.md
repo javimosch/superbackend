@@ -188,7 +188,7 @@ Example:
 Notes:
 
 - The middleware sets a cookie `saas_anon_id` (if missing) to keep percentage rollouts stable for anonymous visitors.
-- If you mount SaasBackend under a prefix (example `/saas`), EJS locals still work the same way; only your URLs change.
+- If you mount SuperBackend under a prefix (example `/saas`), EJS locals still work the same way; only your URLs change.
 
 ## Troubleshooting
 

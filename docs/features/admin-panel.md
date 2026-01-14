@@ -2,14 +2,14 @@
 
 ## What it is
 
-SaasBackend ships with a basic-auth protected admin UI for common operational tasks.
+SuperBackend ships with a basic-auth protected admin UI for common operational tasks.
 
 Middleware mode is the recommended integration approach. Standalone mode may be deprecated in the future.
 
 It is intentionally simple and is meant as:
 
 - A starter internal admin panel
-- A debugging surface while integrating SaasBackend
+- A debugging surface while integrating SuperBackend
 
 ## Access
 
@@ -109,7 +109,7 @@ curl -X POST -u "${ADMIN_USERNAME}:${ADMIN_PASSWORD}" \
     "userIds": ["USER_ID"],
     "type": "info",
     "title": "Hello",
-    "message": "Welcome to SaasBackend",
+    "message": "Welcome to SuperBackend",
     "channel": "in_app"
   }' \
   "${BASE_URL}/api/admin/notifications/send"

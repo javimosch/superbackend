@@ -15,7 +15,7 @@ A stateless utility that handles the logic of permission matching.
 - **API:** `hasPermission(userPermissions, requiredPermission)`
 
 ### B. Standard Capability Map (`src/utils/rbac/defaults.js`)
-Defines the "Out-of-the-box" mapping for existing `ref-saasbackend` roles.
+Defines the "Out-of-the-box" mapping for existing `ref-superbackend` roles.
 - **Example Mapping:**
   ```javascript
   {

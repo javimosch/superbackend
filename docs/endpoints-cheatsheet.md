@@ -1,12 +1,12 @@
 ## API Endpoints Cheatsheet (LLM-friendly)
 
-This file is a compact, current snapshot of the SaasBackend API surface.
+This file is a compact, current snapshot of the SuperBackend API surface.
 
 Only the sections above the "Legacy appendix" are intended to be used by LLMs.
 
 ## Base URL / mounting
 
-If you mount SaasBackend under a prefix (example `/saas`), **every path below becomes prefixed**:
+If you mount SuperBackend under a prefix (example `/saas`), **every path below becomes prefixed**:
 
 - `/saas/api/...`
 - `/saas/admin/...`

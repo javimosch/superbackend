@@ -248,7 +248,7 @@
     }
 
     function buildSnippet() {
-      const snippet = `const { getJsonConfigValueBySlug } = require('saasbackend').services.jsonConfigs;\n\nasync function loadSeoConfig() {\n  const seo = await getJsonConfigValueBySlug('seo-config');\n  return seo;\n}`;
+      const snippet = `const { getJsonConfigValueBySlug } = require('@intranefr/superbackend').services.jsonConfigs;\n\nasync function loadSeoConfig() {\n  const seo = await getJsonConfigValueBySlug('seo-config');\n  return seo;\n}`;
       document.getElementById('dev-snippet').textContent = snippet;
     }
 

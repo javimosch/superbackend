@@ -2,28 +2,28 @@
 
 ## Recommendation: middleware-first
 
-SaasBackend supports two integration modes:
+SuperBackend supports two integration modes:
 
-- **Middleware mode (recommended):** mount SaasBackend into an existing Express app.
-- **Standalone mode:** run SaasBackend as its own server.
+- **Middleware mode (recommended):** mount SuperBackend into an existing Express app.
+- **Standalone mode:** run SuperBackend as its own server.
 
 **Middleware mode is the recommended integration path.** Standalone mode may be deprecated in the future.
 
 ## Getting started (npm package)
 
-SaasBackend is published as an npm package and can be mounted into your existing Express app.
+SuperBackend is published as an npm package and can be mounted into your existing Express app.
 
 Install:
 
 ```bash
-npm i saasbackend
+npm i @intranefr/superbackend
 ```
 
 Minimal middleware mode setup:
 
 ```js
 const express = require('express');
-const { middleware } = require('saasbackend');
+const { middleware } = require('@intranefr/superbackend');
 
 const app = express();
 
@@ -87,7 +87,7 @@ Supported values:
 - `https://example.com`
 - `https://a.com,https://b.com`
 
-If you handle CORS in the parent app, disable SaasBackend CORS in middleware mode:
+If you handle CORS in the parent app, disable SuperBackend CORS in middleware mode:
 
 ```js
 app.use('/saas', middleware({ corsOrigin: false }));

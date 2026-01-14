@@ -229,7 +229,14 @@
       function updateSnippet() {
         const slug = $('slug').value || '<slug>';
         const snippet =
-`const saasbackend = require('saasbackend');\n\n// Works when your host app mounts saasbackend.middleware(...) and shares the same process/DB connection\nconst { getJsonConfig } = saasbackend.services.jsonConfigs;\n\nconst cfg = await getJsonConfig('${slug}', {\n  bypassCache: false,\n});\n`;
+`const superbackend = require('@intranefr/superbackend');
+
+// Works when your host app mounts superbackend.middleware(...) and shares the same process/DB connection
+const { getJsonConfig } = superbackend.services.jsonConfigs;
+
+const cfg = await getJsonConfig('${slug}', {
+  bypassCache: false,
+});\n`;
         $('snippet').textContent = snippet;
       }
 

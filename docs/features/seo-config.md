@@ -127,7 +127,7 @@ curl "${BASE_URL}/api/json-configs/seo-config"
 ### Integration example
 
 ```javascript
-const { getJsonConfigValueBySlug } = require('saasbackend').services.jsonConfigs;
+const { getJsonConfigValueBySlug } = require('@intranefr/superbackend').services.jsonConfigs;
 
 async function getSeoForRoute(route) {
   const seo = await getJsonConfigValueBySlug('seo-config');

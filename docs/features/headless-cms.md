@@ -13,7 +13,7 @@ All headless collection names in MongoDB are **prefixed**:
 
 ## Base URL / mount prefix
 
-If SaasBackend is mounted under a prefix (example `/saas`), every route below is prefixed.
+If SuperBackend is mounted under a prefix (example `/saas`), every route below is prefixed.
 
 Example:
 

@@ -4,7 +4,7 @@
 
 This feature provides aggregated error tracking (frontend + backend) stored in MongoDB.
 
-It is intended for apps that mount `saasbackend` as Express middleware and want:
+It is intended for apps that mount `@intranefr/superbackend` as Express middleware and want:
 
 - A frontend hook to report client-side errors.
 - A server-side aggregation layer (fingerprinting + samples) for debugging.
@@ -48,8 +48,8 @@ In this document we use `${BASE_URL}` which should include the mount prefix.
 ### Headers
 
 - `X-Request-Id`
-  - If the client provides it, `saasbackend` will propagate it.
-  - If not provided, `saasbackend` will generate one and echo it back in responses.
+  - If the client provides it, `@intranefr/superbackend` will propagate it.
+  - If not provided, `@intranefr/superbackend` will generate one and echo it back in responses.
 
 ## API
 
@@ -160,7 +160,7 @@ It can:
 
 ### Browser SDK (recommended)
 
-You can install the browser SDK with a single script tag. It will attach to `window.saasbackend` (creating it if missing), and create `saasbackend.errorTracking`.
+You can install the browser SDK with a single script tag. It will attach to `window.superbackend` (creating it if missing), and create `superbackend.errorTracking`.
 
 ```html
 <script src="${BASE_URL}/api/error-tracking/browser-sdk"></script>
@@ -175,7 +175,7 @@ Notes:
 #### Identify user: pass a JWT bearer header
 
 ```js
-saasbackend.errorTracking.config({
+superbackend.errorTracking.config({
   headers: { authorization: `Bearer ${token}` }
 })
 ```
@@ -183,7 +183,7 @@ saasbackend.errorTracking.config({
 #### Identify user: provide a dynamic auth header getter
 
 ```js
-saasbackend.errorTracking.config({
+superbackend.errorTracking.config({
   getAuthHeader: () => `Bearer ${token}`
 })
 ```
@@ -192,12 +192,12 @@ saasbackend.errorTracking.config({
 
 Planned package:
 
-- `@saasbackend/sdk/error-tracking/browser`
+- `@intranefr/superbackend`
 
 Example usage:
 
 ```js
-import { createErrorTrackingClient } from '@saasbackend/sdk/error-tracking/browser';
+import { createErrorTrackingClient } from '@intranefr/superbackend';
 
 const client = createErrorTrackingClient({
   endpoint: '/api/log/error',
