@@ -74,7 +74,7 @@ const sendEmail = async ({
     from ||
     (await getSetting(
       "EMAIL_FROM",
-      process.env.EMAIL_FROM || "SaaSBackend <no-reply@resend.dev>",
+      process.env.EMAIL_FROM || "SuperBackend <no-reply@resend.dev>",
     ));
   const toArray = Array.isArray(to) ? to : [to];
 

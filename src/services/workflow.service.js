@@ -5,7 +5,7 @@ const { NodeVM } = require('vm2');
 
 /**
  * Workflow Service
- * Handles execution of stacked workflow nodes within SaaSBackend.
+ * Handles execution of stacked workflow nodes within SuperBackend.
  */
 class WorkflowService {
   constructor(workflowId, initialContext = {}) {

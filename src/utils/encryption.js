@@ -1,9 +1,11 @@
 const crypto = require('crypto');
 
 function getEncryptionKey() {
-  const raw = process.env.SAASBACKEND_ENCRYPTION_KEY;
+  // Try new name first, then fallback to old name for backward compatibility
+  const raw = process.env.SUPERBACKEND_ENCRYPTION_KEY || process.env.SAASBACKEND_ENCRYPTION_KEY;
+  
   if (!raw) {
-    throw new Error('SAASBACKEND_ENCRYPTION_KEY is required for encrypted settings');
+    throw new Error('SUPERBACKEND_ENCRYPTION_KEY (or SAASBACKEND_ENCRYPTION_KEY for compatibility) is required for encrypted settings');
   }
 
   let key;
@@ -23,7 +25,7 @@ function getEncryptionKey() {
 
   if (key.length !== 32) {
     throw new Error(
-      'SAASBACKEND_ENCRYPTION_KEY must be 32 bytes (base64-encoded 32 bytes, hex 64 chars, or 32-char utf8)',
+      'SUPERBACKEND_ENCRYPTION_KEY (or SAASBACKEND_ENCRYPTION_KEY) must be 32 bytes (base64-encoded 32 bytes, hex 64 chars, or 32-char utf8)',
     );
   }
 

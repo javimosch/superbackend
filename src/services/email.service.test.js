@@ -77,7 +77,7 @@ describe('Email Service', () => {
       const result = await emailService.sendEmail(emailData);
 
       expect(mockResend.emails.send).toHaveBeenCalledWith({
-        from: 'SaaSBackend <no-reply@resend.dev>',
+        from: 'SuperBackend <no-reply@resend.dev>',
         to: ['recipient@example.com'],
         subject: 'Test Subject',
         html: '<h1>Test Email</h1>',
@@ -137,7 +137,7 @@ describe('Email Service', () => {
 
       expect(mockResend.emails.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          from: 'SaaSBackend <no-reply@resend.dev>'
+          from: 'SuperBackend <no-reply@resend.dev>'
         })
       );
     }, 10000);

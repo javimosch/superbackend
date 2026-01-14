@@ -57,7 +57,7 @@ class WebhookService {
         headers: {
           'Content-Type': 'application/json',
           'X-SaaS-Signature': signature,
-          'User-Agent': 'SaaSBackend-Webhook/1.0'
+          'User-Agent': 'SuperBackend-Webhook/1.0'
         },
         timeout: timeout
       }).catch(err => {
@@ -87,7 +87,7 @@ class WebhookService {
         headers: {
           'Content-Type': 'application/json',
           'X-SaaS-Signature': signature,
-          'User-Agent': 'SaaSBackend-Webhook/1.0'
+          'User-Agent': 'SuperBackend-Webhook/1.0'
         },
         timeout: timeout
       });

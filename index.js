@@ -2,7 +2,7 @@ require("dotenv").config({ path: process.env.ENV_FILE || ".env" });
 const express = require("express");
 
 /**
- * Creates the SaaS backend as Express middleware
+ * Creates the SuperBackend as Express middleware
  * @param {Object} options - Configuration options
  * @param {string} options.mongodbUri - MongoDB connection string
  * @param {string} options.corsOrigin - CORS origin(s)
@@ -13,7 +13,7 @@ const express = require("express");
 const middleware = require("./src/middleware");
 
 /**
- * Creates and starts a standalone SaaS backend server
+ * Creates and starts a standalone SuperBackend server
  * @param {Object} options - Configuration options
  * @param {number} options.port - Port to listen on
  * @param {string} options.mongodbUri - MongoDB connection string
@@ -28,7 +28,7 @@ function startServer(options = {}) {
 
   // Start server
   const server = app.listen(PORT, () => {
-    console.log(`🚀 SaaSBackend standalone server running on http://localhost:${PORT}`);
+    console.log(`🚀 SuperBackend standalone server running on http://localhost:${PORT}`);
   });
 
   return { app, server };
@@ -37,7 +37,9 @@ function startServer(options = {}) {
 const saasbackend = {
   server: startServer,
   middleware: (options = {}) => {
-    globalThis.saasbackend = saasbackend;
+    // Set both registries for backward compatibility
+    globalThis.superbackend = saasbackend;
+    globalThis.saasbackend = saasbackend; // Legacy support
     return middleware(options);
   },
   services: {

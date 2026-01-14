@@ -1,7 +1,11 @@
 const migrationService = require('../services/migration.service');
 
 function getModelRegistry() {
-  return globalThis?.saasbackend?.models || null;
+  // Try new registry first, then fallback to old registry for backward compatibility
+  if (globalThis?.saasbackend?.models && !globalThis?.superbackend?.models) {
+    console.warn('Deprecation: globalThis.saasbackend is deprecated. Use globalThis.superbackend instead.');
+  }
+  return globalThis?.superbackend?.models || globalThis?.saasbackend?.models || null;
 }
 
 function getModelByName(modelName) {
