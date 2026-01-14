@@ -7,9 +7,27 @@ This guide outlines the migration path for the SDK packages from `@saasbackend/*
 ## Current State
 
 ### Browser Error Tracking SDK
-- **Package**: `@saasbackend/error-tracking-browser-sdk`
-- **Version**: 1.0.0
-- **Global Variable**: `saasbackendErrorTrackingEmbed` (being updated to `superbackendErrorTrackingEmbed`)
+- **Current Package**: `@saasbackend/error-tracking-browser-sdk` (v1.0.1 - deprecated)
+- **Future Package**: `@intranefr/superbackend-error-tracking-browser-sdk` (v2.0.0)
+- **Legacy Global Variable**: `saasbackendErrorTrackingEmbed` (root package build)
+- **New Global Variable**: `superbackendErrorTrackingEmbed` (SDK package build)
+
+### Build Approaches
+
+#### Legacy Build Approach (Current - Root Package)
+```bash
+# Uses root package build script (maintains backward compatibility)
+npm run build:sdk:error-tracking:browser
+# Global variable: saasbackendErrorTrackingEmbed
+```
+
+#### New Build Approach (SDK Package)
+```bash
+# Uses SDK package build script (new naming)
+cd sdk/error-tracking/browser
+npm run build
+# Global variable: superbackendErrorTrackingEmbed
+```
 
 ## Migration Timeline
 
@@ -52,12 +70,23 @@ import { ErrorTracking } from '@intranefr/superbackend-error-tracking-browser-sd
 
 #### Step 3: Update Global Variable References
 ```javascript
-// Old (deprecated)
+// Legacy build approach (root package)
 window.saasbackendErrorTrackingEmbed
 
-// New (recommended)
+// New build approach (SDK package)
 window.superbackendErrorTrackingEmbed
 ```
+
+#### Step 4: Choose Build Approach
+```bash
+# Option 1: Legacy build (maintains existing global variable)
+npm run build:sdk:error-tracking:browser
+
+# Option 2: New build (uses new global variable)
+cd sdk/error-tracking/browser && npm run build
+```
+
+**Note:** The legacy build approach maintains backward compatibility for existing installations. The new build approach is recommended for new implementations.
 
 ### For Developers
 
@@ -74,9 +103,18 @@ window.superbackendErrorTrackingEmbed
 ```
 
 #### Step 2: Update Build Configuration
-- Update global variable name in build script
-- Update package metadata
-- Update documentation
+```json
+{
+  "scripts": {
+    // New SDK package build script (produces new global variable)
+    "build": "esbuild src/embed.js --bundle --format=iife --global-name=superbackendErrorTrackingEmbed --outfile=dist/embed.iife.js --minify"
+  }
+}
+```
+
+**Build Script Compatibility:**
+- **Root package script** (`build:sdk:error-tracking:browser`): Maintains `saasbackendErrorTrackingEmbed` for backward compatibility
+- **SDK package script** (`build`): Uses `superbackendErrorTrackingEmbed` for new implementations
 
 #### Step 3: Publish New Package
 ```bash

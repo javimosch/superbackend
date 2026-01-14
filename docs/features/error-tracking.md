@@ -288,3 +288,27 @@ fetch(`${BASE_URL}/api/log/error`, {
 ## Next steps
 
 - Audit log feature: `docs/features/audit-log.md`
+
+## Migration Note
+
+**SDK Package Rebranding (January 2026)**
+
+The browser error tracking SDK has been rebranded as part of the SuperBackend migration:
+
+- **Current Package**: `@saasbackend/error-tracking-browser-sdk` (deprecated)
+- **Future Package**: `@intranefr/superbackend-error-tracking-browser-sdk` (v2.0.0)
+
+### Build Options
+```bash
+# Legacy build (maintains existing global variable)
+npm run build:sdk:error-tracking:browser
+# Global: window.saasbackendErrorTrackingEmbed
+
+# New build (recommended for new implementations)
+cd sdk/error-tracking/browser && npm run build
+# Global: window.superbackendErrorTrackingEmbed
+```
+
+**For detailed migration instructions, see:** `sdk/error-tracking/browser/MIGRATION.md`
+
+The legacy build approach maintains backward compatibility for existing installations.
