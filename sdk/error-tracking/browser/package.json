@@ -1,6 +1,7 @@
 {
   "name": "@saasbackend/error-tracking-browser-sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
+  "description": "DEPRECATED: Use @intranefr/superbackend-error-tracking-browser-sdk instead. Error tracking SDK for SuperBackend browser applications.",
   "type": "module",
   "exports": {
     ".": {
@@ -8,7 +9,7 @@
     }
   },
   "scripts": {
-    "build": "esbuild src/embed.js --bundle --format=iife --global-name=saasbackendErrorTrackingEmbed --outfile=dist/embed.iife.js --minify"
+    "build": "esbuild src/embed.js --bundle --format=iife --global-name=superbackendErrorTrackingEmbed --outfile=dist/embed.iife.js --minify"
   },
   "devDependencies": {
     "esbuild": "^0.27.2"
