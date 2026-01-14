@@ -1,7 +1,7 @@
 {
-  "name": "saasbackend",
+  "name": "@intranefr/superbackend",
   "version": "1.4.3",
-  "description": "Micro saas template for solo-entrepreneurs",
+  "description": "Node.js middleware that gives your project backend superpowers",
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
@@ -22,11 +22,11 @@
   "author": "Javier Leandro Arancibia <arancibia.javier@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/javimosch/saasbackend"
+    "url": "https://github.com/javimosch/superbackend"
   },
-  "homepage": "https://javimosch.github.io/saasbackend/",
+  "homepage": "https://javimosch.github.io/superbackend/",
   "bugs": {
-    "url": "https://github.com/javimosch/saasbackend/issues"
+    "url": "https://github.com/javimosch/superbackend/issues"
   },
   "license": "MIT",
   "dependencies": {
