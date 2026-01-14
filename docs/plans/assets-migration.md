@@ -13,8 +13,8 @@ Goals:
   - **s3 -> fs**
   - **s3 -> s3**
 - Support remote filesystem as a target (and optionally as a source) via **SSH/SFTP**.
-- Keep `apres-parties` server-side logic thin: it should call saasbackend helpers and not implement storage details.
-- Add admin tooling in the saasbackend migration view to **test**:
+- Keep `apres-parties` server-side logic thin: it should call @intranefr/superbackend helpers and not implement storage details.
+- Add admin tooling in the @intranefr/superbackend migration view to **test**:
   - DB connection
   - Asset target connectivity
   - Optional "test copy" of a sample key
@@ -65,7 +65,7 @@ Notes:
 - `privateKeyPem` is accepted from UI as pasted PEM.
 - We can allow later: `hostKeyFingerprint` for pinning.
 
-## Storage I/O abstraction (saasbackend)
+## Storage I/O abstraction (@intranefr/superbackend)
 Add a small service layer that can read/write objects by `key` for three endpoint types.
 
 ### New files (keep each small)
@@ -107,7 +107,7 @@ Extend `src/services/migration.service.js` with:
 
 Keep existing `copyAssetObjects` (if present) but implement it via `copyAssetKeys`.
 
-## Admin API changes (saasbackend)
+## Admin API changes (@intranefr/superbackend)
 In `src/controllers/adminMigration.controller.js` + routes:
 
 - `POST /api/admin/migration/test-assets`
@@ -124,7 +124,7 @@ In `src/controllers/adminMigration.controller.js` + routes:
 
 Both endpoints protected by `basicAuth` and audited.
 
-## Admin UI changes (saasbackend)
+## Admin UI changes (@intranefr/superbackend)
 Update `views/admin-migration.ejs`:
 
 - In environment editor add an "Assets target" section:
@@ -140,12 +140,12 @@ Reduce server-side complexity in `src/services/venueMigration.js`:
 - Keep venue and asset document migration as-is.
 - Replace any byte-copy logic with:
 
-`saasbackend.services.migration.copyAssetKeys({ targetEnvKey: envKey, keys, dryRun })`
+`@intranefr/superbackend.services.migration.copyAssetKeys({ targetEnvKey: envKey, keys, dryRun })`
 
 UI remains "asset aware" but only displays the returned copy summary.
 
 ## Dependencies
-Add to `ref-saasbackend/package.json`:
+Add to `ref-@intranefr/superbackend/package.json`:
 
 - `ssh2-sftp-client` (or `ssh2`)
 

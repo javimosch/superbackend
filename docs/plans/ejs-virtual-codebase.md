@@ -1,11 +1,11 @@
 # EJS Virtual Codebase (DB overrides + Vibe coding + Audit/Rollback)
 
 ## Goal
-Provide an optional “virtual EJS codebase” inside `saasbackend`.
+Provide an optional “virtual EJS codebase” inside `@intranefr/superbackend`.
 
 - Host apps keep EJS templates in their repo (filesystem is the default source of truth).
-- `saasbackend` can store **DB overrides** for selected EJS files.
-- Host apps can opt-in to render specific views through a `saasbackend` helper that resolves templates from DB-first then filesystem.
+- `@intranefr/superbackend` can store **DB overrides** for selected EJS files.
+- Host apps can opt-in to render specific views through a `@intranefr/superbackend` helper that resolves templates from DB-first then filesystem.
 - Admin UI provides:
   - file browser + CodeMirror editor
   - vibe coding (LLM-assisted edits)
@@ -88,9 +88,9 @@ Fields to track per file:
 - `lastSeenAt` and optional `existsOnFs` boolean
 
 ### 2) What files are “integrated”? (runtime used)
-Decision: “integrated” means “rendered through the saasbackend DB-aware render helper at least once”.
+Decision: “integrated” means “rendered through the @intranefr/superbackend DB-aware render helper at least once”.
 
-- Implement `saasbackend.services.ejsVirtual.render()` (or similar) that host apps call explicitly.
+- Implement `@intranefr/superbackend.services.ejsVirtual.render()` (or similar) that host apps call explicitly.
 - When called, record a usage signal:
   - update DB flag `integrated=true`
   - increment `renderCount`
@@ -182,7 +182,7 @@ Reuse existing audit system:
 ## Runtime render helper (host app integration)
 
 ### Required helper
-`saasbackend.services.ejsVirtual.render(res, viewPath, data, options)`
+`@intranefr/superbackend.services.ejsVirtual.render(res, viewPath, data, options)`
 
 Responsibilities:
 - Resolve template source (DB override if enabled; else filesystem)
