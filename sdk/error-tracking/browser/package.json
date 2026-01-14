@@ -1,7 +1,7 @@
 {
-  "name": "@saasbackend/error-tracking-browser-sdk",
-  "version": "1.0.1",
-  "description": "DEPRECATED: Use @intranefr/superbackend-error-tracking-browser-sdk instead. Error tracking SDK for SuperBackend browser applications.",
+  "name": "@intranefr/superbackend-error-tracking-browser-sdk",
+  "version": "2.0.0",
+  "description": "Error tracking SDK for SuperBackend browser applications.",
   "type": "module",
   "exports": {
     ".": {

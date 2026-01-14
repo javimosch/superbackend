@@ -68,24 +68,28 @@ Deprecation: globalThis.saasbackend is deprecated. Use globalThis.superbackend i
 
 The browser SDK package includes deprecation notices:
 
-**Current Package:** `@saasbackend/error-tracking-browser-sdk` (v1.0.1)
-- Updated description with deprecation notice
-- Console warning when package loads
-- Global variable changed to `superbackendErrorTrackingEmbed`
+**Current Package:** `@intranefr/superbackend-error-tracking-browser-sdk` (v2.0.0)
+- Updated package name and version
+- Supports both global variables with deprecation warnings
+- Runtime aliasing for backward compatibility
 
-**Migration Path:** `@intranefr/superbackend-error-tracking-browser-sdk` (v2.0.0)
+**Legacy Package:** `@saasbackend/error-tracking-browser-sdk` (v1.0.1 - deprecated)
+- Shows deprecation warnings when used
+- Maintained for backward compatibility
 
 ### SDK Implementation Details
 
 ```javascript
-// Package.json deprecation notice
-"description": "DEPRECATED: Use @intranefr/superbackend-error-tracking-browser-sdk instead. Error tracking SDK for SuperBackend browser applications."
+// New package.json
+"name": "@intranefr/superbackend-error-tracking-browser-sdk",
+"version": "2.0.0",
+"description": "Error tracking SDK for SuperBackend browser applications."
 
-// Build script updated
+// Build script (new package)
 "build": "esbuild src/embed.js --bundle --format=iife --global-name=superbackendErrorTrackingEmbed --outfile=dist/embed.iife.js --minify"
 
-// Runtime deprecation warning
-console.warn('DEPRECATION: @saasbackend/error-tracking-browser-sdk is deprecated. Use @intranefr/superbackend-error-tracking-browser-sdk instead.');
+// Runtime deprecation warning (legacy usage)
+console.warn('DEPRECATION: Global "window.saasbackend" is deprecated. Use "window.superbackend" instead.');
 ```
 
 ## Configuration Examples
