@@ -36,6 +36,7 @@ function startServer(options = {}) {
 
 const saasbackend = {
   server: startServer,
+  consoleOverride: require("./src/services/consoleOverride.service"),
   middleware: (options = {}) => {
     // Set both registries for backward compatibility
     globalThis.superbackend = saasbackend;

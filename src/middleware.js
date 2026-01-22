@@ -7,6 +7,7 @@ const ejs = require("ejs");
 const { basicAuth } = require("./middleware/auth");
 const endpointRegistry = require("./admin/endpointRegistry");
 const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.service");
+const consoleOverride = require("./services/consoleOverride.service");
 const {
   hookConsoleError,
   setupProcessHandlers,
@@ -29,6 +30,9 @@ let errorCaptureInitialized = false;
 function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
+
+  // Initialize console override service early to capture all logs
+  consoleOverride.init();
 
   if (!errorCaptureInitialized) {
     errorCaptureInitialized = true;
