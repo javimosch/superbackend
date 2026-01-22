@@ -9,6 +9,15 @@ let memoryInterval = null;
 let logLines = [];
 const MAX_LOG_LINES = 2000;
 
+// Store the truly original console methods at module load time
+const TRULY_ORIGINAL_CONSOLE = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+  debug: console.debug
+};
+
 /**
  * Console Override Service
  * Provides dual logging to stdout and file in non-production environments
@@ -96,8 +105,8 @@ const consoleOverride = {
     
     methods.forEach(method => {
       console[method] = (...args) => {
-        // Call original console method
-        originalConsole[method](...args);
+        // Call the truly original console method
+        TRULY_ORIGINAL_CONSOLE[method](...args);
         
         // Write to file if stream is available and not already writing
         if (logFileStream && !logFileStream.destroyed && !isWriting) {
@@ -208,7 +217,7 @@ const consoleOverride = {
    * Restore original console
    */
   restore() {
-    if (!isActive || !originalConsole) {
+    if (!isActive && !originalConsole) {
       return;
     }
 
@@ -218,9 +227,9 @@ const consoleOverride = {
       memoryInterval = null;
     }
 
-    // Restore original console methods
-    Object.keys(originalConsole).forEach(method => {
-      console[method] = originalConsole[method];
+    // Restore original console methods using the truly original ones
+    ['log', 'error', 'warn', 'info', 'debug'].forEach(method => {
+      console[method] = TRULY_ORIGINAL_CONSOLE[method];
     });
 
     // Close file stream

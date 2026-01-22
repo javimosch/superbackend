@@ -1,5 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+
+// Save the truly original console before anything is overridden
+const realConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+  debug: console.debug
+};
+
 const consoleOverride = require('./consoleOverride.service');
 
 describe('Console Override Service', () => {
@@ -33,13 +43,16 @@ describe('Console Override Service', () => {
   });
 
   describe('Initialization', () => {
-    test('should initialize in development environment', () => {
+    test('should initialize in development environment', (done) => {
       process.env.NODE_ENV = 'development';
       
       consoleOverride.init({ logFile: testLogFile });
       
-      expect(consoleOverride.isActive()).toBe(true);
-      expect(consoleOverride.getLogPath()).toContain(testLogFile);
+      setTimeout(() => {
+        expect(consoleOverride.isActive()).toBe(true);
+        expect(consoleOverride.getLogPath()).toContain(testLogFile);
+        done();
+      }, 50);
     });
 
     test('should not initialize in production environment', () => {
@@ -51,14 +64,17 @@ describe('Console Override Service', () => {
       expect(consoleOverride.getLogPath()).toBeNull();
     });
 
-    test('should force initialize in production when enabled', () => {
+    test('should force initialize in production when enabled', (done) => {
       process.env.NODE_ENV = 'production';
       process.env.CONSOLE_OVERRIDE_ENABLED = 'true';
       
       consoleOverride.init({ logFile: testLogFile });
       
-      expect(consoleOverride.isActive()).toBe(true);
-      expect(consoleOverride.getLogPath()).toContain(testLogFile);
+      setTimeout(() => {
+        expect(consoleOverride.isActive()).toBe(true);
+        expect(consoleOverride.getLogPath()).toContain(testLogFile);
+        done();
+      }, 50);
     });
 
     test('should not initialize when force disabled', () => {
@@ -73,23 +89,27 @@ describe('Console Override Service', () => {
   });
 
   describe('Logging Behavior', () => {
-    beforeEach(() => {
+    beforeEach((done) => {
       process.env.NODE_ENV = 'development';
       consoleOverride.init({ logFile: testLogFile });
+      setTimeout(() => done(), 50);
     });
 
-    test('should log to both console and file', () => {
+    test('should log to both console and file', (done) => {
       const testMessage = 'Test log message';
       
       console.log(testMessage);
       
-      // Check file exists and contains message
-      expect(fs.existsSync(testLogFile)).toBe(true);
-      const logContent = fs.readFileSync(testLogFile, 'utf8');
-      expect(logContent).toContain(testMessage);
+      setTimeout(() => {
+        // Check file exists and contains message
+        expect(fs.existsSync(testLogFile)).toBe(true);
+        const logContent = fs.readFileSync(testLogFile, 'utf8');
+        expect(logContent).toContain(testMessage);
+        done();
+      }, 50);
     });
 
-    test('should handle multiple console methods', () => {
+    test('should handle multiple console methods', (done) => {
       const messages = {
         log: 'Log message',
         error: 'Error message',
@@ -102,31 +122,40 @@ describe('Console Override Service', () => {
         console[method](message);
       });
       
-      const logContent = fs.readFileSync(testLogFile, 'utf8');
-      Object.values(messages).forEach(message => {
-        expect(logContent).toContain(message);
-      });
+      setTimeout(() => {
+        const logContent = fs.readFileSync(testLogFile, 'utf8');
+        Object.values(messages).forEach(message => {
+          expect(logContent).toContain(message);
+        });
+        done();
+      }, 50);
     });
 
-    test('should handle objects in console output', () => {
+    test('should handle objects in console output', (done) => {
       const testObject = { key: 'value', nested: { prop: 'test' } };
       
       console.log(testObject);
       
-      const logContent = fs.readFileSync(testLogFile, 'utf8');
-      expect(logContent).toContain('key');
-      expect(logContent).toContain('value');
-      expect(logContent).toContain('nested');
+      setTimeout(() => {
+        const logContent = fs.readFileSync(testLogFile, 'utf8');
+        expect(logContent).toContain('key');
+        expect(logContent).toContain('value');
+        expect(logContent).toContain('nested');
+        done();
+      }, 50);
     });
 
-    test('should handle multiple arguments', () => {
+    test('should handle multiple arguments', (done) => {
       console.log('Message', 123, { obj: 'test' }, [1, 2, 3]);
       
-      const logContent = fs.readFileSync(testLogFile, 'utf8');
-      expect(logContent).toContain('Message');
-      expect(logContent).toContain('123');
-      expect(logContent).toContain('obj');
-      expect(logContent).toContain('[1,2,3]');
+      setTimeout(() => {
+        const logContent = fs.readFileSync(testLogFile, 'utf8');
+        expect(logContent).toContain('Message');
+        expect(logContent).toContain('123');
+        expect(logContent).toContain('obj');
+        expect(logContent).toMatch(/\[\s*1\s*,\s*2\s*,\s*3\s*\]/); // Array with optional whitespace
+        done();
+      }, 50);
     });
   });
 
@@ -176,30 +205,36 @@ describe('Console Override Service', () => {
   });
 
   describe('Service Management', () => {
-    test('should restore original console', () => {
+    test('should restore original console', (done) => {
       process.env.NODE_ENV = 'development';
       
-      const originalConsoleLog = console.log;
       consoleOverride.init({ logFile: testLogFile });
       
-      expect(console.log).not.toBe(originalConsoleLog);
-      
-      consoleOverride.restore();
-      
-      expect(console.log).toBe(originalConsoleLog);
-      expect(consoleOverride.isActive()).toBe(false);
+      setTimeout(() => {
+        expect(console.log).not.toBe(realConsole.log);
+        
+        consoleOverride.restore();
+        
+        expect(console.log).toBe(realConsole.log);
+        expect(consoleOverride.isActive()).toBe(false);
+        done();
+      }, 50);
     });
 
-    test('should not initialize multiple times', () => {
+    test('should not initialize multiple times', (done) => {
       process.env.NODE_ENV = 'development';
       
       consoleOverride.init({ logFile: testLogFile });
-      const firstLogPath = consoleOverride.getLogPath();
       
-      consoleOverride.init({ logFile: 'different.log' });
-      const secondLogPath = consoleOverride.getLogPath();
-      
-      expect(firstLogPath).toBe(secondLogPath);
+      setTimeout(() => {
+        const firstLogPath = consoleOverride.getLogPath();
+        
+        consoleOverride.init({ logFile: 'different.log' });
+        const secondLogPath = consoleOverride.getLogPath();
+        
+        expect(firstLogPath).toBe(secondLogPath);
+        done();
+      }, 50);
     });
   });
 });

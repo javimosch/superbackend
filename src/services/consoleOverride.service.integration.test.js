@@ -1,5 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+
+// Save the truly original console before anything is overridden
+const realConsole = {
+  log: console.log,
+  error: console.error,
+  warn: console.warn,
+  info: console.info,
+  debug: console.debug
+};
+
 const consoleOverride = require('./consoleOverride.service');
 
 describe('Console Override Service Integration Tests', () => {
@@ -38,22 +48,24 @@ describe('Console Override Service Integration Tests', () => {
       
       consoleOverride.init({ logFile: testLogFile });
       
-      expect(consoleOverride.isActive()).toBe(true);
-      
-      // Test logging
-      console.log('Integration test message');
-      console.error('Integration test error');
-      
-      // Wait for async file writing and initialization
       setTimeout(() => {
-        expect(fs.existsSync(testLogFile)).toBe(true);
+        expect(consoleOverride.isActive()).toBe(true);
         
-        const logContent = fs.readFileSync(testLogFile, 'utf8');
-        expect(logContent).toContain('Integration test message');
-        expect(logContent).toContain('Integration test error');
+        // Test logging
+        console.log('Integration test message');
+        console.error('Integration test error');
         
-        done();
-      }, 100);
+        // Wait for async file writing
+        setTimeout(() => {
+          expect(fs.existsSync(testLogFile)).toBe(true);
+          
+          const logContent = fs.readFileSync(testLogFile, 'utf8');
+          expect(logContent).toContain('Integration test message');
+          expect(logContent).toContain('Integration test error');
+          
+          done();
+        }, 50);
+      }, 50);
     });
 
     test('should not initialize in production', () => {
@@ -65,20 +77,19 @@ describe('Console Override Service Integration Tests', () => {
       expect(fs.existsSync(testLogFile)).toBe(false);
     });
 
-    test('should restore original console', () => {
+    test('should restore original console', (done) => {
       process.env.NODE_ENV = 'development';
-      
-      const originalConsoleLog = console.log;
       
       consoleOverride.init({ logFile: testLogFile });
       
       // Wait for async initialization
       setTimeout(() => {
-        expect(console.log).not.toBe(originalConsoleLog);
+        expect(console.log).not.toBe(realConsole.log);
         
         consoleOverride.restore();
-        expect(console.log).toBe(originalConsoleLog);
+        expect(console.log).toBe(realConsole.log);
         expect(consoleOverride.isActive()).toBe(false);
+        done();
       }, 50);
     });
   });
