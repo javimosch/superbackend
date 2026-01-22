@@ -153,6 +153,37 @@
             <option value="trialing">trialing</option>
           </select>
         </div>
+        
+        <!-- Password Section -->
+        <div class="border-t pt-4">
+          <div class="flex items-center justify-between mb-3">
+            <label class="text-sm font-medium text-gray-700">Password Management</label>
+            <input type="checkbox" id="edit-reset-password" class="rounded text-blue-600 focus:ring-blue-500">
+            <label for="edit-reset-password" class="text-sm text-gray-600 ml-2">Reset Password</label>
+          </div>
+          
+          <div id="password-fields" class="space-y-3 hidden">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+              <div class="relative">
+                <input id="edit-password" type="password" class="w-full border rounded px-3 py-2 pr-10" placeholder="Enter new password" minlength="6">
+                <button type="button" id="toggle-edit-password" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700">
+                  <svg id="edit-eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
+                </button>
+              </div>
+              <div id="password-strength" class="mt-1 text-xs"></div>
+            </div>
+            
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+              <input id="edit-confirm-password" type="password" class="w-full border rounded px-3 py-2" placeholder="Confirm new password">
+              <div id="password-match" class="mt-1 text-xs"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="flex justify-end gap-2 mt-6">
         <button id="btn-modal-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
@@ -342,10 +373,12 @@
                 <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
                   <button class="text-blue-600 hover:text-blue-800 mr-2" data-edit="${escapeHtml(u._id)}" data-name="${escapeHtml(u.name || '')}" data-role="${escapeHtml(u.role)}" data-plan="${escapeHtml(u.currentPlan)}" data-subscription="${escapeHtml(u.subscriptionStatus)}">Edit</button>
                   <button class="text-green-600 hover:text-green-800 mr-2" data-notify="${escapeHtml(u._id)}" data-email="${escapeHtml(u.email)}">Notify</button>
+                  <button class="text-purple-600 hover:text-purple-800 mr-2" data-get-jwt="${escapeHtml(u._id)}" data-email="${escapeHtml(u.email)}">Get JWT</button>
                   ${u.disabled
-                    ? `<button class="text-green-600 hover:text-green-800" data-enable="${escapeHtml(u._id)}">Enable</button>`
-                    : `<button class="text-red-600 hover:text-red-800" data-disable="${escapeHtml(u._id)}">Disable</button>`
+                    ? `<button class="text-green-600 hover:text-green-800 mr-2" data-enable="${escapeHtml(u._id)}">Enable</button>`
+                    : `<button class="text-red-600 hover:text-red-800 mr-2" data-disable="${escapeHtml(u._id)}">Disable</button>`
                   }
+                  <button class="text-red-600 hover:text-red-800 font-semibold" data-delete="${escapeHtml(u._id)}" data-email="${escapeHtml(u.email)}">Delete</button>
                 </td>
               </tr>
             `;
@@ -357,6 +390,18 @@
 
           tbody.querySelectorAll('[data-notify]').forEach(btn => {
             btn.addEventListener('click', () => openNotifyModal(btn.dataset.notify, btn.dataset.email));
+          });
+
+          tbody.querySelectorAll('[data-get-jwt]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              await getJwtForUser(btn.dataset.getJwt, btn.dataset.email);
+            });
+          });
+
+          tbody.querySelectorAll('[data-delete]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              await deleteUser(btn.dataset.delete, btn.dataset.email);
+            });
           });
 
           tbody.querySelectorAll('[data-disable]').forEach(btn => {
@@ -394,11 +439,101 @@
       document.getElementById('edit-role').value = role || 'user';
       document.getElementById('edit-plan').value = plan || 'free';
       document.getElementById('edit-subscription').value = subscription || 'none';
+      
+      // Reset password fields
+      document.getElementById('edit-reset-password').checked = false;
+      document.getElementById('password-fields').classList.add('hidden');
+      document.getElementById('edit-password').value = '';
+      document.getElementById('edit-confirm-password').value = '';
+      document.getElementById('password-strength').textContent = '';
+      document.getElementById('password-match').textContent = '';
+      
       document.getElementById('modal-edit').classList.remove('hidden');
     }
 
     function closeEditModal() {
       document.getElementById('modal-edit').classList.add('hidden');
+    }
+
+    async function getJwtForUser(userId, email) {
+      try {
+        // Show loading state
+        showToast('Generating JWT...', 'success');
+        
+        const res = await fetch(`${API_BASE}/api/admin/generate-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) { 
+          showToast(data?.error || 'Failed to generate JWT', 'error'); 
+          return; 
+        }
+        
+        // Copy JWT to clipboard
+        try {
+          await navigator.clipboard.writeText(data.token);
+          showToast(`JWT for ${email} copied to clipboard!`, 'success');
+        } catch (clipboardError) {
+          // Fallback for browsers that don't support clipboard API
+          const textArea = document.createElement('textarea');
+          textArea.value = data.token;
+          textArea.style.position = 'fixed';
+          textArea.style.opacity = '0';
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          showToast(`JWT for ${email} copied to clipboard!`, 'success');
+        }
+        
+        // Also log the token for debugging (in production, you might want to remove this)
+        console.log(`Generated JWT for ${email}:`, data.token);
+        
+      } catch (e) { 
+        showToast(e.message || 'Failed to generate JWT', 'error'); 
+      }
+    }
+
+    async function deleteUser(userId, email) {
+      // Double confirmation with clear warnings
+      const confirm1 = confirm(`Are you sure you want to delete user ${email}?`);
+      if (!confirm1) return;
+      
+      const confirm2 = confirm(
+        'WARNING: This will permanently delete the user and ALL their data including:\n' +
+        '• Organizations they own (if no other members)\n' +
+        '• All their assets and files\n' +
+        '• Organization memberships\n' +
+        '• Notifications and invites\n' +
+        '• Email logs and form submissions\n\n' +
+        'Activity logs and audit events will be preserved.\n' +
+        'This action cannot be undone. Continue?'
+      );
+      if (!confirm2) return;
+      
+      try {
+        showToast('Deleting user and cleaning up data...', 'success');
+        
+        const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to delete user', 'error');
+          return;
+        }
+        
+        showToast(`User ${email} deleted permanently`, 'success');
+        await Promise.all([loadUsers(), loadStats()]);
+      } catch (e) {
+        showToast(e.message || 'Failed to delete user', 'error');
+      }
     }
 
     async function saveUser() {
@@ -407,16 +542,48 @@
       const role = document.getElementById('edit-role').value;
       const currentPlan = document.getElementById('edit-plan').value;
       const subscriptionStatus = document.getElementById('edit-subscription').value;
+      
+      // Password handling
+      const resetPassword = document.getElementById('edit-reset-password').checked;
+      const password = document.getElementById('edit-password').value;
+      const confirmPassword = document.getElementById('edit-confirm-password').value;
+      
+      // Validate password fields if reset is checked
+      if (resetPassword) {
+        if (!password) {
+          showToast('Password is required when reset is enabled', 'error');
+          return;
+        }
+        
+        if (password.length < 6) {
+          showToast('Password must be at least 6 characters', 'error');
+          return;
+        }
+        
+        if (password !== confirmPassword) {
+          showToast('Passwords do not match', 'error');
+          return;
+        }
+      }
 
       try {
+        const updateData = { name, role, currentPlan, subscriptionStatus };
+        
+        // Only include password if reset is checked
+        if (resetPassword && password) {
+          updateData.passwordHash = password;
+        }
+        
         const res = await fetch(`${API_BASE}/api/admin/users/${encodeURIComponent(userId)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, role, currentPlan, subscriptionStatus }),
+          body: JSON.stringify(updateData),
         });
         const data = await res.json();
         if (!res.ok) { showToast(data?.error || 'Failed to update user', 'error'); return; }
-        showToast('User updated', 'success');
+        
+        const message = resetPassword ? 'User and password updated' : 'User updated';
+        showToast(message, 'success');
         closeEditModal();
         await Promise.all([loadUsers(), loadStats()]);
       } catch (e) { showToast(e.message, 'error'); }
@@ -584,6 +751,78 @@
       return window.location.origin + endpoint;
     }
 
+    // Password validation functions
+    function checkPasswordStrength(password) {
+      if (!password) return '';
+      
+      let strength = 0;
+      const feedback = [];
+      
+      if (password.length >= 6) strength++;
+      else feedback.push('at least 6 characters');
+      
+      if (password.length >= 10) strength++;
+      if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+      if (/\d/.test(password)) strength++;
+      if (/[^a-zA-Z\d]/.test(password)) strength++;
+      
+      const strengthText = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'][strength] || 'Very Weak';
+      const strengthColor = ['text-red-500', 'text-orange-500', 'text-yellow-500', 'text-blue-500', 'text-green-500'][strength] || 'text-red-500';
+      
+      return { strength, strengthText, strengthColor, feedback };
+    }
+
+    function updatePasswordStrength() {
+      const password = document.getElementById('edit-password').value;
+      const strengthDiv = document.getElementById('password-strength');
+      
+      if (!password) {
+        strengthDiv.textContent = '';
+        return;
+      }
+      
+      const { strengthText, strengthColor } = checkPasswordStrength(password);
+      strengthDiv.textContent = `Strength: ${strengthText}`;
+      strengthDiv.className = `mt-1 text-xs ${strengthColor}`;
+    }
+
+    function updatePasswordMatch() {
+      const password = document.getElementById('edit-password').value;
+      const confirmPassword = document.getElementById('edit-confirm-password').value;
+      const matchDiv = document.getElementById('password-match');
+      
+      if (!confirmPassword) {
+        matchDiv.textContent = '';
+        return;
+      }
+      
+      if (password === confirmPassword) {
+        matchDiv.textContent = '✓ Passwords match';
+        matchDiv.className = 'mt-1 text-xs text-green-500';
+      } else {
+        matchDiv.textContent = '✗ Passwords do not match';
+        matchDiv.className = 'mt-1 text-xs text-red-500';
+      }
+    }
+
+    function toggleEditPasswordVisibility() {
+      const passwordInput = document.getElementById('edit-password');
+      const eyeIcon = document.getElementById('edit-eye-icon');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+        `;
+      } else {
+        passwordInput.type = 'password';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        `;
+      }
+    }
+
     function bindEvents() {
       document.getElementById('btn-refresh').onclick = () => Promise.all([loadUsers(), loadStats()]);
       document.getElementById('btn-apply').onclick = () => { state.offset = 0; loadUsers(); };
@@ -602,6 +841,24 @@
       document.getElementById('btn-modal-save').onclick = saveUser;
       document.getElementById('btn-notify-cancel').onclick = closeNotifyModal;
       document.getElementById('btn-notify-send').onclick = sendNotification;
+      
+      // Edit modal password events
+      document.getElementById('edit-reset-password').onchange = function() {
+        const passwordFields = document.getElementById('password-fields');
+        if (this.checked) {
+          passwordFields.classList.remove('hidden');
+        } else {
+          passwordFields.classList.add('hidden');
+          document.getElementById('edit-password').value = '';
+          document.getElementById('edit-confirm-password').value = '';
+          document.getElementById('password-strength').textContent = '';
+          document.getElementById('password-match').textContent = '';
+        }
+      };
+      
+      document.getElementById('toggle-edit-password').onclick = toggleEditPasswordVisibility;
+      document.getElementById('edit-password').oninput = updatePasswordStrength;
+      document.getElementById('edit-confirm-password').oninput = updatePasswordMatch;
       
       // Registration modal events
       document.getElementById('btn-register-user').onclick = openRegisterModal;

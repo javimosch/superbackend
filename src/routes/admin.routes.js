@@ -11,6 +11,7 @@ router.post('/users/register', adminController.registerUser);
 router.get('/users/:id', adminController.getUser);
 router.put('/users/:id/subscription', adminController.updateUserSubscription);
 router.patch('/users/:id', adminController.updateUserPassword);
+router.delete('/users/:id', adminController.deleteUser);
 router.post('/users/:id/reconcile', adminController.reconcileUser);
 router.post('/generate-token', adminController.generateToken);
 

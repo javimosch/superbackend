@@ -353,12 +353,109 @@ const provisionCoolifyDeploy = asyncHandler(async (req, res) => {
   }
 });
 
+// Delete user (admin only)
+const deleteUser = asyncHandler(async (req, res) => {
+  const User = require('../models/User');
+  const Organization = require('../models/Organization');
+  const OrganizationMember = require('../models/OrganizationMember');
+  const Asset = require('../models/Asset');
+  const Notification = require('../models/Notification');
+  const Invite = require('../models/Invite');
+  const EmailLog = require('../models/EmailLog');
+  const FormSubmission = require('../models/FormSubmission');
+  
+  const userId = req.params.id;
+  
+  // 1. Validate user exists
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  
+  // 2. Prevent self-deletion
+  // Note: In a real implementation, you'd get the admin ID from req.admin or similar
+  // For now, we'll skip this check as the basic auth doesn't provide user identity
+  
+  // 3. Check if this is the last admin
+  const adminCount = await User.countDocuments({ role: 'admin' });
+  if (user.role === 'admin' && adminCount <= 1) {
+    return res.status(400).json({ error: 'Cannot delete the last admin user' });
+  }
+  
+  // 4. Cleanup dependencies
+  await cleanupUserData(userId);
+  
+  // 5. Delete user
+  await User.findByIdAndDelete(userId);
+  
+  // 6. Log action
+  console.log(`Admin deleted user: ${user.email} (${userId})`);
+  
+  res.json({ message: 'User deleted successfully' });
+});
+
+// Helper function to clean up user data
+async function cleanupUserData(userId) {
+  const Organization = require('../models/Organization');
+  const OrganizationMember = require('../models/OrganizationMember');
+  const Asset = require('../models/Asset');
+  const Notification = require('../models/Notification');
+  const Invite = require('../models/Invite');
+  const EmailLog = require('../models/EmailLog');
+  const FormSubmission = require('../models/FormSubmission');
+  
+  try {
+    // Handle organizations owned by user
+    const ownedOrgs = await Organization.find({ ownerUserId: userId });
+    for (const org of ownedOrgs) {
+      // Check if organization has other members
+      const memberCount = await OrganizationMember.countDocuments({ 
+        orgId: org._id, 
+        userId: { $ne: userId } 
+      });
+      
+      if (memberCount === 0) {
+        // Delete organization if no other members
+        await Organization.findByIdAndDelete(org._id);
+        console.log(`Deleted organization ${org.name} (${org._id}) - no other members`);
+      } else {
+        // Remove owner but keep organization
+        org.ownerUserId = null;
+        await org.save();
+        console.log(`Removed owner from organization ${org.name} (${org._id}) - has other members`);
+      }
+    }
+    
+    // Remove from all organization memberships
+    await OrganizationMember.deleteMany({ userId: userId });
+    
+    // Delete user's assets
+    await Asset.deleteMany({ ownerUserId: userId });
+    
+    // Delete notifications
+    await Notification.deleteMany({ userId: userId });
+    
+    // Clean up other references
+    await Invite.deleteMany({ createdByUserId: userId });
+    await EmailLog.deleteMany({ userId: userId });
+    await FormSubmission.deleteMany({ userId: userId });
+    
+    // Note: We keep ActivityLog and AuditEvent for audit purposes
+    
+    console.log(`Completed cleanup for user ${userId}`);
+  } catch (error) {
+    console.error('Error during user cleanup:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getUsers,
   registerUser,
   getUser,
   updateUserSubscription,
   updateUserPassword,
+  deleteUser,
   reconcileUser,
   generateToken,
   getWebhookEvents,
