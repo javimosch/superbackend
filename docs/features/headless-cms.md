@@ -11,6 +11,12 @@ All headless collection names in MongoDB are **prefixed**:
 
 - `headless_<modelCode>` (transparent in the Admin UI)
 
+Headless CMS also supports **external models** imported from existing Mongo collections:
+
+- External models use `codeIdentifier` prefix `ext_...`
+- External models bind to the underlying Mongo collection defined by `sourceCollectionName`
+- External models are schema **read-only** in the Admin UI (schema is inferred and refreshed via sync)
+
 ## Base URL / mount prefix
 
 If SuperBackend is mounted under a prefix (example `/saas`), every route below is prefixed.
@@ -64,6 +70,13 @@ Advanced model helpers:
 AI model builder:
 
 - `POST /api/admin/headless/ai/model-builder/chat`
+
+External models (Mongo collections):
+
+- `GET /api/admin/headless/external/collections`
+- `POST /api/admin/headless/external/infer`
+- `POST /api/admin/headless/external/import`
+- `POST /api/admin/headless/models/:codeIdentifier/sync`
 
 ## Model definition JSON
 

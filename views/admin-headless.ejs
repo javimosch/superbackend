@@ -44,7 +44,10 @@
             <div class="lg:col-span-1">
               <div class="flex items-center justify-between mb-3">
                 <h2 class="text-lg font-semibold">Models</h2>
-                <button id="btn-new-model" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-sm">New</button>
+                <div class="flex gap-2">
+                  <button id="btn-import-external" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm">Import from Mongo</button>
+                  <button id="btn-new-model" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 text-sm">New</button>
+                </div>
               </div>
               <div id="models-list" class="space-y-2">
                 <div class="text-gray-500 text-sm">Loading…</div>
@@ -58,6 +61,7 @@
                   <div id="selected-model-title" class="text-xl font-semibold">None</div>
                 </div>
                 <div class="flex gap-2">
+                  <button id="btn-sync-external" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" disabled>Sync/Infer</button>
                   <button id="btn-save-model" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" disabled>Save schema</button>
                   <button id="btn-delete-model" class="bg-red-500 text-white px-3 py-2 rounded hover:bg-red-600 text-sm" disabled>Disable</button>
                 </div>
@@ -89,7 +93,7 @@
                     <div>
                       <label class="block text-sm font-medium mb-1">Code identifier</label>
                       <input id="model-code" class="border rounded px-3 py-2 w-full mono" placeholder="e.g. products" disabled />
-                      <div class="text-xs text-gray-500 mt-1">Stored as Mongo collection <span class="mono">headless_&lt;code&gt;</span></div>
+                      <div class="text-xs text-gray-500 mt-1" id="model-collection-hint">Stored as Mongo collection <span class="mono">headless_&lt;code&gt;</span></div>
                     </div>
                   </div>
 
@@ -435,6 +439,57 @@
     <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
   </div>
 
+  <div id="modal-import-external" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+      <div class="px-6 py-4 border-b flex items-center justify-between">
+        <div>
+          <div class="text-lg font-semibold">Import from Mongo</div>
+          <div class="text-xs text-gray-500">Creates an external model with code identifier prefix <span class="mono">ext_</span>. Schema is inferred and read-only.</div>
+        </div>
+        <button id="btn-import-close" class="text-gray-500 hover:text-gray-800" type="button">Close</button>
+      </div>
+
+      <div class="px-6 py-4 space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Mongo collection</label>
+            <select id="import-collection" class="border rounded px-3 py-2 w-full"></select>
+            <div class="text-xs text-gray-500 mt-1">Lists collections from the connected MongoDB.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Sample size</label>
+            <input id="import-sampleSize" type="number" class="border rounded px-3 py-2 w-full" value="200" />
+            <div class="text-xs text-gray-500 mt-1">Max 1000.</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">Model code identifier</label>
+            <input id="import-code" class="border rounded px-3 py-2 w-full mono" placeholder="ext_users" />
+            <div class="text-xs text-gray-500 mt-1">Must start with <span class="mono">ext_</span>.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Display name</label>
+            <input id="import-displayName" class="border rounded px-3 py-2 w-full" placeholder="Users" />
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <div class="text-sm text-gray-600">Inference preview</div>
+          <div class="flex gap-2">
+            <button id="btn-import-infer" class="bg-white border px-3 py-2 rounded hover:bg-gray-100 text-sm" type="button">Infer preview</button>
+            <button id="btn-import-run" class="bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 text-sm" type="button">Import</button>
+          </div>
+        </div>
+
+        <div id="import-preview" class="hidden">
+          <pre id="import-preview-pre" class="mono text-xs bg-gray-50 border rounded p-3 overflow-x-auto overflow-y-auto max-h-64"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
   const baseUrl = '<%= baseUrl %>';
   const adminPath = '<%= adminPath %>';
@@ -517,6 +572,115 @@
       return result;
     } catch (e) {
       toast(e.message, 'error');
+    }
+  }
+
+  function setImportModalOpen(open) {
+    const modal = document.getElementById('modal-import-external');
+    if (!modal) return;
+    modal.classList.toggle('hidden', !open);
+    modal.classList.toggle('flex', open);
+  }
+
+  function setImportPreview(value) {
+    const container = document.getElementById('import-preview');
+    const pre = document.getElementById('import-preview-pre');
+    if (!container || !pre) return;
+    if (!value) {
+      container.classList.add('hidden');
+      pre.textContent = '';
+      return;
+    }
+    container.classList.remove('hidden');
+    pre.textContent = JSON.stringify(value, null, 2);
+  }
+
+  function normalizeExtCodeFromCollectionName(collectionName) {
+    const base = String(collectionName || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    const safe = base && /^[a-z][a-z0-9_]*$/.test(base) ? base : 'model';
+    return `ext_${safe}`;
+  }
+
+  async function loadExternalCollectionsIntoModal() {
+    const select = document.getElementById('import-collection');
+    if (!select) return;
+    select.innerHTML = '';
+    const { items } = await api('/api/admin/headless/external/collections');
+    const cols = Array.isArray(items) ? items : [];
+    cols.forEach((c) => {
+      const name = String(c && c.name ? c.name : '').trim();
+      if (!name) return;
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+
+    const selected = select.value;
+    const codeInput = document.getElementById('import-code');
+    const dnInput = document.getElementById('import-displayName');
+    if (codeInput && selected) codeInput.value = normalizeExtCodeFromCollectionName(selected);
+    if (dnInput && selected) dnInput.value = String(selected).replace(/_/g, ' ');
+  }
+
+  async function importInferPreview() {
+    const collectionName = document.getElementById('import-collection')?.value;
+    const sampleSize = Number(document.getElementById('import-sampleSize')?.value || 200) || 200;
+    if (!collectionName) {
+      toast('Select a collection', 'error');
+      return;
+    }
+    const res = await api('/api/admin/headless/external/infer', {
+      method: 'POST',
+      body: JSON.stringify({ collectionName, sampleSize }),
+    });
+    setImportPreview(res);
+  }
+
+  async function importRun() {
+    const collectionName = document.getElementById('import-collection')?.value;
+    const sampleSize = Number(document.getElementById('import-sampleSize')?.value || 200) || 200;
+    const codeIdentifier = String(document.getElementById('import-code')?.value || '').trim();
+    const displayName = String(document.getElementById('import-displayName')?.value || '').trim();
+    if (!collectionName) {
+      toast('Select a collection', 'error');
+      return;
+    }
+    if (!codeIdentifier || !codeIdentifier.startsWith('ext_')) {
+      toast('codeIdentifier must start with ext_', 'error');
+      return;
+    }
+    const res = await api('/api/admin/headless/external/import', {
+      method: 'POST',
+      body: JSON.stringify({ collectionName, codeIdentifier, displayName, sampleSize }),
+    });
+    toast('Imported', 'success');
+    setImportModalOpen(false);
+    setImportPreview(null);
+    await loadModels();
+    if (res && res.item && res.item.codeIdentifier) {
+      await selectModel(res.item.codeIdentifier);
+    }
+  }
+
+  async function syncExternalSelectedModel() {
+    const m = state.selectedModel;
+    if (!m) return;
+    const isExternal = m && (m.sourceType === 'external' || m.isExternal === true);
+    if (!isExternal) return;
+    const sampleSize = Number(prompt('Sample size for inference (max 1000):', '200') || '200');
+    const res = await api(`/api/admin/headless/models/${encodeURIComponent(m.codeIdentifier)}/sync`, {
+      method: 'POST',
+      body: JSON.stringify({ sampleSize }),
+    });
+    toast('Synced', 'success');
+    await loadModels();
+    if (res && res.item && res.item.codeIdentifier) {
+      await selectModel(res.item.codeIdentifier);
     }
   }
 
@@ -758,8 +922,15 @@
     state.models.forEach((m) => {
       const btn = document.createElement('button');
       const active = state.selectedModel && state.selectedModel.codeIdentifier === m.codeIdentifier;
+      const isExternal = m && (m.sourceType === 'external' || m.isExternal === true);
       btn.className = `w-full text-left px-3 py-2 rounded border ${active ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`;
-      btn.innerHTML = `<div class="font-medium">${m.displayName}</div><div class="text-xs text-gray-500 mono">${m.codeIdentifier}</div>`;
+      const label = isExternal
+        ? `<div class="flex items-center justify-between gap-2"><div class="font-medium">${m.displayName}</div><span class="text-[10px] uppercase bg-gray-200 text-gray-800 px-2 py-0.5 rounded">External</span></div>`
+        : `<div class="font-medium">${m.displayName}</div>`;
+      const sub = isExternal && m.sourceCollectionName
+        ? `<div class="text-xs text-gray-500 mono">${m.codeIdentifier} &middot; ${String(m.sourceCollectionName).replace(/</g,'&lt;')}</div>`
+        : `<div class="text-xs text-gray-500 mono">${m.codeIdentifier}</div>`;
+      btn.innerHTML = `${label}${sub}`;
       btn.addEventListener('click', () => selectModel(m.codeIdentifier));
       list.appendChild(btn);
     });
@@ -771,6 +942,7 @@
     document.getElementById('btn-add-field').disabled = !enabled;
     document.getElementById('btn-save-model').disabled = !enabled;
     document.getElementById('btn-delete-model').disabled = !enabled || isNew;
+    document.getElementById('btn-sync-external').disabled = true;
     document.getElementById('btn-mode-simple').disabled = !enabled;
     document.getElementById('btn-mode-advanced').disabled = !enabled;
     document.getElementById('btn-mode-ai').disabled = !enabled;
@@ -784,6 +956,34 @@
     document.getElementById('btn-ai-clear').disabled = !enabled;
     document.getElementById('btn-ai-apply').disabled = !enabled;
     // Data tab controls are managed separately
+  }
+
+  function setModelFormEnabledForModel(model) {
+    if (!model) {
+      setModelFormEnabled(false);
+      return;
+    }
+
+    const isNew = Boolean(model.__isNew);
+    const isExternal = model && (model.sourceType === 'external' || model.isExternal === true);
+
+    setModelFormEnabled(true, isNew);
+
+    if (isExternal) {
+      document.getElementById('btn-save-model').disabled = true;
+      document.getElementById('btn-add-field').disabled = true;
+      document.getElementById('btn-mode-advanced').disabled = true;
+      document.getElementById('btn-mode-ai').disabled = true;
+      document.getElementById('btn-advanced-load').disabled = true;
+      document.getElementById('btn-advanced-validate').disabled = true;
+      document.getElementById('btn-advanced-save').disabled = true;
+      document.getElementById('ai-input').disabled = true;
+      document.getElementById('btn-ai-send').disabled = true;
+      document.getElementById('btn-ai-clear').disabled = true;
+      document.getElementById('btn-ai-apply').disabled = true;
+      document.getElementById('btn-sync-external').disabled = false;
+      if (state.modelUi.mode !== 'simple') setModelMode('simple');
+    }
   }
 
   function setModelMode(mode) {
@@ -856,21 +1056,32 @@
     const title = document.getElementById('selected-model-title');
     const codeInput = document.getElementById('model-code');
     const nameInput = document.getElementById('model-displayName');
+    const hint = document.getElementById('model-collection-hint');
 
     const m = state.selectedModel;
     if (!m) {
       title.textContent = 'None';
       codeInput.value = '';
       nameInput.value = '';
-      setModelFormEnabled(false);
+      if (hint) hint.innerHTML = 'Stored as Mongo collection <span class="mono">headless_&lt;code&gt;</span>';
+      setModelFormEnabledForModel(null);
       renderFieldsTable();
       return;
     }
 
+    const isExternal = m && (m.sourceType === 'external' || m.isExternal === true);
     title.textContent = m.displayName;
     codeInput.value = m.codeIdentifier;
     nameInput.value = m.displayName;
-    setModelFormEnabled(true, !!m.__isNew);
+    if (hint) {
+      if (isExternal && m.sourceCollectionName) {
+        hint.innerHTML = `External Mongo collection <span class="mono">${String(m.sourceCollectionName).replace(/</g,'&lt;')}</span>`;
+      } else {
+        hint.innerHTML = 'Stored as Mongo collection <span class="mono">headless_&lt;code&gt;</span>';
+      }
+    }
+
+    setModelFormEnabledForModel(m);
     renderFieldsTable();
   }
 
@@ -891,6 +1102,8 @@
 
     tbody.innerHTML = '';
 
+    const isExternal = m && (m.sourceType === 'external' || m.isExternal === true);
+
     fields.forEach((f, idx) => {
       const tr = document.createElement('tr');
       tr.className = 'border-t';
@@ -899,32 +1112,36 @@
       const opts = typeOptions.map((t) => `<option value="${t}" ${String(f.type).toLowerCase()===t?'selected':''}>${t}</option>`).join('');
 
       tr.innerHTML = `
-        <td class="py-2 pr-3"><input class="field-name border rounded px-2 py-1 w-40 mono" value="${f.name || ''}" data-idx="${idx}" /></td>
-        <td class="py-2 pr-3"><select class="field-type border rounded px-2 py-1" data-idx="${idx}">${opts}</select></td>
-        <td class="py-2 pr-3"><input type="checkbox" class="field-required" data-idx="${idx}" ${f.required?'checked':''} /></td>
-        <td class="py-2 pr-3"><input type="checkbox" class="field-unique" data-idx="${idx}" ${f.unique?'checked':''} /></td>
-        <td class="py-2 pr-3"><input class="field-default border rounded px-2 py-1 w-40" value="${f.default===undefined?'':String(f.default)}" data-idx="${idx}" placeholder="(optional)" /></td>
-        <td class="py-2 pr-3"><input class="field-ref border rounded px-2 py-1 w-40 mono" value="${f.refModelCode||''}" data-idx="${idx}" placeholder="ref model code" /></td>
-        <td class="py-2 pr-3 text-right"><button class="btn-remove-field text-red-600 hover:underline" data-idx="${idx}">Remove</button></td>
+        <td class="py-2 pr-3"><input class="field-name border rounded px-2 py-1 w-40 mono" value="${f.name || ''}" data-idx="${idx}" ${isExternal ? 'disabled' : ''} /></td>
+        <td class="py-2 pr-3"><select class="field-type border rounded px-2 py-1" data-idx="${idx}" ${isExternal ? 'disabled' : ''}>${opts}</select></td>
+        <td class="py-2 pr-3"><input type="checkbox" class="field-required" data-idx="${idx}" ${f.required?'checked':''} ${isExternal ? 'disabled' : ''} /></td>
+        <td class="py-2 pr-3"><input type="checkbox" class="field-unique" data-idx="${idx}" ${f.unique?'checked':''} ${isExternal ? 'disabled' : ''} /></td>
+        <td class="py-2 pr-3"><input class="field-default border rounded px-2 py-1 w-40" value="${f.default===undefined?'':String(f.default)}" data-idx="${idx}" placeholder="(optional)" ${isExternal ? 'disabled' : ''} /></td>
+        <td class="py-2 pr-3"><input class="field-ref border rounded px-2 py-1 w-40 mono" value="${f.refModelCode||''}" data-idx="${idx}" placeholder="ref model code" ${isExternal ? 'disabled' : ''} /></td>
+        <td class="py-2 pr-3 text-right">${isExternal ? '' : `<button class="btn-remove-field text-red-600 hover:underline" data-idx="${idx}">Remove</button>`}</td>
       `;
 
       tbody.appendChild(tr);
     });
 
-    tbody.querySelectorAll('input,select').forEach((el) => {
-      el.addEventListener('change', () => syncFieldsFromUI());
-      el.addEventListener('input', () => syncFieldsFromUI());
-    });
-
-    tbody.querySelectorAll('.btn-remove-field').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const idx = Number(btn.dataset.idx);
-        const fields = Array.isArray(state.selectedModel.fields) ? state.selectedModel.fields : [];
-        fields.splice(idx, 1);
-        state.selectedModel.fields = fields;
-        renderFieldsTable();
+    if (!isExternal) {
+      tbody.querySelectorAll('input,select').forEach((el) => {
+        el.addEventListener('change', () => syncFieldsFromUI());
+        el.addEventListener('input', () => syncFieldsFromUI());
       });
-    });
+    }
+
+    if (!isExternal) {
+      tbody.querySelectorAll('.btn-remove-field').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.dataset.idx);
+          const fields = Array.isArray(state.selectedModel.fields) ? state.selectedModel.fields : [];
+          fields.splice(idx, 1);
+          state.selectedModel.fields = fields;
+          renderFieldsTable();
+        });
+      });
+    }
 
     updateRefVisibility();
   }
@@ -1045,6 +1262,12 @@
     try {
       const m = state.selectedModel;
       if (!m) return;
+
+      if (m && (m.sourceType === 'external' || m.isExternal === true)) {
+        toast('External models are read-only. Use Sync/Infer to refresh.', 'error');
+        return;
+      }
+
       syncFieldsFromUI();
 
       const payload = {
@@ -1578,6 +1801,53 @@
     await loadModels();
     await loadDataPage();
     await loadTokens();
+  });
+
+  document.getElementById('btn-import-external').addEventListener('click', async () => {
+    try {
+      setImportPreview(null);
+      setImportModalOpen(true);
+      await loadExternalCollectionsIntoModal();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-import-close').addEventListener('click', () => {
+    setImportModalOpen(false);
+  });
+
+  document.getElementById('import-collection').addEventListener('change', (e) => {
+    const name = String(e.target.value || '').trim();
+    const codeInput = document.getElementById('import-code');
+    const dnInput = document.getElementById('import-displayName');
+    if (codeInput && name) codeInput.value = normalizeExtCodeFromCollectionName(name);
+    if (dnInput && name) dnInput.value = String(name).replace(/_/g, ' ');
+  });
+
+  document.getElementById('btn-import-infer').addEventListener('click', async () => {
+    try {
+      await importInferPreview();
+      toast('Inferred', 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-import-run').addEventListener('click', async () => {
+    try {
+      await importRun();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
+  });
+
+  document.getElementById('btn-sync-external').addEventListener('click', async () => {
+    try {
+      await syncExternalSelectedModel();
+    } catch (e) {
+      toast(e.message, 'error');
+    }
   });
 
   // Copy cURL buttons

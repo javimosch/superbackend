@@ -7,6 +7,12 @@ const {
   getDynamicModel,
 } = require('../services/headlessModels.service');
 
+const {
+  listExternalCollections,
+  inferExternalModelFromCollection,
+  createOrUpdateExternalModel,
+} = require('../services/headlessExternalModels.service');
+
 const llmService = require('../services/llm.service');
 const { getSettingValue } = require('../services/globalSettings.service');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
@@ -395,6 +401,82 @@ exports.deleteModel = async (req, res) => {
     return res.json({ item });
   } catch (error) {
     console.error('Error deleting headless model:', error);
+    return handleServiceError(res, error);
+  }
+};
+
+// External models (Mongo collections)
+exports.listExternalCollections = async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim() || null;
+    const includeSystem = String(req.query.includeSystem || '').trim().toLowerCase() === 'true';
+    const items = await listExternalCollections({ q, includeSystem });
+    return res.json({ items });
+  } catch (error) {
+    console.error('Error listing external mongo collections:', error);
+    return handleServiceError(res, error);
+  }
+};
+
+exports.inferExternalCollection = async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const collectionName = String(body.collectionName || '').trim();
+    const sampleSize = body.sampleSize;
+    const result = await inferExternalModelFromCollection({ collectionName, sampleSize });
+    return res.json(result);
+  } catch (error) {
+    console.error('Error inferring external collection schema:', error);
+    return handleServiceError(res, error);
+  }
+};
+
+exports.importExternalModel = async (req, res) => {
+  try {
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const collectionName = String(body.collectionName || '').trim();
+    const codeIdentifier = String(body.codeIdentifier || '').trim();
+    const displayName = String(body.displayName || '').trim();
+    const sampleSize = body.sampleSize;
+
+    const result = await createOrUpdateExternalModel({
+      collectionName,
+      codeIdentifier,
+      displayName,
+      sampleSize,
+    });
+
+    return res.status(result.created ? 201 : 200).json({ item: result.item, inference: result.inference });
+  } catch (error) {
+    console.error('Error importing external model:', error);
+    return handleServiceError(res, error);
+  }
+};
+
+exports.syncExternalModel = async (req, res) => {
+  try {
+    const codeIdentifier = String(req.params.codeIdentifier || '').trim();
+    const existing = await getModelDefinitionByCode(codeIdentifier);
+    if (!existing) return res.status(404).json({ error: 'Model not found' });
+
+    const isExternal = existing.sourceType === 'external' || existing.isExternal === true;
+    if (!isExternal) {
+      return res.status(400).json({ error: 'Model is not external' });
+    }
+
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const sampleSize = body.sampleSize;
+
+    const result = await createOrUpdateExternalModel({
+      collectionName: existing.sourceCollectionName,
+      codeIdentifier: existing.codeIdentifier,
+      displayName: existing.displayName,
+      sampleSize,
+    });
+
+    return res.json({ item: result.item, inference: result.inference });
+  } catch (error) {
+    console.error('Error syncing external model:', error);
     return handleServiceError(res, error);
   }
 };

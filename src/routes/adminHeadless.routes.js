@@ -13,6 +13,12 @@ router.post('/models', adminHeadlessController.createModel);
 router.put('/models/:codeIdentifier', adminHeadlessController.updateModel);
 router.delete('/models/:codeIdentifier', adminHeadlessController.deleteModel);
 
+// External models (Mongo collections)
+router.get('/external/collections', adminHeadlessController.listExternalCollections);
+router.post('/external/infer', adminHeadlessController.inferExternalCollection);
+router.post('/external/import', adminHeadlessController.importExternalModel);
+router.post('/models/:codeIdentifier/sync', adminHeadlessController.syncExternalModel);
+
 // Advanced JSON / bulk helpers
 router.post('/models/validate', adminHeadlessController.validateModelDefinition);
 router.post('/models/apply', adminHeadlessController.applyModelProposal);

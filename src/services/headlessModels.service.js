@@ -89,6 +89,18 @@ function getMongoCollectionName(codeIdentifier) {
   return `${MODEL_COLLECTION_PREFIX}${code}`;
 }
 
+function isExternalDefinition(def) {
+  return def && (def.sourceType === 'external' || def.isExternal === true);
+}
+
+function getCollectionNameForDefinition(def) {
+  if (isExternalDefinition(def)) {
+    const cn = String(def.sourceCollectionName || '').trim();
+    return cn || getMongoCollectionName(def.codeIdentifier);
+  }
+  return getMongoCollectionName(def.codeIdentifier);
+}
+
 function buildSchemaFromDefinition(def) {
   const schemaShape = {};
   for (const field of def.fields || []) {
@@ -99,12 +111,14 @@ function buildSchemaFromDefinition(def) {
     schemaShape[fieldName] = toMongooseField(field);
   }
 
-  schemaShape._headlessModelCode = { type: String, default: def.codeIdentifier, index: true };
-  schemaShape._headlessSchemaVersion = { type: Number, default: def.version, index: true };
+  if (!isExternalDefinition(def)) {
+    schemaShape._headlessModelCode = { type: String, default: def.codeIdentifier, index: true };
+    schemaShape._headlessSchemaVersion = { type: Number, default: def.version, index: true };
+  }
 
   const schema = new mongoose.Schema(schemaShape, {
     timestamps: true,
-    collection: getMongoCollectionName(def.codeIdentifier),
+    collection: getCollectionNameForDefinition(def),
     strict: false,
   });
 
@@ -254,6 +268,8 @@ async function disableModelDefinition(codeIdentifier) {
 const modelCache = new Map();
 
 async function ensureAutoMigration(modelDef) {
+  if (isExternalDefinition(modelDef)) return;
+
   const collectionName = getMongoCollectionName(modelDef.codeIdentifier);
   const coll = mongoose.connection.collection(collectionName);
 
@@ -318,7 +334,8 @@ async function getDynamicModel(codeIdentifier) {
     throw err;
   }
 
-  const cacheKey = `${def.codeIdentifier}:${def.version}:${def.fieldsHash}`;
+  const collectionName = getCollectionNameForDefinition(def);
+  const cacheKey = `${def.codeIdentifier}:${def.version}:${def.fieldsHash}:${collectionName}`;
   const cached = modelCache.get(cacheKey);
   if (cached) return cached;
 
@@ -334,8 +351,10 @@ async function getDynamicModel(codeIdentifier) {
   const schema = buildSchemaFromDefinition(def);
   const Model = mongoose.model(modelName, schema);
 
-  await ensureAutoMigration(def);
-  await ensureIndexesBestEffort(Model);
+  if (!isExternalDefinition(def)) {
+    await ensureAutoMigration(def);
+    await ensureIndexesBestEffort(Model);
+  }
 
   modelCache.set(cacheKey, Model);
   return Model;
@@ -346,6 +365,7 @@ module.exports = {
   normalizeCodeIdentifier,
   getMongooseModelName,
   getMongoCollectionName,
+  getCollectionNameForDefinition,
   computeSchemaHash,
   listModelDefinitions,
   getModelDefinitionByCode,
