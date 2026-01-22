@@ -19,6 +19,7 @@ const authenticate = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
+    console.error("api authenticate error:", error);
     return res
       .status(401)
       .json({ error: error.message || "Authentication failed" });
@@ -45,6 +46,12 @@ const basicAuth = (req, res, next) => {
   if (username === adminUsername && password === adminPassword) {
     next();
   } else {
+    console.error("api basicAuth error:", {
+      username,
+      password,
+      adminUsername,
+      adminPassword,
+    });
     res.setHeader("WWW-Authenticate", 'Basic realm="Admin Area"');
     return res.status(401).json({ error: "Invalid credentials" });
   }
