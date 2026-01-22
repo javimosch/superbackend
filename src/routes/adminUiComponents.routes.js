@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { basicAuth } = require('../middleware/auth');
 const adminUiComponentsController = require('../controllers/adminUiComponents.controller');
+const adminUiComponentsAiController = require('../controllers/adminUiComponentsAi.controller');
 
 router.use(basicAuth);
 
@@ -22,5 +23,7 @@ router.delete('/components/:code', adminUiComponentsController.deleteComponent);
 router.get('/projects/:projectId/components', adminUiComponentsController.listProjectAssignments);
 router.post('/projects/:projectId/components/:code', adminUiComponentsController.setAssignment);
 router.delete('/projects/:projectId/components/:code', adminUiComponentsController.deleteAssignment);
+
+router.post('/ai/components/:code/propose', adminUiComponentsAiController.propose);
 
 module.exports = router;

@@ -79,6 +79,75 @@
               </div>
             </div>
 
+            <div class="border-t pt-3 space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="font-semibold text-gray-900">AI Assist</div>
+                  <div class="text-xs text-gray-500">Propose edits and apply into editor (manual Save).</div>
+                </div>
+                <button @click="loadLlmConfig" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Reload LLM</button>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Provider</label>
+                  <select v-model="ai.providerKey" class="w-full border rounded px-2 py-2 text-sm">
+                    <option value="">(default)</option>
+                    <option v-for="k in llmProviderKeys" :key="k" :value="k">{{ k }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Model</label>
+                  <input v-model="ai.model" class="w-full border rounded px-2 py-2 text-sm" placeholder="(default)" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-gray-600 mb-1">Prompt</label>
+                <textarea v-model="ai.prompt" class="w-full border rounded px-2 py-2 text-sm" rows="3" placeholder="Describe the change you want..."></textarea>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Targets</label>
+                  <div class="flex flex-wrap gap-3 text-xs text-gray-700">
+                    <label class="flex items-center gap-1"><input type="checkbox" v-model="ai.targets.html" /> html</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" v-model="ai.targets.css" /> css</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" v-model="ai.targets.js" /> js</label>
+                    <label class="flex items-center gap-1"><input type="checkbox" v-model="ai.targets.usageMarkdown" /> usage</label>
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+                  <select v-model="ai.mode" class="w-full border rounded px-2 py-2 text-sm">
+                    <option value="minimal">minimal</option>
+                    <option value="rewrite">rewrite</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="flex gap-2">
+                <button @click="aiPropose" class="flex-1 px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white" :disabled="aiLoading">
+                  {{ aiLoading ? 'Proposing...' : 'Propose' }}
+                </button>
+                <button @click="aiApply" class="px-3 py-2 rounded text-sm bg-gray-800 hover:bg-gray-900 text-white" :disabled="!aiProposal">
+                  Apply
+                </button>
+              </div>
+
+              <div v-if="aiWarnings.length" class="text-xs bg-amber-50 border border-amber-200 rounded p-2">
+                <div class="font-semibold text-amber-900 mb-1">Warnings</div>
+                <ul class="list-disc pl-5 space-y-1">
+                  <li v-for="(w, idx) in aiWarnings" :key="idx" class="text-amber-900">{{ w }}</li>
+                </ul>
+              </div>
+
+              <div v-if="aiProposal" class="text-xs bg-gray-50 border border-gray-200 rounded p-2">
+                <div class="font-semibold text-gray-700 mb-1">Patch preview</div>
+                <pre class="whitespace-pre-wrap break-words text-[11px]">{{ aiProposal.patch }}</pre>
+              </div>
+            </div>
+
             <div class="border-t pt-3">
               <div class="text-xs text-gray-500 mb-2">Existing components:</div>
               <div class="space-y-1 max-h-[320px] overflow-auto">
@@ -160,6 +229,11 @@
           const baseUrl = '<%= baseUrl %>';
           const adminPath = '<%= adminPath %>';
 
+          const STORAGE_KEYS = {
+            providerKey: 'uiComponents.ai.providerKey',
+            model: 'uiComponents.ai.model',
+          };
+
           const toast = ref({ show: false, message: '', type: 'success' });
           let toastTimer = null;
 
@@ -198,9 +272,87 @@
           const assignments = ref([]);
           const lastGeneratedKey = ref('');
 
+          const llmProviderKeys = ref([]);
+          const ai = ref({
+            providerKey: localStorage.getItem(STORAGE_KEYS.providerKey) || '',
+            model: localStorage.getItem(STORAGE_KEYS.model) || '',
+            prompt: '',
+            mode: 'minimal',
+            targets: { html: true, css: true, js: true, usageMarkdown: true },
+          });
+          const aiLoading = ref(false);
+          const aiProposal = ref(null);
+          const aiWarnings = ref([]);
+
           const newProject = ref({ name: '', projectId: '', isPublic: true });
 
           const componentEditor = ref({ code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' });
+
+          async function loadLlmConfig() {
+            try {
+              const data = await api('/api/admin/llm/config');
+              const providers = data && data.providers ? data.providers : {};
+              llmProviderKeys.value = Object.keys(providers || {}).sort();
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          function persistAiSettings() {
+            try {
+              localStorage.setItem(STORAGE_KEYS.providerKey, String(ai.value.providerKey || ''));
+              localStorage.setItem(STORAGE_KEYS.model, String(ai.value.model || ''));
+            } catch {}
+          }
+
+          async function aiPropose() {
+            try {
+              const code = String(componentEditor.value.code || '').trim().toLowerCase();
+              if (!code) throw new Error('Select or enter a component code first');
+              const prompt = String(ai.value.prompt || '').trim();
+              if (!prompt) throw new Error('Prompt is required');
+
+              persistAiSettings();
+              aiLoading.value = true;
+              aiProposal.value = null;
+              aiWarnings.value = [];
+
+              const payload = {
+                prompt,
+                providerKey: ai.value.providerKey || undefined,
+                model: ai.value.model || undefined,
+                targets: ai.value.targets,
+                mode: ai.value.mode,
+              };
+
+              const data = await api('/api/admin/ui-components/ai/components/' + encodeURIComponent(code) + '/propose', {
+                method: 'POST',
+                body: payload,
+              });
+
+              aiProposal.value = data && data.proposal ? data.proposal : null;
+              aiWarnings.value = (aiProposal.value && Array.isArray(aiProposal.value.warnings)) ? aiProposal.value.warnings : [];
+              showToast('AI proposal ready', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            } finally {
+              aiLoading.value = false;
+            }
+          }
+
+          function aiApply() {
+            try {
+              if (!aiProposal.value || !aiProposal.value.fields) return;
+              const f = aiProposal.value.fields;
+              if (f.html !== undefined) componentEditor.value.html = f.html;
+              if (f.css !== undefined) componentEditor.value.css = f.css;
+              if (f.js !== undefined) componentEditor.value.js = f.js;
+              if (f.usageMarkdown !== undefined) componentEditor.value.usageMarkdown = f.usageMarkdown;
+              showToast('Applied proposal into editor (click Save to persist)', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
 
           async function refreshProjects() {
             const data = await api('/api/admin/ui-components/projects');
@@ -318,6 +470,10 @@
               const data = await api('/api/admin/ui-components/components/' + encodeURIComponent(code));
               const c = data && data.item ? data.item : null;
               if (!c) return;
+
+              aiProposal.value = null;
+              aiWarnings.value = [];
+
               componentEditor.value = {
                 code: c.code || '',
                 name: c.name || '',
@@ -361,6 +517,7 @@
 
           onMounted(async () => {
             try {
+              await loadLlmConfig();
               await refreshAll();
             } catch (e) {
               showToast(e.message, 'error');
@@ -378,6 +535,14 @@
             lastGeneratedKey,
             newProject,
             componentEditor,
+            llmProviderKeys,
+            ai,
+            aiLoading,
+            aiProposal,
+            aiWarnings,
+            loadLlmConfig,
+            aiPropose,
+            aiApply,
             refreshAll,
             createProject,
             selectProject,
