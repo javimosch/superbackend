@@ -9,6 +9,7 @@
     "start:minio": "docker compose -f compose.standalone.yml --profile minio-only up -d minio",
     "minio:envs": "node -e \"console.log(['S3_ENDPOINT=http://localhost:9000','S3_REGION=us-east-1','S3_ACCESS_KEY_ID=minioadmin','S3_SECRET_ACCESS_KEY=minioadmin','S3_BUCKET=saasbackend','S3_FORCE_PATH_STYLE=true'].join('\\n'))\"",
     "build:sdk:error-tracking:browser": "esbuild sdk/error-tracking/browser/src/embed.js --bundle --format=iife --global-name=saasbackendErrorTrackingEmbed --outfile=sdk/error-tracking/browser/dist/embed.iife.js",
+    "build:sdk:ui-components:browser": "esbuild sdk/ui-components/browser/src/index.js --bundle --format=iife --outfile=public/sdk/ui-components.iife.js",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"

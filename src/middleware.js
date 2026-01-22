@@ -142,6 +142,12 @@ function createMiddleware(options = {}) {
   // Serve public static files (e.g. /og/og-default.png)
   router.use(express.static(path.join(__dirname, "..", "public")));
 
+  // Serve browser SDK bundles
+  router.use(
+    "/public/sdk",
+    express.static(path.join(__dirname, "..", "public", "sdk")),
+  );
+
   // Serve static files for admin views
   router.use(
     `${adminPath}/assets`,
@@ -209,6 +215,7 @@ function createMiddleware(options = {}) {
     "/api/admin/upload-namespaces",
     require("./routes/adminUploadNamespaces.routes"),
   );
+  router.use("/api/admin/ui-components", require("./routes/adminUiComponents.routes"));
   router.use("/api/admin/migration", require("./routes/adminMigration.routes"));
   router.use("/api/admin/errors", basicAuth, require("./routes/adminErrors.routes"));
   router.use("/api/admin/audit", basicAuth, require("./routes/adminAudit.routes"));
@@ -229,6 +236,8 @@ function createMiddleware(options = {}) {
   router.use("/api/invites", require("./routes/invite.routes"));
   router.use("/api/log", require("./routes/log.routes"));
   router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
+  router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
+  router.use("/api/llm/ui", require("./routes/llmUi.routes"));
 
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));
@@ -515,6 +524,39 @@ function createMiddleware(options = {}) {
       "..",
       "views",
       "admin-headless.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+            endpointRegistry,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin UI Components page (protected by basic auth)
+  router.get(`${adminPath}/ui-components`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-ui-components.ejs",
     );
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {

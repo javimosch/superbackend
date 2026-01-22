@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI Components - Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  </head>
+  <body class="bg-gray-100">
+    <div id="app" class="min-h-screen">
+      <div class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div class="flex justify-between items-center">
+            <div>
+              <h1 class="text-2xl font-bold text-gray-900">UI Components</h1>
+              <p class="text-sm text-gray-600 mt-1">Manage projects, UI components, and assignments.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <div v-if="toast.show" class="fixed top-4 right-4 z-50">
+          <div :class="['px-4 py-3 rounded shadow text-sm', toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white']">
+            {{ toast.message }}
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="bg-white rounded-lg shadow p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800">Projects</h2>
+              <button @click="refreshAll" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Refresh</button>
+            </div>
+
+            <div class="space-y-2">
+              <input v-model="newProject.name" class="w-full border rounded px-3 py-2 text-sm" placeholder="Project name" />
+              <input v-model="newProject.projectId" class="w-full border rounded px-3 py-2 text-sm" placeholder="projectId (optional, prj_...)" />
+              <label class="flex items-center gap-2 text-sm">
+                <input type="checkbox" v-model="newProject.isPublic" />
+                Public
+              </label>
+              <button @click="createProject" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded">Create project</button>
+            </div>
+
+            <div class="border-t pt-3">
+              <div class="text-xs text-gray-500 mb-2">Select a project:</div>
+              <div class="space-y-1 max-h-[420px] overflow-auto">
+                <button
+                  v-for="p in projects"
+                  :key="p.projectId"
+                  @click="selectProject(p)"
+                  :class="['w-full text-left px-3 py-2 rounded text-sm border', selectedProject && selectedProject.projectId === p.projectId ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50']"
+                >
+                  <div class="font-medium text-gray-900">{{ p.name }}</div>
+                  <div class="text-xs text-gray-500">{{ p.projectId }} · <span :class="p.isPublic ? 'text-green-600' : 'text-amber-600'">{{ p.isPublic ? 'public' : 'private' }}</span></div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800">Components</h2>
+            </div>
+
+            <div class="space-y-2">
+              <input v-model="componentEditor.code" class="w-full border rounded px-3 py-2 text-sm" placeholder="code (e.g. toast)" />
+              <input v-model="componentEditor.name" class="w-full border rounded px-3 py-2 text-sm" placeholder="name" />
+              <textarea v-model="componentEditor.html" class="w-full border rounded px-3 py-2 text-sm font-mono" rows="4" placeholder="html"></textarea>
+              <textarea v-model="componentEditor.css" class="w-full border rounded px-3 py-2 text-sm font-mono" rows="3" placeholder="css"></textarea>
+              <textarea v-model="componentEditor.js" class="w-full border rounded px-3 py-2 text-sm font-mono" rows="6" placeholder="js (return { show(){...} })"></textarea>
+              <textarea v-model="componentEditor.usageMarkdown" class="w-full border rounded px-3 py-2 text-sm" rows="3" placeholder="usageMarkdown"></textarea>
+
+              <div class="flex gap-2">
+                <button @click="saveComponent" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded">Save</button>
+                <button @click="clearComponentEditor" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200">Clear</button>
+              </div>
+            </div>
+
+            <div class="border-t pt-3">
+              <div class="text-xs text-gray-500 mb-2">Existing components:</div>
+              <div class="space-y-1 max-h-[320px] overflow-auto">
+                <button
+                  v-for="c in components"
+                  :key="c.code"
+                  @click="loadComponentIntoEditor(c.code)"
+                  class="w-full text-left px-3 py-2 rounded text-sm border border-gray-200 hover:bg-gray-50"
+                >
+                  <div class="font-medium text-gray-900">{{ c.name }}</div>
+                  <div class="text-xs text-gray-500">{{ c.code }} · v{{ c.version || 1 }}</div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-4 space-y-4">
+            <div class="flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800">Assignments</h2>
+            </div>
+
+            <div v-if="!selectedProject" class="text-sm text-gray-500">
+              Select a project to manage enabled components.
+            </div>
+
+            <div v-else class="space-y-3">
+              <div class="text-sm">
+                <div class="font-medium text-gray-900">{{ selectedProject.name }}</div>
+                <div class="text-xs text-gray-500">{{ selectedProject.projectId }}</div>
+              </div>
+
+              <div class="space-y-2">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="selectedProject.isPublic" @change="toggleProjectPublic" />
+                  Public
+                </label>
+
+                <button v-if="!selectedProject.isPublic" @click="rotateKey" class="w-full text-sm px-3 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white">
+                  Rotate API Key
+                </button>
+
+                <div v-if="lastGeneratedKey" class="text-xs bg-gray-50 border border-gray-200 rounded p-2 break-all">
+                  <div class="font-semibold text-gray-700 mb-1">API Key (shown once)</div>
+                  <div class="font-mono">{{ lastGeneratedKey }}</div>
+                </div>
+
+                <div class="text-xs bg-gray-50 border border-gray-200 rounded p-2">
+                  <div class="font-semibold text-gray-700 mb-1">Integration snippet</div>
+                  <pre class="text-[11px] whitespace-pre-wrap">&lt;script src=&quot;{{ baseUrl }}/public/sdk/ui-components.iife.js&quot;&gt;&lt;/script&gt;
+&lt;script&gt;
+  uiCmp.init({ projectId: '{{ selectedProject.projectId }}', apiKey: {{ selectedProject.isPublic ? 'null' : "'YOUR_KEY'" }}, apiUrl: '{{ baseUrl }}' });
+&lt;/script&gt;</pre>
+                </div>
+              </div>
+
+              <div class="border-t pt-3">
+                <div class="text-xs text-gray-500 mb-2">Enable components:</div>
+                <div class="space-y-2 max-h-[360px] overflow-auto">
+                  <label v-for="c in components" :key="c.code" class="flex items-center justify-between gap-3 text-sm border border-gray-200 rounded px-3 py-2">
+                    <div>
+                      <div class="font-medium text-gray-900">{{ c.name }}</div>
+                      <div class="text-xs text-gray-500">{{ c.code }}</div>
+                    </div>
+                    <input type="checkbox" :checked="isAssigned(c.code)" @change="(e) => toggleAssignment(c.code, e.target.checked)" />
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const { createApp, ref, onMounted } = Vue;
+
+      createApp({
+        setup() {
+          const baseUrl = '<%= baseUrl %>';
+          const adminPath = '<%= adminPath %>';
+
+          const toast = ref({ show: false, message: '', type: 'success' });
+          let toastTimer = null;
+
+          function showToast(message, type) {
+            toast.value = { show: true, message, type: type || 'success' };
+            if (toastTimer) clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+              toast.value.show = false;
+            }, 2500);
+          }
+
+          async function api(path, options) {
+            const res = await fetch(baseUrl + path, {
+              method: (options && options.method) || 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: options && options.body ? JSON.stringify(options.body) : undefined,
+            });
+
+            const text = await res.text();
+            let data = null;
+            try { data = text ? JSON.parse(text) : null; } catch { data = null; }
+
+            if (!res.ok) {
+              const msg = (data && data.error) ? data.error : ('Request failed: ' + res.status);
+              throw new Error(msg);
+            }
+
+            return data;
+          }
+
+          const projects = ref([]);
+          const components = ref([]);
+          const selectedProject = ref(null);
+          const assignments = ref([]);
+          const lastGeneratedKey = ref('');
+
+          const newProject = ref({ name: '', projectId: '', isPublic: true });
+
+          const componentEditor = ref({ code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' });
+
+          async function refreshProjects() {
+            const data = await api('/api/admin/ui-components/projects');
+            projects.value = (data && data.items) ? data.items : [];
+          }
+
+          async function refreshComponents() {
+            const data = await api('/api/admin/ui-components/components');
+            components.value = (data && data.items) ? data.items : [];
+          }
+
+          async function refreshAssignments(projectId) {
+            const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(projectId) + '/components');
+            assignments.value = (data && data.items) ? data.items : [];
+          }
+
+          async function refreshAll() {
+            try {
+              await Promise.all([refreshProjects(), refreshComponents()]);
+              if (selectedProject.value) {
+                await refreshAssignments(selectedProject.value.projectId);
+              }
+              showToast('Refreshed', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          async function createProject() {
+            try {
+              lastGeneratedKey.value = '';
+              const payload = {
+                name: newProject.value.name,
+                projectId: newProject.value.projectId || undefined,
+                isPublic: Boolean(newProject.value.isPublic),
+              };
+              const data = await api('/api/admin/ui-components/projects', { method: 'POST', body: payload });
+              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
+              newProject.value = { name: '', projectId: '', isPublic: true };
+              await refreshProjects();
+              showToast('Project created', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          async function selectProject(p) {
+            try {
+              lastGeneratedKey.value = '';
+              selectedProject.value = { ...p };
+              await refreshAssignments(p.projectId);
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          function isAssigned(code) {
+            return assignments.value.some((a) => a.componentCode === code && a.enabled);
+          }
+
+          async function toggleAssignment(code, enabled) {
+            try {
+              if (!selectedProject.value) return;
+              if (enabled) {
+                await api(
+                  '/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/components/' + encodeURIComponent(code),
+                  { method: 'POST', body: { enabled: true } },
+                );
+              } else {
+                await api(
+                  '/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/components/' + encodeURIComponent(code),
+                  { method: 'DELETE' },
+                );
+              }
+              await refreshAssignments(selectedProject.value.projectId);
+              showToast('Updated assignment', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          async function toggleProjectPublic() {
+            try {
+              lastGeneratedKey.value = '';
+              const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId), {
+                method: 'PUT',
+                body: { isPublic: Boolean(selectedProject.value.isPublic) },
+              });
+              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
+              await refreshProjects();
+              await refreshAssignments(selectedProject.value.projectId);
+              showToast('Project updated', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          async function rotateKey() {
+            try {
+              lastGeneratedKey.value = '';
+              const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/rotate-key', { method: 'POST' });
+              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
+              showToast('Key rotated', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          function clearComponentEditor() {
+            componentEditor.value = { code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' };
+          }
+
+          async function loadComponentIntoEditor(code) {
+            try {
+              const data = await api('/api/admin/ui-components/components/' + encodeURIComponent(code));
+              const c = data && data.item ? data.item : null;
+              if (!c) return;
+              componentEditor.value = {
+                code: c.code || '',
+                name: c.name || '',
+                html: c.html || '',
+                js: c.js || '',
+                css: c.css || '',
+                usageMarkdown: c.usageMarkdown || '',
+              };
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          async function saveComponent() {
+            try {
+              const code = String(componentEditor.value.code || '').trim().toLowerCase();
+              if (!code) throw new Error('code is required');
+              const payload = {
+                code,
+                name: componentEditor.value.name,
+                html: componentEditor.value.html,
+                js: componentEditor.value.js,
+                css: componentEditor.value.css,
+                usageMarkdown: componentEditor.value.usageMarkdown,
+              };
+
+              const existing = components.value.find((c) => c.code === code);
+              if (existing) {
+                await api('/api/admin/ui-components/components/' + encodeURIComponent(code), { method: 'PUT', body: payload });
+              } else {
+                await api('/api/admin/ui-components/components', { method: 'POST', body: payload });
+              }
+
+              await refreshComponents();
+              if (selectedProject.value) await refreshAssignments(selectedProject.value.projectId);
+              showToast('Component saved', 'success');
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          }
+
+          onMounted(async () => {
+            try {
+              await refreshAll();
+            } catch (e) {
+              showToast(e.message, 'error');
+            }
+          });
+
+          return {
+            baseUrl,
+            adminPath,
+            toast,
+            projects,
+            components,
+            selectedProject,
+            assignments,
+            lastGeneratedKey,
+            newProject,
+            componentEditor,
+            refreshAll,
+            createProject,
+            selectProject,
+            isAssigned,
+            toggleAssignment,
+            toggleProjectPublic,
+            rotateKey,
+            clearComponentEditor,
+            loadComponentIntoEditor,
+            saveComponent,
+          };
+        },
+      }).mount('#app');
+    </script>
+  </body>
+</html>
