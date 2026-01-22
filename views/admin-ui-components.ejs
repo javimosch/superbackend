@@ -27,6 +27,76 @@
           </div>
         </div>
 
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="font-semibold text-gray-800">Using the system endpoints & SDK</h2>
+              <p class="text-xs text-gray-500">Quick reference for public endpoints and the browser SDK.</p>
+            </div>
+            <button
+              @click="toggleHelp"
+              class="text-xs px-2 py-1 rounded border border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+            >
+              {{ helpOpen ? 'Hide' : 'Show' }}
+            </button>
+          </div>
+
+          <div v-if="helpOpen" class="mt-3 space-y-4 text-sm text-gray-700">
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">Public API endpoints</h3>
+              <p class="text-xs text-gray-500 mb-2">All paths are relative to this backend base URL.</p>
+              <pre class="text-[11px] bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words"><code>
+GET {{ baseUrl }}/api/ui-components/manifest/:projectId
+GET {{ baseUrl }}/api/ui-components/component/:code
+
+// Private projects require an API key header
+//   x-project-key: YOUR_PROJECT_API_KEY
+
+curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
+  -H "x-project-key: YOUR_PROJECT_API_KEY"
+              </code></pre>
+            </div>
+
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">Browser SDK</h3>
+              <p class="text-xs text-gray-500 mb-2">Include the SDK bundle and initialize it with your project.</p>
+              <pre class="text-[11px] bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words"><code>
+&lt;script src="{{ baseUrl }}/public/sdk/ui-components.iife.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  uiCmp.init({
+    projectId: 'prj_yourproject',
+    apiKey: 'YOUR_PROJECT_API_KEY', // null for public projects
+    apiUrl: '{{ baseUrl }}',
+  });
+
+  // Alias also available
+  // uiComponents.init(...same config...);
+&lt;/script&gt;
+              </code></pre>
+            </div>
+
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">Project setup checklist</h3>
+              <ul class="list-disc pl-5 space-y-1 text-xs text-gray-700">
+                <li>Create a project (public or private) in the Projects panel.</li>
+                <li>Create one or more components and assign them to the project.</li>
+                <li v-if="selectedProject && !selectedProject.isPublic">For private projects, copy the API key when it is shown (once) after creation or rotation.</li>
+                <li>Optionally configure allowed origins on the project.</li>
+                <li>Use the manifest endpoint or SDK to render components on your site.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 class="font-semibold text-gray-800 mb-1">Troubleshooting</h3>
+              <ul class="list-disc pl-5 space-y-1 text-xs text-gray-700">
+                <li>401/403 on private projects usually means a missing or invalid <code>x-project-key</code>.</li>
+                <li>Check that the project is active and the component is assigned and enabled.</li>
+                <li>Verify that the SDK script URL matches this admin base URL ({{ baseUrl }}).</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="bg-white rounded-lg shadow p-4 space-y-4">
             <div class="flex items-center justify-between">
@@ -232,6 +302,7 @@
           const STORAGE_KEYS = {
             providerKey: 'uiComponents.ai.providerKey',
             model: 'uiComponents.ai.model',
+            helpOpen: 'uiComponents.help.open',
           };
 
           const toast = ref({ show: false, message: '', type: 'success' });
@@ -266,6 +337,8 @@
             return data;
           }
 
+          const helpOpen = ref(false);
+
           const projects = ref([]);
           const components = ref([]);
           const selectedProject = ref(null);
@@ -287,6 +360,25 @@
           const newProject = ref({ name: '', projectId: '', isPublic: true });
 
           const componentEditor = ref({ code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' });
+
+          function loadHelpState() {
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.helpOpen);
+              if (raw === '1') helpOpen.value = true;
+              if (raw === '0') helpOpen.value = false;
+            } catch {}
+          }
+
+          function persistHelpState() {
+            try {
+              localStorage.setItem(STORAGE_KEYS.helpOpen, helpOpen.value ? '1' : '0');
+            } catch {}
+          }
+
+          function toggleHelp() {
+            helpOpen.value = !helpOpen.value;
+            persistHelpState();
+          }
 
           async function loadLlmConfig() {
             try {
@@ -517,6 +609,7 @@
 
           onMounted(async () => {
             try {
+              loadHelpState();
               await loadLlmConfig();
               await refreshAll();
             } catch (e) {
@@ -528,6 +621,7 @@
             baseUrl,
             adminPath,
             toast,
+            helpOpen,
             projects,
             components,
             selectedProject,
@@ -535,6 +629,7 @@
             lastGeneratedKey,
             newProject,
             componentEditor,
+            toggleHelp,
             llmProviderKeys,
             ai,
             aiLoading,

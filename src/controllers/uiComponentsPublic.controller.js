@@ -45,14 +45,23 @@ exports.getManifest = async (req, res) => {
       .sort({ code: 1 })
       .lean();
 
-    const out = components.map((c) => ({
-      code: c.code,
-      name: c.name,
-      version: c.version,
-      html: c.html,
-      js: c.js,
-      css: c.css,
-    }));
+    const docsOnly = String(req.query.docs || '').toLowerCase() === 'true';
+
+    const out = components.map((c) => {
+      const base = {
+        code: c.code,
+        name: c.name,
+        version: c.version,
+      };
+      if (docsOnly) {
+        base.usageMarkdown = c.usageMarkdown;
+      } else {
+        base.html = c.html;
+        base.js = c.js;
+        base.css = c.css;
+      }
+      return base;
+    });
 
     return res.json({
       project: {
