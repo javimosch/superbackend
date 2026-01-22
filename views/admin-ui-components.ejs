@@ -76,6 +76,54 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
             </div>
 
             <div>
+              <h3 class="font-semibold text-gray-800 mb-1">Auto-inject snippet (single script tag)</h3>
+              <p class="text-xs text-gray-500 mb-2">Paste this anywhere; it uses the SDK host’s origin and avoids duplicate injection.</p>
+              <pre class="autoInjectSnippet text-[11px] bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words"><code>
+&lt;script&gt;
+(function () {
+  // ---- CONFIG ----
+  const SCRIPT_SRC = '__ORIGIN__{{ baseUrl }}/public/sdk/ui-components.iife.js';
+  const INIT_OPTS = {
+    projectId: 'prj_yourproject',
+    apiKey: null, // set string for private projects
+    apiUrl: '{{ baseUrl }}',
+  };
+
+  // ---- GUARDS (idempotent) ----
+  if (window.__uiCmpAutoAdded) return;
+  window.__uiCmpAutoAdded = true;
+
+  function initUiCmp() {
+    if (!window.uiCmp || window.__uiCmpInitialized) return;
+    window.__uiCmpInitialized = true;
+    window.uiCmp.init(INIT_OPTS);
+  }
+
+  // ---- SCRIPT LOADER ----
+  if (window.uiCmp) {
+    // SDK already loaded
+    initUiCmp();
+    return;
+  }
+
+  // Avoid duplicate &lt;script&gt; injection
+  const existing = document.querySelector('script[src="' + SCRIPT_SRC + '"]');
+  if (existing) {
+    existing.addEventListener('load', initUiCmp, { once: true });
+    return;
+  }
+
+  const s = document.createElement('script');
+  s.src = SCRIPT_SRC;
+  s.async = true;
+  s.onload = initUiCmp;
+  document.head.appendChild(s);
+})();
+&lt;/script&gt;
+              </code></pre>
+            </div>
+
+            <div>
               <h3 class="font-semibold text-gray-800 mb-1">Project setup checklist</h3>
               <ul class="list-disc pl-5 space-y-1 text-xs text-gray-700">
                 <li>Create a project (public or private) in the Projects panel.</li>
@@ -612,6 +660,11 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
               loadHelpState();
               await loadLlmConfig();
               await refreshAll();
+              // Replace __ORIGIN__ in auto-inject snippet
+              const snippetEl = document.querySelector('.autoInjectSnippet code');
+              if (snippetEl) {
+                snippetEl.innerHTML = snippetEl.innerHTML.split('__ORIGIN__').join(window.location.origin);
+              }
             } catch (e) {
               showToast(e.message, 'error');
             }
