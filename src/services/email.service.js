@@ -338,6 +338,20 @@ const replaceTemplateVariables = (template, variables) => {
   return result;
 };
 
+// Helper to clear cache (for testing)
+const clearCache = () => {
+  settingsCache.clear();
+  resendClient = null;
+};
+
+// Helper to clear cache and reinitialize (for testing)
+const clearCacheAndReinitialize = async () => {
+  settingsCache.clear();
+  resendClient = null;
+  // Reinitialize with current env vars
+  await initResend();
+};
+
 module.exports = {
   sendEmail,
   sendPasswordResetEmail,
@@ -348,4 +362,6 @@ module.exports = {
   sendSubscriptionEmail,
   sendWaitingListEmail,
   replaceTemplateVariables,
+  clearCache,
+  clearCacheAndReinitialize,
 };

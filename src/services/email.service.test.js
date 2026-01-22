@@ -32,33 +32,48 @@ const storage = require('./storage');
 
 describe('Email Service', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
     process.env.RESEND_API_KEY = 'test-api-key';
-    process.env.FROM_EMAIL = 'test@example.com';
+    process.env.EMAIL_FROM = 'test@example.com';
     process.env.REPLY_TO_EMAIL = 'reply@example.com';
+  });
+
+  beforeEach(() => {
+    // Reset the email service module to reinitialize with mocked dependencies
+    jest.resetModules();
+    jest.clearAllMocks();
+    
+    // Re-mock after resetModules
+    jest.mock('resend', () => {
+      return {
+        Resend: jest.fn(() => mockResend)
+      };
+    });
     
     // Mock GlobalSetting to return API key
     const GlobalSetting = require('../models/GlobalSetting');
     GlobalSetting.findOne.mockImplementation(({ key }) => {
-      if (key === 'RESEND_API_KEY') {
-        return Promise.resolve({ value: 'test-api-key' });
-      }
-      if (key === 'EMAIL_FROM') {
-        return Promise.resolve({ value: 'test@example.com' });
-      }
-      return Promise.resolve(null);
+      // Return a chainable object with .lean() method
+      return {
+        lean: jest.fn().mockImplementation(() => {
+          if (key === 'RESEND_API_KEY') {
+            return Promise.resolve({ value: 'test-api-key' });
+          }
+          if (key === 'EMAIL_FROM') {
+            return Promise.resolve({ value: 'test@example.com' });
+          }
+          return Promise.resolve(null);
+        })
+      };
     });
     
     // Mock EmailLog.create
     const EmailLog = require('../models/EmailLog');
     EmailLog.create.mockResolvedValue({});
-    
-    // Reset the email service module to reinitialize with mocked dependencies
-    jest.resetModules();
   });
 
   afterEach(() => {
     jest.resetModules();
+    jest.clearAllMocks();
   });
 
   describe('sendEmail', () => {
@@ -77,7 +92,7 @@ describe('Email Service', () => {
       const result = await emailService.sendEmail(emailData);
 
       expect(mockResend.emails.send).toHaveBeenCalledWith({
-        from: 'SuperBackend <no-reply@resend.dev>',
+        from: 'test@example.com',
         to: ['recipient@example.com'],
         subject: 'Test Subject',
         html: '<h1>Test Email</h1>',
@@ -90,17 +105,16 @@ describe('Email Service', () => {
       // Force the service to use simulation mode by not having API key in either place
       delete process.env.RESEND_API_KEY;
       
-      const emailService = require('./email.service');
-      
-      // Mock GlobalSetting to return null for API key
+      // Override GlobalSetting mock to return null for RESEND_API_KEY
       const GlobalSetting = require('../models/GlobalSetting');
       GlobalSetting.findOne.mockImplementation(({ key }) => {
-        if (key === 'RESEND_API_KEY') {
-          return Promise.resolve(null);
-        }
-        return Promise.resolve(null);
+        return {
+          lean: jest.fn().mockResolvedValue(null)
+        };
       });
-
+      
+      const emailService = require('./email.service');
+      
       const result = await emailService.sendEmail({ to: 'test@test.com' });
       expect(result).toEqual(expect.objectContaining({ success: true, simulated: true }));
     }, 10000);
@@ -120,8 +134,32 @@ describe('Email Service', () => {
     }, 10000);
 
     test('should use default from email when not provided', async () => {
+      // This test verifies that when EMAIL_FROM is not in the database,
+      // the default 'SuperBackend <no-reply@resend.dev>' is used
+      
+      // Delete EMAIL_FROM from environment (set it to undefined so fallback happens)
+      delete process.env.EMAIL_FROM;
+      
+      // Get the already-loaded email service and clear its cache
       const emailService = require('./email.service');
-      delete process.env.FROM_EMAIL;
+      emailService.clearCache();
+      
+      // Override GlobalSetting mock to return null for EMAIL_FROM
+      const GlobalSetting = require('../models/GlobalSetting');
+      GlobalSetting.findOne.mockImplementation(({ key }) => {
+        return {
+          lean: jest.fn().mockImplementation(() => {
+            if (key === 'RESEND_API_KEY') {
+              return Promise.resolve({ value: 'test-api-key' });
+            }
+            if (key === 'EMAIL_FROM') {
+              // Return null to simulate no database setting
+              return Promise.resolve(null);
+            }
+            return Promise.resolve(null);
+          })
+        };
+      });
       
       const emailData = {
         to: 'recipient@example.com',
