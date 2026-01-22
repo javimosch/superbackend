@@ -72,6 +72,14 @@ jest.mock('ejs', () => ({
 
 jest.mock('./admin/endpointRegistry', () => ({}));
 
+jest.mock('./models/GlobalSetting', () => {
+  return {
+    findOne: jest.fn().mockImplementation(() => ({
+      lean: jest.fn().mockResolvedValue(null)
+    }))
+  };
+});
+
 jest.mock('./services/featureFlags.service', () => ({
   createFeatureFlagsEjsMiddleware: jest.fn(() => (req, res, next) => next())
 }));
@@ -102,7 +110,18 @@ jest.mock('fs', () => ({
     } else {
       callback(new Error('File not found'));
     }
-  })
+  }),
+  existsSync: jest.fn(() => false),
+  createWriteStream: jest.fn(() => ({
+    write: jest.fn(),
+    end: jest.fn(),
+    destroy: jest.fn(),
+    destroyed: false,
+    on: jest.fn()
+  })),
+  truncateSync: jest.fn(),
+  unlinkSync: jest.fn(),
+  writeFileSync: jest.fn()
 }));
 
 jest.mock('vm2', () => ({
