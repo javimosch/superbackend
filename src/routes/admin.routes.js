@@ -7,6 +7,7 @@ const { basicAuth } = require('../middleware/auth');
 router.use(basicAuth);
 
 router.get('/users', adminController.getUsers);
+router.post('/users/register', adminController.registerUser);
 router.get('/users/:id', adminController.getUser);
 router.put('/users/:id/subscription', adminController.updateUserSubscription);
 router.patch('/users/:id', adminController.updateUserPassword);

@@ -6,6 +6,7 @@ const path = require('path');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { generateAccessToken, generateRefreshToken } = require('../utils/jwt');
 const { retryFailedWebhooks, processWebhookEvent } = require('../utils/webhookRetry');
+const { auditMiddleware } = require('../services/auditLogger');
 
 // Get all users
 const getUsers = asyncHandler(async (req, res) => {
@@ -15,6 +16,53 @@ const getUsers = asyncHandler(async (req, res) => {
     .limit(100);
 
   res.json(users.map(u => u.toJSON()));
+});
+
+// Register new user (admin only)
+const registerUser = asyncHandler(async (req, res) => {
+  const { email, password, name, role = 'user' } = req.body;
+
+  // Validation
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  }
+
+  if (!['user', 'admin'].includes(role)) {
+    return res.status(400).json({ error: 'Role must be either "user" or "admin"' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  // Check if user already exists
+  const existingUser = await User.findOne({ email: email.toLowerCase() });
+  if (existingUser) {
+    return res.status(409).json({ error: 'Email already registered' });
+  }
+
+  // Create new user
+  const user = new User({
+    email: email.toLowerCase(),
+    passwordHash: password, // Will be hashed by pre-save hook
+    name: name || '',
+    role: role
+  });
+
+  await user.save();
+
+  // Log the admin action
+  console.log(`Admin registered new user: ${user.email} with role: ${user.role}`);
+
+  res.status(201).json({
+    success: true,
+    user: user.toJSON()
+  });
 });
 
 // Get single user
@@ -307,6 +355,7 @@ const provisionCoolifyDeploy = asyncHandler(async (req, res) => {
 
 module.exports = {
   getUsers,
+  registerUser,
   getUser,
   updateUserSubscription,
   updateUserPassword,

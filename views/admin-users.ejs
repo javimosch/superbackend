@@ -22,6 +22,7 @@
             <p class="text-sm text-gray-600 mt-1">Manage system users</p>
           </div>
           <div class="flex items-center gap-4">
+            <button id="btn-register-user" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Register New User</button>
           </div>
         </div>
       </div>
@@ -195,6 +196,46 @@
       <div class="flex justify-end gap-2 mt-6">
         <button id="btn-notify-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
         <button id="btn-notify-send" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-register" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Register New User</h3>
+      <form id="register-form" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+          <input id="register-email" type="email" required class="w-full border rounded px-3 py-2" placeholder="user@example.com">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+          <div class="relative">
+            <input id="register-password" type="password" required minlength="6" class="w-full border rounded px-3 py-2 pr-10" placeholder="Min 6 characters">
+            <button type="button" id="toggle-password" class="absolute right-2 top-2 text-gray-500 hover:text-gray-700">
+              <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+          <input id="register-name" type="text" class="w-full border rounded px-3 py-2" placeholder="Optional">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <select id="register-role" class="w-full border rounded px-3 py-2">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div id="register-error" class="hidden text-red-600 text-sm"></div>
+      </form>
+      <div class="flex justify-end gap-2 mt-6">
+        <button id="btn-register-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+        <button id="btn-register-submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Register</button>
       </div>
     </div>
   </div>
@@ -417,6 +458,132 @@
       } catch (e) { showToast(e.message, 'error'); }
     }
 
+    function openRegisterModal() {
+      document.getElementById('register-email').value = '';
+      document.getElementById('register-password').value = '';
+      document.getElementById('register-name').value = '';
+      document.getElementById('register-role').value = 'user';
+      document.getElementById('register-error').classList.add('hidden');
+      document.getElementById('modal-register').classList.remove('hidden');
+    }
+
+    function closeRegisterModal() {
+      document.getElementById('modal-register').classList.add('hidden');
+    }
+
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('register-password');
+      const eyeIcon = document.getElementById('eye-icon');
+      
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"></path>
+        `;
+      } else {
+        passwordInput.type = 'password';
+        eyeIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+        `;
+      }
+    }
+
+    async function registerUser() {
+      const email = document.getElementById('register-email').value.trim();
+      const password = document.getElementById('register-password').value;
+      const name = document.getElementById('register-name').value.trim();
+      const role = document.getElementById('register-role').value;
+      const errorDiv = document.getElementById('register-error');
+
+      // Clear previous errors
+      errorDiv.classList.add('hidden');
+      errorDiv.textContent = '';
+
+      // Basic validation
+      if (!email || !password) {
+        errorDiv.textContent = 'Email and password are required';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      if (password.length < 6) {
+        errorDiv.textContent = 'Password must be at least 6 characters';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        errorDiv.textContent = 'Invalid email format';
+        errorDiv.classList.remove('hidden');
+        return;
+      }
+
+      // Disable submit button
+      const submitBtn = document.getElementById('btn-register-submit');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Registering...';
+
+      try {
+        // Determine API base URL considering relative path mounting
+        const apiBase = getApiUrl('/api/admin/users/register');
+        
+        const response = await fetch(apiBase, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password, name, role })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error('Admin authentication required. Please refresh the page and log in again.');
+          }
+          throw new Error(data.error || 'Registration failed');
+        }
+
+        showToast(`User ${email} registered successfully`, 'success');
+        closeRegisterModal();
+        await Promise.all([loadUsers(), loadStats()]);
+      } catch (error) {
+        errorDiv.textContent = error.message || 'Registration failed';
+        errorDiv.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+      }
+    }
+
+    function getApiUrl(endpoint) {
+      // Detect if we're mounted on a relative path
+      const pathname = window.location.pathname;
+      const pathSegments = pathname.split('/').filter(Boolean);
+      
+      // Check for common mounting patterns
+      if (pathSegments.includes('admin')) {
+        // If we're in /admin/ context, try to detect the base path
+        // Look for patterns like /super/admin/ or /api/admin/
+        const adminIndex = pathSegments.indexOf('admin');
+        
+        if (adminIndex > 0) {
+          // There's a prefix before 'admin', use it as base
+          const basePath = '/' + pathSegments.slice(0, adminIndex).join('/');
+          return basePath + endpoint;
+        } else {
+          // Admin is at root, just use the endpoint
+          return endpoint;
+        }
+      }
+      
+      // Default case - use current origin with endpoint
+      return window.location.origin + endpoint;
+    }
+
     function bindEvents() {
       document.getElementById('btn-refresh').onclick = () => Promise.all([loadUsers(), loadStats()]);
       document.getElementById('btn-apply').onclick = () => { state.offset = 0; loadUsers(); };
@@ -435,6 +602,18 @@
       document.getElementById('btn-modal-save').onclick = saveUser;
       document.getElementById('btn-notify-cancel').onclick = closeNotifyModal;
       document.getElementById('btn-notify-send').onclick = sendNotification;
+      
+      // Registration modal events
+      document.getElementById('btn-register-user').onclick = openRegisterModal;
+      document.getElementById('btn-register-cancel').onclick = closeRegisterModal;
+      document.getElementById('btn-register-submit').onclick = registerUser;
+      document.getElementById('toggle-password').onclick = togglePasswordVisibility;
+      
+      // Form submission
+      document.getElementById('register-form').onsubmit = (e) => {
+        e.preventDefault();
+        registerUser();
+      };
     }
 
     bindEvents();
