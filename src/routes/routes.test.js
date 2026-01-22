@@ -21,6 +21,7 @@ const mockUserController = {
 
 const mockAdminController = {
   getUsers: jest.fn((req, res) => res.json({ message: 'users list' })),
+  registerUser: jest.fn((req, res) => res.json({ message: 'user registered' })),
   getUser: jest.fn((req, res) => res.json({ message: 'user details' })),
   updateUserSubscription: jest.fn((req, res) => res.json({ message: 'subscription updated' })),
   updateUserPassword: jest.fn((req, res) => res.json({ message: 'password updated' })),
