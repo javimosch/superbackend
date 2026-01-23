@@ -23,6 +23,13 @@ Node.js middleware that gives your project backend superpowers. Handles authenti
 - **Webhooks**: Outgoing webhook system for event-driven integrations
 - **Metrics & Activity**: Usage tracking and analytics for business insights
 - **Middleware Mode**: Drop-in Express middleware that preserves your app structure
+- **Workflows System**: Node-based automation with LLM integration, conditionals, and HTTP calls
+- **LLM UI Integration**: AI-powered UI components and conversational interfaces
+- **Admin Scripts & Terminals**: Operational tooling for script execution and terminal management
+- **Migration System**: Database migration and data transfer between environments
+- **Upload Namespaces**: Advanced file organization with customizable storage rules
+- **UI Components**: Project-scoped reusable UI widgets with browser SDK integration
+- **UI Components AI Assistance**: AI-powered generation and iteration of UI component code
 
 ---
 
@@ -85,6 +92,10 @@ See the `docs/features/` directory for detailed guides:
 - [Core Configuration](docs/features/core-configuration.md)
 - [Admin API Usage](docs/features/admin-api-usage.md)
 - [Billing & Subscriptions](docs/features/billing-and-subscriptions.md)
+- [Workflows System](docs/features/workflows-system.md)
+- [LLM UI Integration](docs/features/llm-ui-integration.md)
+- [Migration System](docs/features/migration-system.md)
+- [Upload Namespaces](docs/features/upload-namespaces.md)
 
 ---
 
