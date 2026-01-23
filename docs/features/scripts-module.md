@@ -85,6 +85,50 @@ Runs:
 - `GET /api/admin/scripts/runs/:runId`
 - `GET /api/admin/scripts/runs/:runId/stream` (SSE)
 
+## Information
+
+### Calling scripts programmatically
+
+You can execute a server-side script via the Admin API.
+
+- **Start a run**: `POST /api/admin/scripts/:id/run`
+- **Stream output**: `GET /api/admin/scripts/runs/:runId/stream` (Server-Sent Events)
+- **Fetch final run record**: `GET /api/admin/scripts/runs/:runId`
+
+If a script is **disabled** (`enabled=false`), the server will reject any attempt to run it.
+
+#### Example (start a run)
+
+```bash
+curl -u "ADMIN_USER:ADMIN_PASS" \
+  -X POST \
+  "https://YOUR_HOST/api/admin/scripts/<SCRIPT_ID>/run"
+```
+
+Response:
+
+```json
+{ "runId": "<RUN_ID>" }
+```
+
+#### Example (stream output)
+
+```bash
+curl -N -u "ADMIN_USER:ADMIN_PASS" \
+  "https://YOUR_HOST/api/admin/scripts/runs/<RUN_ID>/stream"
+```
+
+Events are emitted as SSE `event:` frames like `log`, `status`, and `done`.
+
+### Audit
+
+Scripts actions are tracked by the built-in audit system:
+
+- `scripts.create`
+- `scripts.update`
+- `scripts.delete`
+- `scripts.run`
+
 ## Runners
 
 ### Host runners
