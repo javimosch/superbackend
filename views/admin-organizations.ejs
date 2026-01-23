@@ -33,6 +33,7 @@
             <p class="text-sm text-gray-600 mt-1">Browse orgs, members and invites</p>
           </div>
           <div class="flex items-center gap-4">
+            <button id="btn-create-org" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 font-medium">Create Organization</button>
           </div>
         </div>
       </div>
@@ -90,6 +91,7 @@
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
                     <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody id="orgs-tbody" class="bg-white divide-y divide-gray-200"></tbody>
@@ -275,6 +277,78 @@
     </div>
   </div>
 
+  <!-- Create Organization Modal -->
+  <div id="modal-create-org" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">Create New Organization</h3>
+      </div>
+      <div class="px-6 py-4">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input id="create-org-name" type="text" class="w-full border rounded px-3 py-2" placeholder="Organization name" maxlength="100">
+            <div class="text-xs text-gray-500 mt-1">2-100 characters. Slug will be auto-generated.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea id="create-org-description" class="w-full border rounded px-3 py-2" rows="3" placeholder="Optional description" maxlength="500"></textarea>
+            <div class="text-xs text-gray-500 mt-1">Maximum 500 characters.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Owner User ID</label>
+            <input id="create-org-owner" type="text" class="w-full border rounded px-3 py-2" placeholder="Leave empty to use first admin">
+            <div class="text-xs text-gray-500 mt-1">Optional. Leave empty to assign to first admin user.</div>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+        <button id="btn-create-org-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+        <button id="btn-create-org-submit" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Organization Modal -->
+  <div id="modal-edit-org" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+      <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">Edit Organization</h3>
+      </div>
+      <div class="px-6 py-4">
+        <div class="space-y-4">
+          <input id="edit-org-id" type="hidden">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+            <input id="edit-org-name" type="text" class="w-full border rounded px-3 py-2" placeholder="Organization name" maxlength="100">
+            <div class="text-xs text-gray-500 mt-1">2-100 characters.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <textarea id="edit-org-description" class="w-full border rounded px-3 py-2" rows="3" placeholder="Optional description" maxlength="500"></textarea>
+            <div class="text-xs text-gray-500 mt-1">Maximum 500 characters.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Owner User ID</label>
+            <input id="edit-org-owner" type="text" class="w-full border rounded px-3 py-2" placeholder="User ID">
+            <div class="text-xs text-gray-500 mt-1">Current owner will be replaced.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="edit-org-status" class="w-full border rounded px-3 py-2">
+              <option value="active">Active</option>
+              <option value="disabled">Disabled</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+        <button id="btn-edit-org-cancel" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+        <button id="btn-edit-org-submit" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
 
@@ -400,7 +474,10 @@
           limit,
           offset: state.orgs.offset,
         })}`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(url, { 
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        });
         const data = await res.json();
 
         if (!res.ok) {
@@ -434,7 +511,7 @@
           if (orgs.length === 0) {
             tbody.innerHTML = `
               <tr>
-                <td class="px-4 py-6 text-sm text-gray-600" colspan="3">No organizations found.</td>
+                <td class="px-4 py-6 text-sm text-gray-600" colspan="4">No organizations found.</td>
               </tr>
             `;
             return;
@@ -445,13 +522,29 @@
             const rowClass = isSelected ? 'bg-blue-50' : 'bg-white';
 
             return `
-              <tr class="${rowClass} hover:bg-gray-50 cursor-pointer" data-org-id="${escapeHtml(o?._id)}">
-                <td class="px-4 py-3 text-sm text-gray-900">
+              <tr class="${rowClass} hover:bg-gray-50" data-org-id="${escapeHtml(o?._id)}">
+                <td class="px-4 py-3 text-sm text-gray-900 cursor-pointer" onclick="selectOrg('${escapeHtml(o?._id)}')">
                   <div class="font-medium">${escapeHtml(o?.name)}</div>
                   <div class="text-xs text-gray-500">${escapeHtml(o?.ownerUserId)}</div>
                 </td>
-                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(o?.slug)}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(o?.status)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 cursor-pointer" onclick="selectOrg('${escapeHtml(o?._id)}')">${escapeHtml(o?.slug)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700 cursor-pointer" onclick="selectOrg('${escapeHtml(o?._id)}')">
+                  <span class="px-2 py-1 text-xs rounded-full ${
+                    o?.status === 'active' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }">
+                    ${escapeHtml(o?.status)}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">
+                  <button class="text-blue-600 hover:text-blue-800 mr-2" data-edit="${escapeHtml(o?._id)}" data-name="${escapeHtml(o?.name)}" data-description="${escapeHtml(o?.description || '')}" data-owner="${escapeHtml(o?.ownerUserId)}" data-status="${escapeHtml(o?.status)}">Edit</button>
+                  ${o?.status === 'active' 
+                    ? `<button class="text-orange-600 hover:text-orange-800 mr-2" data-disable="${escapeHtml(o?._id)}" data-name="${escapeHtml(o?.name)}">Disable</button>`
+                    : `<button class="text-green-600 hover:text-green-800 mr-2" data-enable="${escapeHtml(o?._id)}" data-name="${escapeHtml(o?.name)}">Enable</button>`
+                  }
+                  <button class="text-red-600 hover:text-red-800" data-delete="${escapeHtml(o?._id)}" data-name="${escapeHtml(o?.name)}">Delete</button>
+                </td>
               </tr>
             `;
           }).join('');
@@ -511,7 +604,10 @@
       }
 
       try {
-        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}`, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}`, { 
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        });
         const data = await res.json();
 
         if (!res.ok) {
@@ -562,7 +658,10 @@
           limit: state.members.limit,
           offset: state.members.offset,
         })}`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(url, { 
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        });
         const data = await res.json();
 
         if (!res.ok) {
@@ -655,6 +754,7 @@
                 const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/members/${encodeURIComponent(memberId)}`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  credentials: 'same-origin',
                   body: JSON.stringify({ role }),
                 });
                 const data = await res.json();
@@ -680,6 +780,7 @@
                 const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/members/${encodeURIComponent(memberId)}`, {
                   method: 'DELETE',
                   headers: { 'Accept': 'application/json' },
+                  credentials: 'same-origin'
                 });
                 const data = await res.json();
                 if (!res.ok) {
@@ -722,7 +823,10 @@
           limit: state.invites.limit,
           offset: state.invites.offset,
         })}`;
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        const res = await fetch(url, { 
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin'
+        });
         const data = await res.json();
 
         if (!res.ok) {
@@ -804,6 +908,7 @@
                 const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}`, {
                   method: 'DELETE',
                   headers: { 'Accept': 'application/json' },
+                  credentials: 'same-origin'
                 });
                 const data = await res.json();
                 if (!res.ok) {
@@ -828,6 +933,7 @@
                 const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites/${encodeURIComponent(inviteId)}/resend`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                  credentials: 'same-origin',
                   body: JSON.stringify({}),
                 });
                 const data = await res.json();
@@ -866,6 +972,7 @@
         const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/invites`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          credentials: 'same-origin',
           body: JSON.stringify({ email, role, expiresInDays }),
         });
         const data = await res.json();
@@ -910,6 +1017,39 @@
 
       const nextOrgsBtn = document.getElementById('btn-orgs-next');
       if (nextOrgsBtn) nextOrgsBtn.onclick = () => { state.orgs.offset = Math.max(0, state.orgs.offset + state.orgs.limit); loadOrgs(); };
+
+      // CRUD event handlers
+      const createOrgBtn = document.getElementById('btn-create-org');
+      if (createOrgBtn) createOrgBtn.onclick = () => openCreateOrgModal();
+
+      const createOrgCancelBtn = document.getElementById('btn-create-org-cancel');
+      if (createOrgCancelBtn) createOrgCancelBtn.onclick = () => closeCreateOrgModal();
+
+      const createOrgSubmitBtn = document.getElementById('btn-create-org-submit');
+      if (createOrgSubmitBtn) createOrgSubmitBtn.onclick = () => createOrganization();
+
+      const editOrgCancelBtn = document.getElementById('btn-edit-org-cancel');
+      if (editOrgCancelBtn) editOrgCancelBtn.onclick = () => closeEditOrgModal();
+
+      const editOrgSubmitBtn = document.getElementById('btn-edit-org-submit');
+      if (editOrgSubmitBtn) editOrgSubmitBtn.onclick = () => updateOrganization();
+
+      // Organization action buttons (will be added dynamically when table loads)
+      document.addEventListener('click', (e) => {
+        if (e.target.matches('[data-edit]')) {
+          const btn = e.target;
+          openEditOrgModal(btn.dataset.edit, btn.dataset.name, btn.dataset.description, btn.dataset.owner, btn.dataset.status);
+        } else if (e.target.matches('[data-disable]')) {
+          const btn = e.target;
+          disableOrganization(btn.dataset.disable, btn.dataset.name);
+        } else if (e.target.matches('[data-enable]')) {
+          const btn = e.target;
+          enableOrganization(btn.dataset.enable, btn.dataset.name);
+        } else if (e.target.matches('[data-delete]')) {
+          const btn = e.target;
+          deleteOrganization(btn.dataset.delete, btn.dataset.name);
+        }
+      });
 
       const selectedRefreshBtn = document.getElementById('btn-selected-refresh');
       if (selectedRefreshBtn) selectedRefreshBtn.onclick = () => Promise.all([loadSelectedOrg(), loadMembers(), loadInvites()]);
@@ -967,6 +1107,222 @@
       };
 
       setSelectedControlsEnabled(false);
+    }
+
+    // Modal functions
+    function openCreateOrgModal() {
+      document.getElementById('modal-create-org').classList.remove('hidden');
+      document.getElementById('modal-create-org').classList.add('flex');
+      // Clear form
+      document.getElementById('create-org-name').value = '';
+      document.getElementById('create-org-description').value = '';
+      document.getElementById('create-org-owner').value = '';
+    }
+
+    function closeCreateOrgModal() {
+      document.getElementById('modal-create-org').classList.add('hidden');
+      document.getElementById('modal-create-org').classList.remove('flex');
+    }
+
+    function openEditOrgModal(orgId, name, description, owner, status) {
+      document.getElementById('modal-edit-org').classList.remove('hidden');
+      document.getElementById('modal-edit-org').classList.add('flex');
+      // Populate form
+      document.getElementById('edit-org-id').value = orgId;
+      document.getElementById('edit-org-name').value = name || '';
+      document.getElementById('edit-org-description').value = description || '';
+      document.getElementById('edit-org-owner').value = owner || '';
+      document.getElementById('edit-org-status').value = status || 'active';
+    }
+
+    function closeEditOrgModal() {
+      document.getElementById('modal-edit-org').classList.add('hidden');
+      document.getElementById('modal-edit-org').classList.remove('flex');
+    }
+
+    // CRUD operations
+    async function createOrganization() {
+      const name = document.getElementById('create-org-name').value.trim();
+      const description = document.getElementById('create-org-description').value.trim();
+      const ownerUserId = document.getElementById('create-org-owner').value.trim();
+
+      if (!name) {
+        showToast('Organization name is required', 'error');
+        return;
+      }
+
+      if (name.length < 2) {
+        showToast('Name must be at least 2 characters', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ 
+            name, 
+            description: description || undefined, 
+            ownerUserId: ownerUserId || undefined 
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to create organization', 'error');
+          return;
+        }
+
+        showToast('Organization created successfully', 'success');
+        closeCreateOrgModal();
+        await loadOrgs();
+      } catch (e) {
+        showToast(e.message || 'Failed to create organization', 'error');
+      }
+    }
+
+    async function updateOrganization() {
+      const orgId = document.getElementById('edit-org-id').value;
+      const name = document.getElementById('edit-org-name').value.trim();
+      const description = document.getElementById('edit-org-description').value.trim();
+      const ownerUserId = document.getElementById('edit-org-owner').value.trim();
+      const status = document.getElementById('edit-org-status').value;
+
+      if (!name) {
+        showToast('Organization name is required', 'error');
+        return;
+      }
+
+      if (name.length < 2) {
+        showToast('Name must be at least 2 characters', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ 
+            name, 
+            description: description || undefined, 
+            ownerUserId: ownerUserId || undefined,
+            status 
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to update organization', 'error');
+          return;
+        }
+
+        showToast('Organization updated successfully', 'success');
+        closeEditOrgModal();
+        await loadOrgs();
+        if (state.orgs.selectedOrgId === orgId) {
+          await loadSelectedOrg();
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to update organization', 'error');
+      }
+    }
+
+    async function disableOrganization(orgId, orgName) {
+      if (!confirm(`Are you sure you want to disable "${orgName}"?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/disable`, {
+          method: 'PATCH',
+          credentials: 'same-origin'
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to disable organization', 'error');
+          return;
+        }
+
+        showToast('Organization disabled successfully', 'success');
+        await loadOrgs();
+        if (state.orgs.selectedOrgId === orgId) {
+          await loadSelectedOrg();
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to disable organization', 'error');
+      }
+    }
+
+    async function enableOrganization(orgId, orgName) {
+      if (!confirm(`Are you sure you want to enable "${orgName}"?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}/enable`, {
+          method: 'PATCH',
+          credentials: 'same-origin'
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to enable organization', 'error');
+          return;
+        }
+
+        showToast('Organization enabled successfully', 'success');
+        await loadOrgs();
+        if (state.orgs.selectedOrgId === orgId) {
+          await loadSelectedOrg();
+        }
+      } catch (e) {
+        showToast(e.message || 'Failed to enable organization', 'error');
+      }
+    }
+
+    async function deleteOrganization(orgId, orgName) {
+      const confirm1 = confirm(`Are you sure you want to delete "${orgName}"?`);
+      if (!confirm1) return;
+
+      const confirm2 = confirm(
+        'WARNING: This will permanently delete the organization and ALL its data including:\n' +
+        '• All organization members\n' +
+        '• All pending invites\n' +
+        '• All associated assets and files\n' +
+        '• All notifications and activity\n\n' +
+        'This action cannot be undone. Continue?'
+      );
+      if (!confirm2) return;
+
+      try {
+        showToast('Deleting organization and cleaning up data...', 'success');
+
+        const res = await fetch(`${API_BASE}${ORGS_ADMIN_PATH}/${encodeURIComponent(orgId)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin'
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to delete organization', 'error');
+          return;
+        }
+
+        showToast(`Organization "${orgName}" deleted permanently`, 'success');
+        
+        // Clear selection if this org was selected
+        if (state.orgs.selectedOrgId === orgId) {
+          state.orgs.selectedOrgId = null;
+          setSelectedControlsEnabled(false);
+          document.getElementById('selected-org-subtitle').textContent = 'Select an org from the list';
+          document.getElementById('kpi-members').textContent = '-';
+          document.getElementById('kpi-invites').textContent = '-';
+          document.getElementById('kpi-org-status').textContent = '-';
+        }
+
+        await loadOrgs();
+      } catch (e) {
+        showToast(e.message || 'Failed to delete organization', 'error');
+      }
     }
 
     bindEvents();

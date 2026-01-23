@@ -3,6 +3,9 @@ const mongoose = require('mongoose');
 const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
 const Invite = require('../models/Invite');
+const User = require('../models/User');
+const Asset = require('../models/Asset');
+const Notification = require('../models/Notification');
 const emailService = require('../services/email.service');
 const { isValidOrgRole, getAllowedOrgRoles, getDefaultOrgRole } = require('../utils/orgRoles');
 
@@ -489,3 +492,286 @@ exports.resendInvite = async (req, res) => {
     return res.status(500).json({ error: 'Failed to resend invite' });
   }
 };
+
+// Create organization (admin only)
+exports.createOrganization = async (req, res) => {
+  try {
+    const { name, description, ownerUserId } = req.body;
+    
+    // Validation
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      return res.status(400).json({ error: 'Name must be at least 2 characters long' });
+    }
+    
+    if (name.trim().length > 100) {
+      return res.status(400).json({ error: 'Name must be less than 100 characters' });
+    }
+    
+    if (description && description.trim().length > 500) {
+      return res.status(400).json({ error: 'Description must be less than 500 characters' });
+    }
+    
+    // Validate owner if specified
+    let ownerId = null;
+    if (ownerUserId) {
+      if (!mongoose.Types.ObjectId.isValid(String(ownerUserId))) {
+        return res.status(400).json({ error: 'Invalid owner user ID' });
+      }
+      
+      const owner = await User.findById(ownerUserId);
+      if (!owner) {
+        return res.status(400).json({ error: 'Owner user not found' });
+      }
+      ownerId = owner._id;
+    } else {
+      // Default to first admin user if no owner specified
+      const defaultOwner = await User.findOne({ role: 'admin' });
+      if (!defaultOwner) {
+        return res.status(400).json({ error: 'No admin user available to assign as owner' });
+      }
+      ownerId = defaultOwner._id;
+    }
+    
+    // Generate unique slug
+    let baseSlug = name.trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    
+    if (!baseSlug || baseSlug.length < 2) {
+      return res.status(400).json({ error: 'Name must contain valid characters for slug generation' });
+    }
+    
+    let slug = baseSlug;
+    let counter = 1;
+    
+    while (await Organization.findOne({ slug })) {
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+      if (counter > 1000) {
+        return res.status(500).json({ error: 'Unable to generate unique slug' });
+      }
+    }
+    
+    // Create organization
+    const org = await Organization.create({
+      name: name.trim(),
+      slug,
+      description: description ? description.trim() : '',
+      ownerUserId: ownerId,
+      status: 'active',
+      settings: {}
+    });
+    
+    console.log(`Admin created organization: ${org.name} (${org._id}) with owner: ${ownerId}`);
+    
+    res.status(201).json({ 
+      message: 'Organization created successfully',
+      org: org.toObject() 
+    });
+  } catch (error) {
+    console.error('Create organization error:', error);
+    if (error.code === 11000) {
+      // Duplicate key error
+      return res.status(400).json({ error: 'Organization with this name or slug already exists' });
+    }
+    return res.status(500).json({ error: 'Failed to create organization' });
+  }
+};
+
+// Update organization (admin only)
+exports.updateOrganization = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { name, description, ownerUserId, status } = req.body;
+    
+    if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+    
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Update name (but not slug - per requirements)
+    if (name !== undefined) {
+      if (!name || typeof name !== 'string' || name.trim().length < 2) {
+        return res.status(400).json({ error: 'Name must be at least 2 characters long' });
+      }
+      if (name.trim().length > 100) {
+        return res.status(400).json({ error: 'Name must be less than 100 characters' });
+      }
+      org.name = name.trim();
+    }
+    
+    // Update description
+    if (description !== undefined) {
+      if (description && description.trim().length > 500) {
+        return res.status(400).json({ error: 'Description must be less than 500 characters' });
+      }
+      org.description = description ? description.trim() : '';
+    }
+    
+    // Update owner
+    if (ownerUserId !== undefined) {
+      if (ownerUserId) {
+        if (!mongoose.Types.ObjectId.isValid(String(ownerUserId))) {
+          return res.status(400).json({ error: 'Invalid owner user ID' });
+        }
+        const owner = await User.findById(ownerUserId);
+        if (!owner) {
+          return res.status(400).json({ error: 'Owner user not found' });
+        }
+        org.ownerUserId = owner._id;
+      } else {
+        return res.status(400).json({ error: 'Owner cannot be empty' });
+      }
+    }
+    
+    // Update status
+    if (status !== undefined) {
+      if (!['active', 'disabled'].includes(status)) {
+        return res.status(400).json({ error: 'Status must be either "active" or "disabled"' });
+      }
+      org.status = status;
+    }
+    
+    await org.save();
+    
+    console.log(`Admin updated organization: ${org.name} (${org._id})`);
+    
+    res.json({ 
+      message: 'Organization updated successfully',
+      org: org.toObject() 
+    });
+  } catch (error) {
+    console.error('Update organization error:', error);
+    return res.status(500).json({ error: 'Failed to update organization' });
+  }
+};
+
+// Disable organization (admin only)
+exports.disableOrganization = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    
+    if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+    
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    if (org.status === 'disabled') {
+      return res.status(400).json({ error: 'Organization is already disabled' });
+    }
+    
+    org.status = 'disabled';
+    await org.save();
+    
+    console.log(`Admin disabled organization: ${org.name} (${org._id})`);
+    
+    res.json({ 
+      message: 'Organization disabled successfully',
+      org: org.toObject() 
+    });
+  } catch (error) {
+    console.error('Disable organization error:', error);
+    return res.status(500).json({ error: 'Failed to disable organization' });
+  }
+};
+
+// Enable organization (admin only)
+exports.enableOrganization = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    
+    if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+    
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    if (org.status === 'active') {
+      return res.status(400).json({ error: 'Organization is already active' });
+    }
+    
+    org.status = 'active';
+    await org.save();
+    
+    console.log(`Admin enabled organization: ${org.name} (${org._id})`);
+    
+    res.json({ 
+      message: 'Organization enabled successfully',
+      org: org.toObject() 
+    });
+  } catch (error) {
+    console.error('Enable organization error:', error);
+    return res.status(500).json({ error: 'Failed to enable organization' });
+  }
+};
+
+// Delete organization (admin only)
+exports.deleteOrganization = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    
+    if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+    
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+    
+    // Cascade cleanup
+    await cleanupOrganizationData(orgId);
+    
+    // Delete organization
+    await Organization.findByIdAndDelete(orgId);
+    
+    console.log(`Admin deleted organization: ${org.name} (${org._id})`);
+    
+    res.json({ message: 'Organization deleted successfully' });
+  } catch (error) {
+    console.error('Delete organization error:', error);
+    return res.status(500).json({ error: 'Failed to delete organization' });
+  }
+};
+
+// Helper function to clean up organization data
+async function cleanupOrganizationData(orgId) {
+  try {
+    // Delete organization members
+    await OrganizationMember.deleteMany({ orgId });
+    
+    // Delete organization invites
+    await Invite.deleteMany({ orgId });
+    
+    // Delete organization assets
+    await Asset.deleteMany({ ownerUserId: { $in: await getOrganizationUserIds(orgId) } });
+    
+    // Delete organization notifications
+    await Notification.deleteMany({ userId: { $in: await getOrganizationUserIds(orgId) } });
+    
+    console.log(`Completed cleanup for organization ${orgId}`);
+  } catch (error) {
+    console.error('Error during organization cleanup:', error);
+    throw error;
+  }
+}
+
+// Helper function to get all user IDs in an organization
+async function getOrganizationUserIds(orgId) {
+  const members = await OrganizationMember.find({ orgId }).distinct('userId');
+  return members;
+}
