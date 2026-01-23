@@ -25,6 +25,7 @@ const mockAdminController = {
   getUser: jest.fn((req, res) => res.json({ message: 'user details' })),
   updateUserSubscription: jest.fn((req, res) => res.json({ message: 'subscription updated' })),
   updateUserPassword: jest.fn((req, res) => res.json({ message: 'password updated' })),
+  deleteUser: jest.fn((req, res) => res.json({ message: 'user deleted' })),
   reconcileUser: jest.fn((req, res) => res.json({ message: 'user reconciled' })),
   generateToken: jest.fn((req, res) => res.json({ message: 'token generated' })),
   getWebhookEvents: jest.fn((req, res) => res.json({ message: 'webhook events' })),
