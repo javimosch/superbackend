@@ -6,6 +6,31 @@
   <title>Admin Terminals</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/xterm@latest/css/xterm.css" />
+<style>
+    /* Fullscreen styles */
+    :fullscreen .max-w-7xl {
+      max-width: 100vw;
+      width: 100vw;
+      height: 100vh;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    :fullscreen .bg-white {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      border: none;
+      border-radius: 0;
+    }
+    :fullscreen #terminal-container {
+      flex: 1;
+      height: auto !important;
+    }
+    :fullscreen .h-\[70vh\] {
+      height: 100% !important;
+    }
+  </style>
 </head>
 <body class="bg-gray-50">
   <div class="max-w-7xl mx-auto px-6 py-6">
@@ -17,6 +42,7 @@
       <div class="flex items-center gap-2">
         <button id="btn-new" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">New</button>
         <button id="btn-close" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Close</button>
+        <button id="btn-fullscreen" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Fullscreen</button>
       </div>
     </div>
 
@@ -97,7 +123,11 @@
       if (!s) return;
 
       container.appendChild(s.termElement);
-      s.term.open(s.termElement);
+      // Only open the terminal if it hasn't been opened yet
+      if (!s.term._opened) {
+        s.term.open(s.termElement);
+        s.term._opened = true;
+      }
       setTimeout(() => resizeActive(), 0);
     }
 
@@ -260,6 +290,30 @@
         }
       }
     })();
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      const btn = qs('btn-fullscreen');
+      if (btn) {
+        btn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+      }
+    });
+
+    qs('btn-fullscreen').addEventListener('click', toggleFullscreen);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    });
 
     // Ensure Terminal is available (wait for script load if needed)
     function ensureTerminal(cb) {
