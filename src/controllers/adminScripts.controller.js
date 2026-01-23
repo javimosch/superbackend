@@ -1,6 +1,7 @@
 const ScriptDefinition = require('../models/ScriptDefinition');
 const ScriptRun = require('../models/ScriptRun');
 const { startRun, getRunBus } = require('../services/scriptsRunner.service');
+const { logAuditSync } = require('../services/auditLogger');
 
 function toSafeJsonError(error) {
   const msg = error?.message || 'Operation failed';
@@ -9,6 +10,19 @@ function toSafeJsonError(error) {
   if (code === 'NOT_FOUND') return { status: 404, body: { error: msg } };
   if (code === 'CONFLICT') return { status: 409, body: { error: msg } };
   return { status: 500, body: { error: msg } };
+}
+
+function audit(req, event) {
+  logAuditSync({
+    req,
+    action: event.action,
+    outcome: event.outcome,
+    entityType: 'ScriptDefinition',
+    entityId: event.entityId ? String(event.entityId) : null,
+    before: event.before || null,
+    after: event.after || null,
+    details: event.details || undefined,
+  });
 }
 
 function normalizeEnv(env) {
@@ -45,6 +59,7 @@ exports.getScript = async (req, res) => {
 };
 
 exports.createScript = async (req, res) => {
+  let created = null;
   try {
     const payload = req.body || {};
 
@@ -61,19 +76,40 @@ exports.createScript = async (req, res) => {
       enabled: payload.enabled === undefined ? true : Boolean(payload.enabled),
     });
 
+    created = doc.toObject();
+    audit(req, {
+      action: 'scripts.create',
+      outcome: 'success',
+      entityId: doc._id,
+      before: null,
+      after: created,
+    });
+
     res.status(201).json({ item: doc.toObject() });
   } catch (err) {
+    audit(req, {
+      action: 'scripts.create',
+      outcome: 'failure',
+      entityId: created?._id,
+      before: null,
+      after: created,
+      details: { error: err?.message || 'Operation failed' },
+    });
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.updateScript = async (req, res) => {
+  let before = null;
+  let after = null;
   try {
     const payload = req.body || {};
 
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
+
+    before = doc.toObject();
 
     if (payload.name !== undefined) doc.name = String(payload.name || '').trim();
     if (payload.codeIdentifier !== undefined) doc.codeIdentifier = String(payload.codeIdentifier || '').trim();
@@ -89,34 +125,89 @@ exports.updateScript = async (req, res) => {
     if (payload.enabled !== undefined) doc.enabled = Boolean(payload.enabled);
 
     await doc.save();
+    after = doc.toObject();
+    audit(req, {
+      action: 'scripts.update',
+      outcome: 'success',
+      entityId: doc._id,
+      before,
+      after,
+    });
     res.json({ item: doc.toObject() });
   } catch (err) {
+    audit(req, {
+      action: 'scripts.update',
+      outcome: 'failure',
+      entityId: req.params?.id,
+      before,
+      after,
+      details: { error: err?.message || 'Operation failed' },
+    });
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.deleteScript = async (req, res) => {
+  let before = null;
   try {
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
+    before = doc.toObject();
     await doc.deleteOne();
+
+    audit(req, {
+      action: 'scripts.delete',
+      outcome: 'success',
+      entityId: doc._id,
+      before,
+      after: null,
+    });
     res.json({ ok: true });
   } catch (err) {
+    audit(req, {
+      action: 'scripts.delete',
+      outcome: 'failure',
+      entityId: req.params?.id,
+      before,
+      after: null,
+      details: { error: err?.message || 'Operation failed' },
+    });
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.runScript = async (req, res) => {
+  let script = null;
   try {
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     if (!doc.enabled) return res.status(400).json({ error: 'Script is disabled' });
 
-    const result = await startRun(doc, { trigger: 'manual', meta: { actorType: 'basicAuth' } });
-    res.json(result);
+    script = doc.toObject();
+
+    const runDoc = await startRun(doc, { trigger: 'manual', meta: { actorType: 'basicAuth' } });
+
+    audit(req, {
+      action: 'scripts.run',
+      outcome: 'success',
+      entityId: doc._id,
+      before: null,
+      after: null,
+      details: { runId: String(runDoc._id) },
+    });
+
+    res.json({ runId: String(runDoc._id) });
   } catch (err) {
+    audit(req, {
+      action: 'scripts.run',
+      outcome: 'failure',
+      entityId: req.params?.id,
+      before: script,
+      after: null,
+      details: { error: err?.message || 'Operation failed' },
+    });
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
