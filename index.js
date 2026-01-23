@@ -11,6 +11,7 @@ const express = require("express");
  * @returns {express.Router} Configured Express router
  */
 const middleware = require("./src/middleware");
+const { attachTerminalWebsocketServer } = require("./src/services/terminalsWs.service");
 
 /**
  * Creates and starts a standalone SuperBackend server
@@ -24,11 +25,16 @@ function startServer(options = {}) {
   const app = express();
   const PORT = options.port || process.env.PORT || 3000;
 
-  app.use(module.exports.middleware(options));
+  const router = module.exports.middleware(options);
+  app.use(router);
 
   // Start server
   const server = app.listen(PORT, () => {
     console.log(`🚀 SuperBackend standalone server running on http://localhost:${PORT}`);
+  });
+
+  attachTerminalWebsocketServer(server, {
+    basePathPrefix: router.adminPath || '/admin',
   });
 
   return { app, server };
@@ -91,6 +97,7 @@ const saasbackend = {
     org: require("./src/middleware/org"),
     i18n: require("./src/services/i18n.service"),
     jsonConfigs: require("./src/services/jsonConfigs.service"),
+    terminals: require("./src/services/terminalsWs.service"),
   },
 };
 

@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Scripts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50">
+  <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Scripts</h1>
+        <div class="text-sm text-gray-500">Configure and run Bash / Node / Browser scripts</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-new" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">New</button>
+        <button id="btn-save" class="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">Save</button>
+        <button id="btn-delete" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Delete</button>
+        <button id="btn-run" class="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">Run</button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <div class="col-span-4">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-medium text-gray-800">Scripts</div>
+            <button id="btn-refresh" class="text-sm text-blue-600 hover:underline">Refresh</button>
+          </div>
+          <div id="scripts-list" class="p-2 max-h-[70vh] overflow-auto"></div>
+        </div>
+
+        <div class="mt-4 bg-white border border-gray-200 rounded-lg">
+          <div class="p-3 border-b border-gray-200">
+            <div class="text-sm font-medium text-gray-800">Runs</div>
+          </div>
+          <div id="runs-list" class="p-2 max-h-[30vh] overflow-auto"></div>
+        </div>
+      </div>
+
+      <div class="col-span-8">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Name</label>
+              <input id="f-name" class="mt-1 w-full border rounded px-3 py-2" placeholder="Update ssh and sync" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Code</label>
+              <input id="f-code" class="mt-1 w-full border rounded px-3 py-2 font-mono text-sm" placeholder="update-ssh-sync" />
+            </div>
+            <div class="col-span-2">
+              <label class="text-xs font-semibold text-gray-600">Description</label>
+              <input id="f-desc" class="mt-1 w-full border rounded px-3 py-2" placeholder="(optional)" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Type</label>
+              <select id="f-type" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="bash">bash</option>
+                <option value="node">node</option>
+                <option value="browser">browser</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Runner</label>
+              <select id="f-runner" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="host">host</option>
+                <option value="vm2">vm2</option>
+                <option value="browser">browser</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Timeout (ms)</label>
+              <input id="f-timeout" type="number" class="mt-1 w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Working directory</label>
+              <input id="f-cwd" class="mt-1 w-full border rounded px-3 py-2 font-mono text-sm" placeholder="(optional)" />
+            </div>
+            <div class="col-span-2">
+              <label class="text-xs font-semibold text-gray-600">Enabled</label>
+              <div class="mt-2 flex items-center gap-2">
+                <input id="f-enabled" type="checkbox" class="h-4 w-4" />
+                <span class="text-sm text-gray-700">Script can be run</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-200 p-4">
+            <div class="flex items-center justify-between mb-2">
+              <div class="text-sm font-medium text-gray-800">Environment</div>
+              <button id="btn-add-env" class="text-sm text-blue-600 hover:underline">Add</button>
+            </div>
+            <div class="overflow-auto">
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="text-left text-gray-500">
+                    <th class="py-1 pr-2">Key</th>
+                    <th class="py-1 pr-2">Value</th>
+                    <th class="py-1 w-12"></th>
+                  </tr>
+                </thead>
+                <tbody id="env-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="border-t border-gray-200 p-4">
+            <div class="text-sm font-medium text-gray-800 mb-2">Script</div>
+            <textarea id="f-script" class="w-full h-56 border rounded px-3 py-2 font-mono text-sm" placeholder="#!/usr/bin/env bash\n..."></textarea>
+            <div id="runner-warning" class="mt-2 text-xs text-amber-700"></div>
+          </div>
+        </div>
+
+        <div class="mt-4 bg-white border border-gray-200 rounded-lg">
+          <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-medium text-gray-800">Output</div>
+            <button id="btn-clear-output" class="text-sm text-gray-600 hover:underline">Clear</button>
+          </div>
+          <pre id="output" class="p-3 text-xs font-mono whitespace-pre-wrap max-h-[40vh] overflow-auto"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.BASE_URL = '<%= baseUrl %>';
+    window.ADMIN_PATH = '<%= adminPath %>';
+
+    const state = {
+      scripts: [],
+      runs: [],
+      selected: null,
+      selectedId: null,
+      es: null,
+    };
+
+    function qs(id) {
+      return document.getElementById(id);
+    }
+
+    function toast(msg) {
+      alert(msg);
+    }
+
+    async function api(path, opts) {
+      const baseUrl = window.BASE_URL || '';
+      const url = baseUrl + path;
+      const res = await fetch(url, {
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        ...opts,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json.error || 'Request failed');
+      }
+      return json;
+    }
+
+    function setOutput(text, append = false) {
+      const el = qs('output');
+      if (!append) el.textContent = '';
+      el.textContent += String(text || '');
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setRunnerWarning() {
+      const type = qs('f-type').value;
+      const runner = qs('f-runner').value;
+      const el = qs('runner-warning');
+      let msg = '';
+      if (type === 'bash' && runner === 'host') {
+        msg = 'Warning: bash host runner executes on the server host.';
+      }
+      if (type === 'node' && runner === 'host') {
+        msg = 'Warning: node host runner executes on the server host.';
+      }
+      if (type === 'node' && runner === 'vm2') {
+        msg = 'vm2 mode is best-effort and does not support arbitrary Node APIs.';
+      }
+      if (type === 'browser') {
+        msg = 'Browser scripts run in this page only.';
+      }
+      el.textContent = msg;
+    }
+
+    function normalizeRunnerOptions() {
+      const type = qs('f-type').value;
+      const runnerSelect = qs('f-runner');
+      const runner = runnerSelect.value;
+      const allowed =
+        type === 'bash' ? ['host'] :
+        type === 'node' ? ['host', 'vm2'] :
+        ['browser'];
+
+      runnerSelect.innerHTML = allowed
+        .map((v) => `<option value="${v}">${v}</option>`)
+        .join('');
+
+      if (allowed.includes(runner)) runnerSelect.value = runner;
+      setRunnerWarning();
+    }
+
+    function currentPayload() {
+      const env = [];
+      qs('env-tbody').querySelectorAll('tr').forEach((tr) => {
+        const key = tr.querySelector('.env-key').value.trim();
+        const value = tr.querySelector('.env-val').value;
+        if (!key) return;
+        env.push({ key, value });
+      });
+
+      return {
+        name: qs('f-name').value.trim(),
+        codeIdentifier: qs('f-code').value.trim(),
+        description: qs('f-desc').value,
+        type: qs('f-type').value,
+        runner: qs('f-runner').value,
+        timeoutMs: Number(qs('f-timeout').value || 0) || undefined,
+        defaultWorkingDirectory: qs('f-cwd').value,
+        enabled: !!qs('f-enabled').checked,
+        env,
+        script: qs('f-script').value,
+      };
+    }
+
+    function renderEnv(env) {
+      const tbody = qs('env-tbody');
+      tbody.innerHTML = '';
+      const items = Array.isArray(env) ? env : [];
+      for (const item of items) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="py-1 pr-2"><input class="env-key w-full border rounded px-2 py-1 font-mono text-xs" value="${String(item.key || '').replace(/</g,'&lt;')}" /></td>
+          <td class="py-1 pr-2"><input class="env-val w-full border rounded px-2 py-1 font-mono text-xs" value="${String(item.value || '').replace(/</g,'&lt;')}" /></td>
+          <td class="py-1 text-right"><button class="btn-del-env text-red-600 hover:underline text-xs">Del</button></td>
+        `;
+        tbody.appendChild(tr);
+        tr.querySelector('.btn-del-env').addEventListener('click', () => {
+          tr.remove();
+        });
+      }
+    }
+
+    function clearForm() {
+      state.selectedId = null;
+      state.selected = { enabled: true, timeoutMs: 300000, type: 'bash', runner: 'host', env: [] };
+      qs('f-name').value = '';
+      qs('f-code').value = '';
+      qs('f-desc').value = '';
+      qs('f-type').value = 'bash';
+      normalizeRunnerOptions();
+      qs('f-timeout').value = '300000';
+      qs('f-cwd').value = '';
+      qs('f-enabled').checked = true;
+      qs('f-script').value = '';
+      renderEnv([]);
+      renderRuns();
+    }
+
+    function setFormFromScript(s) {
+      state.selectedId = s._id;
+      state.selected = s;
+      qs('f-name').value = s.name || '';
+      qs('f-code').value = s.codeIdentifier || '';
+      qs('f-desc').value = s.description || '';
+      qs('f-type').value = s.type || 'bash';
+      normalizeRunnerOptions();
+      qs('f-runner').value = s.runner || (s.type === 'bash' ? 'host' : 'host');
+      qs('f-timeout').value = String(s.timeoutMs || 300000);
+      qs('f-cwd').value = s.defaultWorkingDirectory || '';
+      qs('f-enabled').checked = !!s.enabled;
+      qs('f-script').value = s.script || '';
+      renderEnv(s.env || []);
+      loadRuns();
+    }
+
+    function renderScripts() {
+      const list = qs('scripts-list');
+      list.innerHTML = '';
+      if (!state.scripts.length) {
+        list.innerHTML = '<div class="text-sm text-gray-500 p-2">No scripts</div>';
+        return;
+      }
+      state.scripts.forEach((s) => {
+        const btn = document.createElement('button');
+        const active = state.selectedId === s._id;
+        btn.className = `w-full text-left px-3 py-2 rounded border ${active ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'} mb-2`;
+        btn.innerHTML = `
+          <div class="flex items-center justify-between gap-2">
+            <div class="font-medium text-gray-900">${String(s.name || '').replace(/</g,'&lt;')}</div>
+            <div class="text-[10px] uppercase bg-gray-200 text-gray-800 px-2 py-0.5 rounded">${String(s.type || '').replace(/</g,'&lt;')}</div>
+          </div>
+          <div class="text-xs text-gray-500 font-mono">${String(s.codeIdentifier || '').replace(/</g,'&lt;')} · ${String(s.runner || '').replace(/</g,'&lt;')}</div>
+        `;
+        btn.addEventListener('click', () => setFormFromScript(s));
+        list.appendChild(btn);
+      });
+    }
+
+    function renderRuns() {
+      const list = qs('runs-list');
+      list.innerHTML = '';
+      if (!state.runs.length) {
+        list.innerHTML = '<div class="text-sm text-gray-500 p-2">No runs</div>';
+        return;
+      }
+      state.runs.forEach((r) => {
+        const btn = document.createElement('button');
+        btn.className = 'w-full text-left px-3 py-2 rounded border bg-white border-gray-200 hover:bg-gray-50 mb-2';
+        btn.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-medium">${String(r.status || '').replace(/</g,'&lt;')}</div>
+            <div class="text-xs text-gray-500">${r.exitCode === null || r.exitCode === undefined ? '' : 'exit ' + r.exitCode}</div>
+          </div>
+          <div class="text-xs text-gray-500 font-mono">${String(r._id || '').slice(0, 10)} · ${String(r.createdAt || '').replace(/</g,'&lt;')}</div>
+        `;
+        btn.addEventListener('click', () => {
+          setOutput('');
+          if (r.outputTail) setOutput(r.outputTail, true);
+        });
+        list.appendChild(btn);
+      });
+    }
+
+    async function loadScripts() {
+      const json = await api('/api/admin/scripts');
+      state.scripts = json.items || [];
+      renderScripts();
+    }
+
+    async function loadRuns() {
+      if (!state.selectedId) {
+        state.runs = [];
+        renderRuns();
+        return;
+      }
+      const json = await api('/api/admin/scripts/runs?scriptId=' + encodeURIComponent(state.selectedId));
+      state.runs = json.items || [];
+      renderRuns();
+    }
+
+    async function saveScript() {
+      const payload = currentPayload();
+      if (!payload.name) throw new Error('name is required');
+      if (!payload.codeIdentifier) throw new Error('codeIdentifier is required');
+      if (!payload.type) throw new Error('type is required');
+      if (!payload.runner) throw new Error('runner is required');
+
+      if (payload.type === 'bash' && payload.runner !== 'host') {
+        throw new Error('bash runner must be host');
+      }
+      if (payload.type === 'browser' && payload.runner !== 'browser') {
+        throw new Error('browser runner must be browser');
+      }
+
+      if (!state.selectedId) {
+        const res = await api('/api/admin/scripts', { method: 'POST', body: JSON.stringify(payload) });
+        toast('Created');
+        await loadScripts();
+        setFormFromScript(res.item);
+      } else {
+        const res = await api('/api/admin/scripts/' + encodeURIComponent(state.selectedId), { method: 'PUT', body: JSON.stringify(payload) });
+        toast('Saved');
+        await loadScripts();
+        setFormFromScript(res.item);
+      }
+    }
+
+    async function deleteScript() {
+      if (!state.selectedId) return;
+      if (!confirm('Delete script?')) return;
+      await api('/api/admin/scripts/' + encodeURIComponent(state.selectedId), { method: 'DELETE' });
+      toast('Deleted');
+      clearForm();
+      await loadScripts();
+    }
+
+    function closeStream() {
+      if (state.es) {
+        try { state.es.close(); } catch {}
+      }
+      state.es = null;
+    }
+
+    function startSse(runId) {
+      closeStream();
+      const baseUrl = window.BASE_URL || '';
+      const url = baseUrl + '/api/admin/scripts/runs/' + encodeURIComponent(runId) + '/stream';
+      const es = new EventSource(url);
+      state.es = es;
+
+      const onLog = (e) => {
+        const data = JSON.parse(e.data || '{}');
+        setOutput(data.line || '', true);
+      };
+      const onStatus = (e) => {
+        const data = JSON.parse(e.data || '{}');
+        setOutput(`\n[status] ${data.status}${data.exitCode === undefined ? '' : ' (exit ' + data.exitCode + ')'}\n`, true);
+        loadRuns();
+      };
+      const onDone = () => {
+        closeStream();
+      };
+
+      es.addEventListener('log', onLog);
+      es.addEventListener('status', onStatus);
+      es.addEventListener('done', onDone);
+      es.onerror = () => {
+        setOutput('\n[stream] disconnected\n', true);
+        closeStream();
+      };
+    }
+
+    async function runScript() {
+      const payload = currentPayload();
+
+      if (payload.type === 'browser') {
+        setOutput('');
+        const originalLog = console.log;
+        const originalErr = console.error;
+        try {
+          console.log = (...args) => setOutput(args.join(' ') + '\n', true);
+          console.error = (...args) => setOutput(args.join(' ') + '\n', true);
+          const fn = new Function(payload.script);
+          fn();
+          setOutput('\n[done] ok\n', true);
+        } finally {
+          console.log = originalLog;
+          console.error = originalErr;
+        }
+        return;
+      }
+
+      if (!state.selectedId) {
+        await saveScript();
+      }
+
+      setOutput('');
+      const res = await api('/api/admin/scripts/' + encodeURIComponent(state.selectedId) + '/run', { method: 'POST' });
+      startSse(res.runId);
+      await loadRuns();
+    }
+
+    qs('btn-refresh').addEventListener('click', loadScripts);
+    qs('btn-new').addEventListener('click', clearForm);
+    qs('btn-save').addEventListener('click', async () => {
+      try {
+        await saveScript();
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+    qs('btn-delete').addEventListener('click', async () => {
+      try {
+        await deleteScript();
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+    qs('btn-run').addEventListener('click', async () => {
+      try {
+        await runScript();
+      } catch (e) {
+        toast(e.message);
+      }
+    });
+    qs('btn-clear-output').addEventListener('click', () => setOutput(''));
+    qs('btn-add-env').addEventListener('click', () => {
+      const tbody = qs('env-tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="py-1 pr-2"><input class="env-key w-full border rounded px-2 py-1 font-mono text-xs" /></td>
+        <td class="py-1 pr-2"><input class="env-val w-full border rounded px-2 py-1 font-mono text-xs" /></td>
+        <td class="py-1 text-right"><button class="btn-del-env text-red-600 hover:underline text-xs">Del</button></td>
+      `;
+      tbody.appendChild(tr);
+      tr.querySelector('.btn-del-env').addEventListener('click', () => tr.remove());
+    });
+
+    qs('f-type').addEventListener('change', () => {
+      normalizeRunnerOptions();
+    });
+    qs('f-runner').addEventListener('change', setRunnerWarning);
+
+    (async function init() {
+      clearForm();
+      normalizeRunnerOptions();
+      await loadScripts();
+    })();
+  </script>
+</body>
+</html>

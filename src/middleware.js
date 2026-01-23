@@ -31,6 +31,9 @@ function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
 
+  // Expose adminPath for WebSocket attachment
+  router.adminPath = adminPath;
+
   // Initialize console override service early to capture all logs
   consoleOverride.init();
 
@@ -194,6 +197,70 @@ function createMiddleware(options = {}) {
     });
   });
 
+  router.get(`${adminPath}/terminals`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-terminals.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+            endpointRegistry,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/scripts`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-scripts.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+            endpointRegistry,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use(
@@ -210,6 +277,8 @@ function createMiddleware(options = {}) {
   );
   router.use("/api/admin/i18n", require("./routes/adminI18n.routes"));
   router.use("/api/admin/headless", require("./routes/adminHeadless.routes"));
+  router.use("/api/admin/scripts", require("./routes/adminScripts.routes"));
+  router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
     "/api/admin/upload-namespaces",
