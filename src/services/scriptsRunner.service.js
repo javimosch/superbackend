@@ -171,7 +171,7 @@ async function startRun(scriptDef, options) {
     }
   });
 
-  return { runId: String(runDoc._id) };
+  return runDoc;
 }
 
 async function runSpawned({ runId, bus, command, args, env, cwd, timeoutMs }) {

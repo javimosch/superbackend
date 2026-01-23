@@ -8,6 +8,7 @@ const { basicAuth } = require("./middleware/auth");
 const endpointRegistry = require("./admin/endpointRegistry");
 const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.service");
 const consoleOverride = require("./services/consoleOverride.service");
+const cronScheduler = require("./services/cronScheduler.service");
 const {
   hookConsoleError,
   setupProcessHandlers,
@@ -64,8 +65,10 @@ function createMiddleware(options = {}) {
     // Return a promise that resolves when connection is established
     const connectionPromise = mongoose
       .connect(mongoUri, connectionOptions)
-      .then(() => {
+      .then(async () => {
         console.log("✅ Middleware: Connected to MongoDB");
+        // Start cron scheduler after DB connection
+        await cronScheduler.start();
         return true;
       })
       .catch((err) => {
@@ -77,6 +80,10 @@ function createMiddleware(options = {}) {
     router.connectionPromise = connectionPromise;
   } else if (mongoose.connection.readyState === 1) {
     console.log("✅ Middleware: Using existing MongoDB connection");
+    // Start cron scheduler for existing connection
+    cronScheduler.start().catch(err => {
+      console.error("Failed to start cron scheduler:", err);
+    });
   }
 
   // CORS configuration
@@ -265,6 +272,37 @@ function createMiddleware(options = {}) {
     });
   });
 
+  router.get(`${adminPath}/crons`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-crons.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use(
@@ -282,6 +320,7 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/i18n", require("./routes/adminI18n.routes"));
   router.use("/api/admin/headless", require("./routes/adminHeadless.routes"));
   router.use("/api/admin/scripts", require("./routes/adminScripts.routes"));
+  router.use("/api/admin/crons", require("./routes/adminCrons.routes"));
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
