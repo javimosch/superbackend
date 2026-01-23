@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Terminals</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/xterm@latest/css/xterm.css" />
+</head>
+<body class="bg-gray-50">
+  <div class="max-w-7xl mx-auto px-6 py-6">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Terminals</h1>
+        <div class="text-sm text-gray-500">Interactive shell sessions on the backend host</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-new" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">New</button>
+        <button id="btn-close" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Close</button>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg">
+      <div class="border-b border-gray-200 flex items-center justify-between px-3 py-2">
+        <div id="tabs" class="flex items-center gap-2 overflow-auto"></div>
+        <div class="text-xs text-gray-500 whitespace-nowrap">
+          Ctrl+Shift+T new · Ctrl+Shift+W close · Ctrl+Tab next · Ctrl+Shift+Tab prev · Alt+1..9 switch
+        </div>
+      </div>
+      <div id="terminal-container" class="h-[70vh]"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/xterm@latest/lib/xterm.js"></script>
+
+  <script>
+    window.BASE_URL = '<%= baseUrl %>';
+    window.ADMIN_PATH = '<%= adminPath %>';
+
+    const state = {
+      sessions: [],
+      activeId: null,
+    };
+
+    function baseWsUrl() {
+      const base = window.BASE_URL || '';
+      const u = new URL(base || window.location.origin);
+      const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      return proto + '//' + u.host + u.pathname.replace(/\/$/, '');
+    }
+
+    function apiUrl(path) {
+      return (window.BASE_URL || '') + path;
+    }
+
+    async function api(path, opts) {
+      const res = await fetch(apiUrl(path), {
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        ...opts,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || 'Request failed');
+      return json;
+    }
+
+    function qs(id) { return document.getElementById(id); }
+
+    function renderTabs() {
+      const tabs = qs('tabs');
+      tabs.innerHTML = '';
+      state.sessions.forEach((s, idx) => {
+        const btn = document.createElement('button');
+        const active = s.sessionId === state.activeId;
+        btn.className = `px-3 py-1.5 rounded text-sm border ${active ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`;
+        btn.textContent = `#${idx + 1} ${s.sessionId.slice(0, 6)}`;
+        btn.addEventListener('click', () => activateSession(s.sessionId));
+        tabs.appendChild(btn);
+      });
+    }
+
+    function destroySessionClient(s) {
+      try { if (s.ws) s.ws.close(); } catch {}
+      try { if (s.term) s.term.dispose(); } catch {}
+      s.ws = null;
+      s.term = null;
+    }
+
+    function activateSession(sessionId) {
+      state.activeId = sessionId;
+      renderTabs();
+
+      const container = qs('terminal-container');
+      container.innerHTML = '';
+
+      const s = state.sessions.find((x) => x.sessionId === sessionId);
+      if (!s) return;
+
+      container.appendChild(s.termElement);
+      s.term.open(s.termElement);
+      setTimeout(() => resizeActive(), 0);
+    }
+
+    function resizeActive() {
+      const s = state.sessions.find((x) => x.sessionId === state.activeId);
+      if (!s || !s.term || !s.ws) return;
+
+      const el = s.termElement;
+      const container = el.parentElement;
+      if (!container) return;
+
+      const cols = Math.max(40, Math.floor(container.clientWidth / 9));
+      const rows = Math.max(10, Math.floor(container.clientHeight / 18));
+
+      try {
+        s.term.resize(cols, rows);
+      } catch {}
+
+      try {
+        s.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+      } catch {}
+    }
+
+    async function newTerminal() {
+      return new Promise((resolve, reject) => {
+        ensureTerminal(() => {
+          (async () => {
+            try {
+              const created = await api('/api/admin/terminals/sessions', { method: 'POST', body: JSON.stringify({ cols: 120, rows: 30 }) });
+              const sessionId = created.sessionId;
+
+              const term = new Terminal({
+                cursorBlink: true,
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 13,
+                theme: { background: '#0b1020' },
+              });
+
+              const termElement = document.createElement('div');
+              termElement.className = 'w-full h-full';
+
+              const ws = new WebSocket(baseWsUrl() + '/api/admin/terminals/ws?sessionId=' + encodeURIComponent(sessionId));
+
+              const s = { sessionId, term, ws, termElement };
+              state.sessions.push(s);
+              state.activeId = sessionId;
+              renderTabs();
+
+              ws.onopen = () => {
+                activateSession(sessionId);
+              };
+
+              ws.onmessage = (ev) => {
+                let msg;
+                try { msg = JSON.parse(String(ev.data || '')); } catch { return; }
+                if (!msg || typeof msg !== 'object') return;
+
+                if (msg.type === 'output') {
+                  term.write(msg.data || '');
+                }
+              };
+
+              ws.onclose = () => {
+                term.write('\r\n[disconnected]\r\n');
+              };
+
+              term.onData((data) => {
+                try {
+                  ws.send(JSON.stringify({ type: 'input', data }));
+                } catch {}
+              });
+
+              window.addEventListener('resize', () => {
+                if (state.activeId === sessionId) resizeActive();
+              });
+
+              resolve();
+            } catch (e) {
+              reject(e);
+            }
+          })();
+        });
+      });
+    }
+
+    async function closeActive() {
+      const sessionId = state.activeId;
+      if (!sessionId) return;
+
+      const idx = state.sessions.findIndex((x) => x.sessionId === sessionId);
+      if (idx === -1) return;
+
+      const s = state.sessions[idx];
+      destroySessionClient(s);
+
+      state.sessions.splice(idx, 1);
+      state.activeId = state.sessions[idx - 1]?.sessionId || state.sessions[0]?.sessionId || null;
+      renderTabs();
+
+      qs('terminal-container').innerHTML = '';
+      if (state.activeId) activateSession(state.activeId);
+
+      try {
+        await api('/api/admin/terminals/sessions/' + encodeURIComponent(sessionId), { method: 'DELETE' });
+      } catch {}
+    }
+
+    function nextTab(dir) {
+      if (!state.sessions.length) return;
+      const idx = state.sessions.findIndex((x) => x.sessionId === state.activeId);
+      if (idx === -1) return;
+      const next = (idx + dir + state.sessions.length) % state.sessions.length;
+      activateSession(state.sessions[next].sessionId);
+    }
+
+    function switchToIndex(n) {
+      const idx = n - 1;
+      if (idx < 0 || idx >= state.sessions.length) return;
+      activateSession(state.sessions[idx].sessionId);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const key = e.key;
+
+      if (e.ctrlKey && e.shiftKey && (key === 'T' || key === 't')) {
+        e.preventDefault();
+        newTerminal();
+      }
+
+      if (e.ctrlKey && e.shiftKey && (key === 'W' || key === 'w')) {
+        e.preventDefault();
+        closeActive();
+      }
+
+      if (e.ctrlKey && !e.shiftKey && key === 'Tab') {
+        e.preventDefault();
+        nextTab(1);
+      }
+
+      if (e.ctrlKey && e.shiftKey && key === 'Tab') {
+        e.preventDefault();
+        nextTab(-1);
+      }
+
+      if (e.altKey && /^[1-9]$/.test(key)) {
+        e.preventDefault();
+        switchToIndex(Number(key));
+      }
+    });
+
+    qs('btn-new').addEventListener('click', () => newTerminal());
+    qs('btn-close').addEventListener('click', () => closeActive());
+
+    (async function init() {
+      const listed = await api('/api/admin/terminals/sessions');
+      const items = listed.items || [];
+      if (items.length) {
+        for (const it of items.slice(0, 1)) {
+          await newTerminal();
+        }
+      }
+    })();
+
+    // Ensure Terminal is available (wait for script load if needed)
+    function ensureTerminal(cb) {
+      if (typeof Terminal !== 'undefined') {
+        cb();
+      } else {
+        setTimeout(() => ensureTerminal(cb), 50);
+      }
+    }
+  </script>
+</body>
+</html>
