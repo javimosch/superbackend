@@ -31,8 +31,12 @@ function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
 
-  // Expose adminPath for WebSocket attachment
+  // Expose adminPath and WS attachment helper
   router.adminPath = adminPath;
+  router.attachWs = (server) => {
+    const { attachTerminalWebsocketServer } = require('./services/terminalsWs.service');
+    attachTerminalWebsocketServer(server, { basePathPrefix: adminPath });
+  };
 
   // Initialize console override service early to capture all logs
   consoleOverride.init();

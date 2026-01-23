@@ -11,7 +11,7 @@ const express = require("express");
  * @returns {express.Router} Configured Express router
  */
 const middleware = require("./src/middleware");
-const { attachTerminalWebsocketServer } = require("./src/services/terminalsWs.service");
+const { attachTerminalWebsocketServer } = require('./src/services/terminalsWs.service');
 
 /**
  * Creates and starts a standalone SuperBackend server
@@ -33,9 +33,17 @@ function startServer(options = {}) {
     console.log(`🚀 SuperBackend standalone server running on http://localhost:${PORT}`);
   });
 
-  attachTerminalWebsocketServer(server, {
-    basePathPrefix: router.adminPath || '/admin',
-  });
+  // Attach WebSocket server via middleware helper or directly
+  console.log('[Index] Attaching WebSocket server...');
+  if (typeof router.attachWs === 'function') {
+    console.log('[Index] Using router.attachWs');
+    router.attachWs(server);
+  } else {
+    // Fallback: attach directly with admin path
+    const adminPath = router.adminPath || '/admin';
+    console.log('[Index] Using fallback attach with adminPath:', adminPath);
+    attachTerminalWebsocketServer(server, { basePathPrefix: adminPath });
+  }
 
   return { app, server };
 }
