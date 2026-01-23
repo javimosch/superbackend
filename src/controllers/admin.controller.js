@@ -1,5 +1,12 @@
 const User = require('../models/User');
 const StripeWebhookEvent = require('../models/StripeWebhookEvent');
+const Organization = require('../models/Organization');
+const OrganizationMember = require('../models/OrganizationMember');
+const Asset = require('../models/Asset');
+const Notification = require('../models/Notification');
+const Invite = require('../models/Invite');
+const EmailLog = require('../models/EmailLog');
+const FormSubmission = require('../models/FormSubmission');
 const asyncHandler = require('../utils/asyncHandler');
 const fs = require('fs');
 const path = require('path');
@@ -355,14 +362,6 @@ const provisionCoolifyDeploy = asyncHandler(async (req, res) => {
 
 // Delete user (admin only)
 const deleteUser = asyncHandler(async (req, res) => {
-  const User = require('../models/User');
-  const Organization = require('../models/Organization');
-  const OrganizationMember = require('../models/OrganizationMember');
-  const Asset = require('../models/Asset');
-  const Notification = require('../models/Notification');
-  const Invite = require('../models/Invite');
-  const EmailLog = require('../models/EmailLog');
-  const FormSubmission = require('../models/FormSubmission');
   
   const userId = req.params.id;
   
@@ -396,13 +395,6 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 // Helper function to clean up user data
 async function cleanupUserData(userId) {
-  const Organization = require('../models/Organization');
-  const OrganizationMember = require('../models/OrganizationMember');
-  const Asset = require('../models/Asset');
-  const Notification = require('../models/Notification');
-  const Invite = require('../models/Invite');
-  const EmailLog = require('../models/EmailLog');
-  const FormSubmission = require('../models/FormSubmission');
   
   try {
     // Handle organizations owned by user
