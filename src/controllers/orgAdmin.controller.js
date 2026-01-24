@@ -270,6 +270,86 @@ exports.removeMember = async (req, res) => {
   }
 };
 
+exports.addMember = async (req, res) => {
+  try {
+    const { orgId } = req.params;
+    const { userId, role } = req.body;
+
+    if (!orgId || !mongoose.Types.ObjectId.isValid(String(orgId))) {
+      return res.status(400).json({ error: 'Invalid organization ID' });
+    }
+
+    if (!userId || !mongoose.Types.ObjectId.isValid(String(userId))) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Validate role
+    const defaultRole = await getDefaultOrgRole();
+    const memberRole = role || defaultRole;
+    if (!(await isValidOrgRole(memberRole))) {
+      const allowed = await getAllowedOrgRoles();
+      return res.status(400).json({ error: 'Invalid role', allowedRoles: allowed });
+    }
+
+    // Check if organization exists
+    const org = await Organization.findById(orgId);
+    if (!org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user is already a member
+    const existingMember = await OrganizationMember.findOne({
+      orgId,
+      userId,
+      status: { $in: ['active', 'removed'] }
+    });
+
+    if (existingMember) {
+      if (existingMember.status === 'active') {
+        return res.status(409).json({ error: 'User is already a member of this organization' });
+      } else {
+        // Reactivate removed member
+        existingMember.status = 'active';
+        existingMember.role = memberRole;
+        existingMember.addedByUserId = req.user?.id || org.ownerUserId;
+        await existingMember.save();
+        return res.json({
+          message: 'Member reactivated successfully',
+          member: existingMember.toObject()
+        });
+      }
+    }
+
+    // Create new member
+    const member = await OrganizationMember.create({
+      orgId,
+      userId,
+      role: memberRole,
+      status: 'active',
+      addedByUserId: req.user?.id || org.ownerUserId,
+    });
+
+    // Populate user data for response
+    const populatedMember = await OrganizationMember.findById(member._id)
+      .populate('userId', 'email name')
+      .lean();
+
+    return res.status(201).json({
+      message: 'Member added successfully',
+      member: populatedMember
+    });
+  } catch (error) {
+    console.error('Admin org member add error:', error);
+    return res.status(500).json({ error: 'Failed to add member' });
+  }
+};
+
 exports.listInvites = async (req, res) => {
   try {
     const { orgId } = req.params;
