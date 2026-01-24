@@ -39,6 +39,11 @@
           class="px-3 py-2 rounded text-sm"
           :class="activeTab==='roles' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
         >Roles</button>
+        <button
+          @click="activeTab='docs'"
+          class="px-3 py-2 rounded text-sm"
+          :class="activeTab==='docs' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+        >Documentation</button>
       </div>
     </div>
 
@@ -444,6 +449,213 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <div v-if="activeTab==='docs'" class="space-y-6">
+      <!-- Section 1: Programmatic Rights Checking -->
+      <section class="bg-white border border-gray-200 rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800">Programmatic Rights Checking (Middleware Mode)</h3>
+          <p class="text-sm text-gray-600 mt-1">Use the RBAC service directly in your code when running SuperBackend in middleware mode.</p>
+        </div>
+        <div class="p-4 space-y-4">
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Accessing the Service</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>const rbac = globalThis.superbackend.services.rbac;</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Basic Rights Check</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>const result = await rbac.checkRight(userId, orgId, 'backoffice:dashboard:access');
+
+if (result.allowed) {
+  // User has permission - proceed
+  console.log('Access granted');
+} else {
+  // Permission denied
+  console.log('Access denied by:', result.decisionLayer);
+  // result.decisionLayer can be: 'user', 'role', 'group', 'org', or 'global'
+}</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Express Middleware Example</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>const requireRight = (right) => async (req, res, next) => {
+  const rbac = globalThis.superbackend.services.rbac;
+  const result = await rbac.checkRight(req.user.id, req.org.id, right);
+  
+  if (result.allowed) return next();
+  res.status(403).json({ error: 'Insufficient permissions' });
+};
+
+// Usage
+app.get('/admin/dashboard', 
+  authenticate, // your auth middleware
+  requireRight('backoffice:dashboard:access'),
+  dashboardHandler
+);</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: HTTP API Rights Checking -->
+      <section class="bg-white border border-gray-200 rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800">HTTP API Rights Checking</h3>
+          <p class="text-sm text-gray-600 mt-1">Check rights via REST API from external services or frontend applications.</p>
+        </div>
+        <div class="p-4 space-y-4">
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Endpoint</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>POST /api/rbac/check
+Content-Type: application/json
+Authorization: Bearer &lt;JWT&gt; or Basic Auth</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Request Body</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>{
+  "userId": "507f1f77bcf86cd799439011",
+  "orgId": "507f1f77bcf86cd799439012",
+  "right": "backoffice:dashboard:access"
+}</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Response</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>{
+  "allowed": true,
+  "decisionLayer": "role",
+  "context": {
+    "userRoles": ["admin", "editor"],
+    "groupRoles": ["viewer"],
+    "userGrants": [],
+    "roleGrants": [
+      { "right": "backoffice:dashboard:access", "effect": "allow" }
+    ],
+    "groupGrants": [],
+    "orgGrants": [],
+    "globalGrants": []
+  }
+}</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">curl Example</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>curl -X POST http://localhost:3000/api/rbac/check \
+  -H "Authorization: Bearer YOUR_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "507f1f77bcf86cd799439011",
+    "orgId": "507f1f77bcf86cd799439012",
+    "right": "backoffice:dashboard:access"
+  }'</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">JavaScript Fetch Example</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>const response = await fetch('/api/rbac/check', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  },
+  body: JSON.stringify({
+    userId: '507f1f77bcf86cd799439011',
+    orgId: '507f1f77bcf86cd799439012',
+    right: 'backoffice:dashboard:access'
+  })
+});
+
+const result = await response.json();
+if (result.allowed) {
+  // Proceed with action
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Common Patterns -->
+      <section class="bg-white border border-gray-200 rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800">Common Integration Patterns</h3>
+        </div>
+        <div class="p-4 space-y-4">
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Wildcard Rights</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>// Check for wildcard rights
+const result = await rbac.checkRight(userId, orgId, 'backoffice:*');
+// Matches: backoffice:dashboard:access, backoffice:users:read, etc.</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Multiple Rights Check</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>// Check multiple rights (AND logic)
+const rights = ['backoffice:dashboard:access', 'backoffice:users:read'];
+const results = await Promise.all(
+  rights.map(right => rbac.checkRight(userId, orgId, right))
+);
+
+const hasAll = results.every(r => r.allowed);
+const hasAny = results.some(r => r.allowed);</code></pre>
+            </div>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Global vs Org-Scoped Rights</h4>
+            <div class="bg-gray-50 rounded p-3 overflow-x-auto">
+              <pre class="text-xs"><code>// Global rights (orgId can be null/undefined)
+await rbac.checkRight(userId, null, 'system:admin');
+
+// Org-specific rights
+await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Troubleshooting -->
+      <section class="bg-white border border-gray-200 rounded-lg">
+        <div class="p-4 border-b border-gray-200">
+          <h3 class="text-lg font-semibold text-gray-800">Troubleshooting & Best Practices</h3>
+        </div>
+        <div class="p-4 space-y-4">
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Common Errors</h4>
+            <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+              <li><strong>Invalid userId:</strong> Ensure the user exists in your database</li>
+              <li><strong>Invalid orgId:</strong> For org-scoped rights, orgId must be valid</li>
+              <li><strong>Malformed right:</strong> Rights should follow the pattern <code>domain:action:resource</code></li>
+              <li><strong>Authentication:</strong> API calls require valid JWT or Basic Auth</li>
+            </ul>
+          </div>
+          <div>
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Performance Tips</h4>
+            <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+              <li>Cache results for frequently checked rights</li>
+              <li>Use wildcard rights to reduce grant count</li>
+              <li>Batch multiple rights checks when possible</li>
+              <li>Consider decisionLayer for audit logging</li>
+            </ul>
+          </div>
+          <div class="bg-blue-50 border border-blue-200 rounded p-3">
+            <p class="text-sm text-blue-800">
+              <strong>Tip:</strong> Use the <code>decisionLayer</code> property to understand why access was granted/denied. This is useful for audit trails and debugging.
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 
