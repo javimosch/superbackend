@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Health Checks</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Health Checks</h1>
+        <div class="text-sm text-gray-500">Endpoint monitoring, incident tracking, and optional auto-healing</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="showCreateModal = true" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+          <i class="ti ti-plus mr-1"></i> New Check
+        </button>
+        <button @click="refreshAll" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <!-- Public status toggle -->
+    <div class="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <div class="text-sm font-medium text-gray-900">Public status summary endpoint</div>
+          <div class="text-xs text-gray-500 mt-1">
+            When enabled, exposes <code class="px-1 py-0.5 bg-gray-100 rounded">/api/health-checks/status</code> (no auth).
+          </div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500" v-if="publicStatusEnabled">Enabled</span>
+          <span class="text-xs text-gray-500" v-else>Disabled</span>
+          <button @click="togglePublicStatus" class="relative inline-flex h-6 w-11 items-center rounded-full" :class="publicStatusEnabled ? 'bg-emerald-600' : 'bg-gray-300'">
+            <span class="inline-block h-5 w-5 transform rounded-full bg-white transition" :class="publicStatusEnabled ? 'translate-x-5' : 'translate-x-1'"></span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Checks List -->
+    <div class="bg-white border border-gray-200 rounded-lg">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Schedule</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last run</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            <tr v-for="hc in healthChecks" :key="hc._id" class="hover:bg-gray-50">
+              <td class="px-4 py-3">
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ hc.name }}</div>
+                  <div class="text-xs text-gray-500">{{ hc.description || 'No description' }}</div>
+                </div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      :class="hc.checkType === 'http' ? 'bg-green-100 text-green-800' : hc.checkType === 'script' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'">
+                  <i :class="hc.checkType === 'http' ? 'ti ti-world' : hc.checkType === 'script' ? 'ti ti-terminal-2' : 'ti ti-circle-dashed'" class="mr-1"></i>
+                  {{ hc.checkType }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900">
+                <span v-if="hc.checkType === 'http'" class="font-mono text-xs">{{ hc.httpUrl }}</span>
+                <span v-else-if="hc.checkType === 'script'" class="text-xs text-gray-700">Script: {{ resolveScriptName(hc.scriptId) }}</span>
+                <span v-else class="text-xs text-gray-500">(internal)</span>
+              </td>
+              <td class="px-4 py-3">
+                <div class="text-sm text-gray-900 font-mono">{{ hc.cronExpression }}</div>
+                <div class="text-xs text-gray-500">{{ hc.timezone }}</div>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-900">
+                <div>{{ formatDate(hc.lastRunAt) }}</div>
+                <div class="text-xs text-gray-500" v-if="hc.lastLatencyMs">{{ hc.lastLatencyMs }}ms</div>
+              </td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      :class="getHealthStatusClass(hc.lastStatus, hc.currentIncidentId)">
+                  {{ getHealthStatusLabel(hc.lastStatus, hc.currentIncidentId) }}
+                </span>
+                <div class="text-xs text-gray-500 mt-1" v-if="hc.enabled === false">Disabled</div>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center gap-1">
+                  <button @click="triggerCheck(hc._id)" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Run now">
+                    <i class="ti ti-player-play"></i>
+                  </button>
+                  <button @click="toggleCheck(hc)" :class="hc.enabled ? 'text-orange-600 hover:bg-orange-50' : 'text-green-600 hover:bg-green-50'" class="p-1 rounded" :title="hc.enabled ? 'Disable' : 'Enable'">
+                    <i :class="hc.enabled ? 'ti ti-player-pause' : 'ti ti-player-track-next'"></i>
+                  </button>
+                  <button @click="viewRuns(hc)" class="p-1 text-blue-600 hover:bg-blue-50 rounded" title="View run history">
+                    <i class="ti ti-history"></i>
+                  </button>
+                  <button @click="editCheck(hc)" class="p-1 text-gray-600 hover:bg-gray-50 rounded" title="Edit">
+                    <i class="ti ti-edit"></i>
+                  </button>
+                  <button @click="deleteCheck(hc)" class="p-1 text-red-600 hover:bg-red-50 rounded" title="Delete">
+                    <i class="ti ti-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div v-if="healthChecks.length === 0" class="text-center py-8 text-gray-500">
+          No health checks configured. Click "New Check" to create one.
+        </div>
+      </div>
+    </div>
+
+    <!-- Create/Edit Modal -->
+    <div v-if="showCreateModal || editingCheck" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <h2 class="text-lg font-semibold mb-4">{{ editingCheck ? 'Edit Health Check' : 'Create Health Check' }}</h2>
+
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input v-model="form.name" type="text" class="w-full border rounded px-3 py-2" placeholder="API healthz" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input v-model="form.description" type="text" class="w-full border rounded px-3 py-2" placeholder="(optional)" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Cron Expression</label>
+                <input v-model="form.cronExpression" type="text" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder="*/1 * * * *" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                <input v-model="form.timezone" type="text" class="w-full border rounded px-3 py-2" placeholder="UTC" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Check Type</label>
+                <select v-model="form.checkType" @change="onCheckTypeChange" class="w-full border rounded px-3 py-2">
+                  <option value="http">HTTP</option>
+                  <option value="script">Script</option>
+                </select>
+              </div>
+              <div class="flex items-center pt-6">
+                <input v-model="form.enabled" type="checkbox" class="h-4 w-4" />
+                <label class="ml-2 text-sm text-gray-700">Enabled</label>
+              </div>
+            </div>
+
+            <!-- HTTP -->
+            <div v-if="form.checkType === 'http'" class="space-y-4 p-4 bg-gray-50 rounded">
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Method</label>
+                  <select v-model="form.httpMethod" class="w-full border rounded px-3 py-2">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">URL</label>
+                  <input v-model="form.httpUrl" type="url" class="w-full border rounded px-3 py-2" placeholder="https://api.example.com/healthz" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-3 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Expected status codes</label>
+                  <input v-model="form.expectedStatusCodesCsv" type="text" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder="200,204" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Max latency (ms)</label>
+                  <input v-model.number="form.maxLatencyMs" type="number" class="w-full border rounded px-3 py-2" placeholder="1000" />
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Timeout (ms)</label>
+                  <input v-model.number="form.timeoutMs" type="number" class="w-full border rounded px-3 py-2" placeholder="30000" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Auth</label>
+                <select v-model="form.httpAuth.type" class="w-full border rounded px-3 py-2">
+                  <option value="none">None</option>
+                  <option value="bearer">Bearer (stored encrypted in Global Settings)</option>
+                  <option value="basic">Basic (password stored encrypted in Global Settings)</option>
+                </select>
+
+                <div v-if="form.httpAuth.type === 'bearer'" class="mt-2">
+                  <div class="text-xs text-gray-500 mb-1" v-if="editingCheck && editingCheck.httpAuth && editingCheck.httpAuth.tokenSettingKey">
+                    Token is already stored. Enter a new token only if you want to rotate it.
+                  </div>
+                  <input v-model="form.httpAuth.token" type="text" placeholder="Bearer token (optional on edit)" class="w-full border rounded px-3 py-2 font-mono text-sm" />
+                </div>
+
+                <div v-if="form.httpAuth.type === 'basic'" class="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <input v-model="form.httpAuth.username" type="text" placeholder="Username" class="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500 mb-1" v-if="editingCheck && editingCheck.httpAuth && editingCheck.httpAuth.passwordSettingKey">
+                      Password is already stored. Enter a new password only if you want to rotate it.
+                    </div>
+                    <input v-model="form.httpAuth.password" type="password" placeholder="Password (optional on edit)" class="w-full border rounded px-3 py-2" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Script -->
+            <div v-if="form.checkType === 'script'" class="space-y-4 p-4 bg-gray-50 rounded">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Script</label>
+                <select v-model="form.scriptId" class="w-full border rounded px-3 py-2">
+                  <option value="">Select a script</option>
+                  <option v-for="s in scripts" :key="s._id" :value="s._id">{{ s.name }} ({{ s.type }}, {{ s.runner }})</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Policy -->
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Fail threshold</label>
+                <input v-model.number="form.consecutiveFailuresToOpen" type="number" class="w-full border rounded px-3 py-2" placeholder="3" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Resolve threshold</label>
+                <input v-model.number="form.consecutiveSuccessesToResolve" type="number" class="w-full border rounded px-3 py-2" placeholder="2" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Retries</label>
+                <input v-model.number="form.retries" type="number" class="w-full border rounded px-3 py-2" placeholder="0" />
+              </div>
+            </div>
+
+            <!-- Notifications -->
+            <div class="p-4 bg-gray-50 rounded space-y-3">
+              <div class="text-sm font-medium text-gray-900">Notifications</div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Channel</label>
+                  <select v-model="form.notificationChannel" class="w-full border rounded px-3 py-2">
+                    <option value="in_app">In-app</option>
+                    <option value="email">Email</option>
+                    <option value="both">Both</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Notify user IDs (comma-separated)</label>
+                  <input v-model="form.notifyUserIdsCsv" type="text" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder="507f1f77bcf86cd799439011, ..." />
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-4 text-sm">
+                <label class="inline-flex items-center gap-2">
+                  <input type="checkbox" v-model="form.notifyOnOpen" /> Notify on open
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input type="checkbox" v-model="form.notifyOnResolve" /> Notify on resolve
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input type="checkbox" v-model="form.notifyOnEscalation" /> Notify on escalation
+                </label>
+                <label class="inline-flex items-center gap-2">
+                  <input type="checkbox" v-model="form.suppressNotificationsWhenAcknowledged" /> Suppress when acknowledged
+                </label>
+              </div>
+            </div>
+
+            <!-- Auto-heal (minimal) -->
+            <div class="p-4 bg-gray-50 rounded space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-medium text-gray-900">Auto-heal</div>
+                <label class="inline-flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="form.autoHealEnabled" /> Enabled
+                </label>
+              </div>
+              <div class="text-xs text-gray-500">
+                Configure actions via API for now (stored as <code class="px-1 py-0.5 bg-gray-100 rounded">autoHealActions</code>). UI focuses on monitoring + run history.
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 flex justify-end gap-2">
+            <button @click="closeModal" class="px-4 py-2 border rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button @click="saveCheck" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+              {{ editingCheck ? 'Update' : 'Create' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Run History Modal -->
+    <div v-if="showRunsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold">Run History</h2>
+            <button @click="showRunsModal = false" class="text-gray-400 hover:text-gray-600">
+              <i class="ti ti-x text-xl"></i>
+            </button>
+          </div>
+
+          <div class="mb-4 text-sm text-gray-600">
+            Showing last runs for: <strong>{{ selectedCheck?.name }}</strong>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left">Started</th>
+                  <th class="px-4 py-2 text-left">Duration</th>
+                  <th class="px-4 py-2 text-left">Latency</th>
+                  <th class="px-4 py-2 text-left">Status</th>
+                  <th class="px-4 py-2 text-left">HTTP</th>
+                  <th class="px-4 py-2 text-left">Reason</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y">
+                <tr v-for="r in runs" :key="r._id">
+                  <td class="px-4 py-2">{{ formatDate(r.startedAt) }}</td>
+                  <td class="px-4 py-2">{{ r.durationMs ? `${r.durationMs}ms` : '-' }}</td>
+                  <td class="px-4 py-2">{{ r.latencyMs ? `${r.latencyMs}ms` : '-' }}</td>
+                  <td class="px-4 py-2">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium" :class="getRunStatusClass(r.status)">
+                      {{ r.status }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2">{{ r.httpStatusCode || '-' }}</td>
+                  <td class="px-4 py-2 text-gray-700">{{ r.reason || r.errorMessage || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-if="runs.length === 0" class="text-center py-4 text-gray-500">No runs found</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          healthChecks: [],
+          scripts: [],
+
+          publicStatusEnabled: false,
+
+          showCreateModal: false,
+          editingCheck: null,
+
+          showRunsModal: false,
+          selectedCheck: null,
+          runs: [],
+
+          form: {
+            name: '',
+            description: '',
+            enabled: true,
+            cronExpression: '*/1 * * * *',
+            timezone: 'UTC',
+            checkType: 'http',
+
+            httpMethod: 'GET',
+            httpUrl: '',
+            httpAuth: { type: 'none', username: '', token: '', password: '' },
+
+            scriptId: '',
+
+            expectedStatusCodesCsv: '200',
+            maxLatencyMs: null,
+            timeoutMs: 30000,
+
+            consecutiveFailuresToOpen: 3,
+            consecutiveSuccessesToResolve: 2,
+            retries: 0,
+
+            notificationChannel: 'in_app',
+            notifyUserIdsCsv: '',
+            notifyOnOpen: true,
+            notifyOnResolve: true,
+            notifyOnEscalation: false,
+            suppressNotificationsWhenAcknowledged: true,
+
+            autoHealEnabled: false,
+          },
+        };
+      },
+
+      async mounted() {
+        await this.refreshAll();
+      },
+
+      methods: {
+        async refreshAll() {
+          await Promise.all([this.loadChecks(), this.loadScripts()]);
+        },
+
+        async loadChecks() {
+          try {
+            const res = await fetch('/api/admin/health-checks');
+            const data = await res.json();
+            this.healthChecks = data.items || [];
+            this.publicStatusEnabled = Boolean(data.publicStatusEnabled);
+          } catch (e) {
+            console.error('Failed to load health checks:', e);
+          }
+        },
+
+        async loadScripts() {
+          try {
+            const res = await fetch('/api/admin/scripts');
+            const data = await res.json();
+            this.scripts = data.items || [];
+          } catch (e) {
+            console.error('Failed to load scripts:', e);
+          }
+        },
+
+        resolveScriptName(scriptId) {
+          if (!scriptId) return '(none)';
+          const s = this.scripts.find((x) => String(x._id) === String(scriptId));
+          return s ? s.name : String(scriptId);
+        },
+
+        getHealthStatusLabel(lastStatus, incidentId) {
+          if (incidentId) return 'Incident';
+          if (!lastStatus) return 'Unknown';
+          return lastStatus === 'healthy' ? 'Healthy' : lastStatus === 'unhealthy' ? 'Unhealthy' : 'Unknown';
+        },
+
+        getHealthStatusClass(lastStatus, incidentId) {
+          if (incidentId) return 'bg-red-100 text-red-800';
+          if (lastStatus === 'healthy') return 'bg-green-100 text-green-800';
+          if (lastStatus === 'unhealthy') return 'bg-red-100 text-red-800';
+          return 'bg-gray-100 text-gray-800';
+        },
+
+        getRunStatusClass(status) {
+          switch (status) {
+            case 'healthy': return 'bg-green-100 text-green-800';
+            case 'unhealthy': return 'bg-red-100 text-red-800';
+            case 'timed_out': return 'bg-yellow-100 text-yellow-800';
+            case 'error': return 'bg-red-100 text-red-800';
+            case 'running': return 'bg-blue-100 text-blue-800';
+            default: return 'bg-gray-100 text-gray-800';
+          }
+        },
+
+        formatDate(date) {
+          if (!date) return '-';
+          return new Date(date).toLocaleString();
+        },
+
+        onCheckTypeChange() {
+          if (this.form.checkType === 'http') {
+            this.form.scriptId = '';
+          } else {
+            this.form.httpUrl = '';
+            this.form.httpMethod = 'GET';
+            this.form.httpAuth = { type: 'none', username: '', token: '', password: '' };
+          }
+        },
+
+        closeModal() {
+          this.showCreateModal = false;
+          this.editingCheck = null;
+          this.resetForm();
+        },
+
+        resetForm() {
+          this.form = {
+            name: '',
+            description: '',
+            enabled: true,
+            cronExpression: '*/1 * * * *',
+            timezone: 'UTC',
+            checkType: 'http',
+
+            httpMethod: 'GET',
+            httpUrl: '',
+            httpAuth: { type: 'none', username: '', token: '', password: '' },
+
+            scriptId: '',
+
+            expectedStatusCodesCsv: '200',
+            maxLatencyMs: null,
+            timeoutMs: 30000,
+
+            consecutiveFailuresToOpen: 3,
+            consecutiveSuccessesToResolve: 2,
+            retries: 0,
+
+            notificationChannel: 'in_app',
+            notifyUserIdsCsv: '',
+            notifyOnOpen: true,
+            notifyOnResolve: true,
+            notifyOnEscalation: false,
+            suppressNotificationsWhenAcknowledged: true,
+
+            autoHealEnabled: false,
+          };
+        },
+
+        editCheck(hc) {
+          this.editingCheck = hc;
+          this.form = {
+            name: hc.name,
+            description: hc.description,
+            enabled: Boolean(hc.enabled),
+            cronExpression: hc.cronExpression,
+            timezone: hc.timezone,
+            checkType: hc.checkType,
+
+            httpMethod: hc.httpMethod || 'GET',
+            httpUrl: hc.httpUrl || '',
+            httpAuth: { type: (hc.httpAuth && hc.httpAuth.type) || 'none', username: (hc.httpAuth && hc.httpAuth.username) || '', token: '', password: '' },
+
+            scriptId: hc.scriptId || '',
+
+            expectedStatusCodesCsv: (hc.expectedStatusCodes || [200]).join(','),
+            maxLatencyMs: hc.maxLatencyMs || null,
+            timeoutMs: hc.timeoutMs || 30000,
+
+            consecutiveFailuresToOpen: hc.consecutiveFailuresToOpen || 3,
+            consecutiveSuccessesToResolve: hc.consecutiveSuccessesToResolve || 2,
+            retries: hc.retries || 0,
+
+            notificationChannel: hc.notificationChannel || 'in_app',
+            notifyUserIdsCsv: Array.isArray(hc.notifyUserIds) ? hc.notifyUserIds.join(',') : '',
+            notifyOnOpen: hc.notifyOnOpen !== false,
+            notifyOnResolve: hc.notifyOnResolve !== false,
+            notifyOnEscalation: Boolean(hc.notifyOnEscalation),
+            suppressNotificationsWhenAcknowledged: hc.suppressNotificationsWhenAcknowledged !== false,
+
+            autoHealEnabled: Boolean(hc.autoHealEnabled),
+          };
+        },
+
+        parseExpectedCodes(csv) {
+          const parts = String(csv || '').split(',').map((s) => s.trim()).filter(Boolean);
+          const nums = parts.map((p) => Number(p)).filter((n) => Number.isFinite(n));
+          return nums.length ? nums : [200];
+        },
+
+        parseNotifyUserIds(csv) {
+          return String(csv || '')
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+        },
+
+        async saveCheck() {
+          try {
+            const payload = {
+              name: this.form.name,
+              description: this.form.description,
+              enabled: Boolean(this.form.enabled),
+              cronExpression: this.form.cronExpression,
+              timezone: this.form.timezone,
+              checkType: this.form.checkType,
+              timeoutMs: Number(this.form.timeoutMs || 0),
+
+              expectedStatusCodes: this.parseExpectedCodes(this.form.expectedStatusCodesCsv),
+              maxLatencyMs: this.form.maxLatencyMs === null || this.form.maxLatencyMs === '' ? undefined : Number(this.form.maxLatencyMs),
+
+              consecutiveFailuresToOpen: Number(this.form.consecutiveFailuresToOpen || 0),
+              consecutiveSuccessesToResolve: Number(this.form.consecutiveSuccessesToResolve || 0),
+              retries: Number(this.form.retries || 0),
+
+              notificationChannel: this.form.notificationChannel,
+              notifyUserIds: this.parseNotifyUserIds(this.form.notifyUserIdsCsv),
+              notifyOnOpen: Boolean(this.form.notifyOnOpen),
+              notifyOnResolve: Boolean(this.form.notifyOnResolve),
+              notifyOnEscalation: Boolean(this.form.notifyOnEscalation),
+              suppressNotificationsWhenAcknowledged: Boolean(this.form.suppressNotificationsWhenAcknowledged),
+
+              autoHealEnabled: Boolean(this.form.autoHealEnabled),
+            };
+
+            if (this.form.checkType === 'http') {
+              payload.httpMethod = this.form.httpMethod;
+              payload.httpUrl = this.form.httpUrl;
+              payload.httpAuth = {
+                type: this.form.httpAuth.type,
+                username: this.form.httpAuth.username,
+                token: this.form.httpAuth.token,
+                password: this.form.httpAuth.password,
+              };
+            } else {
+              payload.scriptId = this.form.scriptId;
+            }
+
+            const url = this.editingCheck ? `/api/admin/health-checks/${this.editingCheck._id}` : '/api/admin/health-checks';
+            const method = this.editingCheck ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+              method,
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || 'Failed to save health check');
+              return;
+            }
+
+            this.closeModal();
+            await this.loadChecks();
+          } catch (e) {
+            console.error('Failed to save health check:', e);
+            alert('Failed to save health check');
+          }
+        },
+
+        async toggleCheck(hc) {
+          try {
+            const endpoint = hc.enabled ? 'disable' : 'enable';
+            const res = await fetch(`/api/admin/health-checks/${hc._id}/${endpoint}`, { method: 'POST' });
+            if (!res.ok) {
+              alert('Failed to toggle check');
+              return;
+            }
+            await this.loadChecks();
+          } catch (e) {
+            console.error('Failed to toggle:', e);
+            alert('Failed to toggle check');
+          }
+        },
+
+        async triggerCheck(id) {
+          try {
+            const res = await fetch(`/api/admin/health-checks/${id}/trigger`, { method: 'POST' });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(data.error || 'Failed to trigger');
+              return;
+            }
+            alert(`Triggered. Status: ${data.status}`);
+            await this.loadChecks();
+          } catch (e) {
+            console.error('Failed to trigger:', e);
+            alert('Failed to trigger');
+          }
+        },
+
+        async deleteCheck(hc) {
+          if (!confirm(`Delete health check "${hc.name}"?`)) return;
+          try {
+            const res = await fetch(`/api/admin/health-checks/${hc._id}`, { method: 'DELETE' });
+            if (!res.ok) {
+              alert('Failed to delete');
+              return;
+            }
+            await this.loadChecks();
+          } catch (e) {
+            console.error('Failed to delete:', e);
+            alert('Failed to delete');
+          }
+        },
+
+        async viewRuns(hc) {
+          this.selectedCheck = hc;
+          this.showRunsModal = true;
+          try {
+            const res = await fetch(`/api/admin/health-checks/${hc._id}/runs`);
+            const data = await res.json();
+            this.runs = data.items || [];
+          } catch (e) {
+            console.error('Failed to load runs:', e);
+            this.runs = [];
+          }
+        },
+
+        async togglePublicStatus() {
+          try {
+            const next = !this.publicStatusEnabled;
+            const res = await fetch('/api/admin/health-checks/config', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ publicStatusEnabled: next }),
+            });
+            if (!res.ok) {
+              alert('Failed to update setting');
+              return;
+            }
+            this.publicStatusEnabled = next;
+          } catch (e) {
+            console.error('Failed to toggle public status:', e);
+            alert('Failed to update setting');
+          }
+        },
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
