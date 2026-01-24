@@ -17,12 +17,29 @@ const { auditMiddleware } = require('../services/auditLogger');
 
 // Get all users
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await User.find()
-    .select('-passwordHash')
-    .sort({ createdAt: -1 })
-    .limit(100);
+  const { limit, offset } = req.query;
+  
+  const parsedLimit = Math.min(500, Math.max(1, parseInt(limit, 10) || 50));
+  const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
+  
+  const [users, total] = await Promise.all([
+    User.find()
+      .select('-passwordHash -passwordResetToken -passwordResetExpiry')
+      .sort({ createdAt: -1 })
+      .limit(parsedLimit)
+      .skip(parsedOffset)
+      .lean(),
+    User.countDocuments()
+  ]);
 
-  res.json(users.map(u => u.toJSON()));
+  res.json({
+    users,
+    pagination: {
+      total,
+      limit: parsedLimit,
+      offset: parsedOffset,
+    },
+  });
 });
 
 // Register new user (admin only)

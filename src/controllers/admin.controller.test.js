@@ -75,58 +75,81 @@ describe('Admin Controller', () => {
       User.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         sort: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue(mockUsers)
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockUsers),
       });
+
+      User.countDocuments.mockResolvedValue(2);
 
       await getUsers(mockReq, mockRes);
 
       expect(User.find).toHaveBeenCalled();
-      expect(mockUsers[0].toJSON).toHaveBeenCalled();
-      expect(mockUsers[1].toJSON).toHaveBeenCalled();
-      expect(mockRes.json).toHaveBeenCalledWith([
-        { _id: 'user1', email: 'user1@example.com' },
-        { _id: 'user2', email: 'user2@example.com' }
-      ]);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        users: mockUsers,
+        pagination: {
+          total: 2,
+          limit: 50,
+          offset: 0,
+        },
+      });
     });
 
     test('should handle empty user list', async () => {
       User.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         sort: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([])
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
       });
+
+      User.countDocuments.mockResolvedValue(0);
 
       await getUsers(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith([]);
+      expect(mockRes.json).toHaveBeenCalledWith({
+        users: [],
+        pagination: {
+          total: 0,
+          limit: 50,
+          offset: 0,
+        },
+      });
     });
 
     test('should exclude password hash from results', async () => {
-      User.find.mockReturnValue({
+      const chain = {
         select: jest.fn().mockReturnThis(),
         sort: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([])
-      });
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
+      };
+      User.find.mockReturnValue(chain);
+      User.countDocuments.mockResolvedValue(0);
 
       await getUsers(mockReq, mockRes);
 
-      const findChain = User.find();
-      expect(findChain.select).toHaveBeenCalledWith('-passwordHash');
+      expect(chain.select).toHaveBeenCalledWith('-passwordHash -passwordResetToken -passwordResetExpiry');
     });
 
     test('should limit results to 100 users', async () => {
+      mockReq.query.limit = '9999';
       User.find.mockReturnValue({
         select: jest.fn().mockReturnThis(),
         sort: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockResolvedValue([])
+        limit: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue([]),
       });
+
+      User.countDocuments.mockResolvedValue(0);
 
       await getUsers(mockReq, mockRes);
 
       const findChain = User.find();
-      const selectChain = findChain.select();
-      const sortChain = selectChain.sort();
-      expect(sortChain.limit).toHaveBeenCalledWith(100);
+      expect(findChain.limit).toHaveBeenCalledWith(500);
     });
   });
 

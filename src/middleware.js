@@ -9,6 +9,8 @@ const endpointRegistry = require("./admin/endpointRegistry");
 const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.service");
 const consoleOverride = require("./services/consoleOverride.service");
 const cronScheduler = require("./services/cronScheduler.service");
+const healthChecksScheduler = require("./services/healthChecksScheduler.service");
+const healthChecksBootstrap = require("./services/healthChecksBootstrap.service");
 const {
   hookConsoleError,
   setupProcessHandlers,
@@ -31,9 +33,11 @@ let errorCaptureInitialized = false;
 function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
+  const pagesPrefix = options.pagesPrefix || "/";
 
-  // Expose adminPath and WS attachment helper
+  // Expose adminPath, pagesPrefix and WS attachment helper
   router.adminPath = adminPath;
+  router.pagesPrefix = pagesPrefix;
   router.attachWs = (server) => {
     const { attachTerminalWebsocketServer } = require('./services/terminalsWs.service');
     attachTerminalWebsocketServer(server, { basePathPrefix: adminPath });
@@ -69,12 +73,45 @@ function createMiddleware(options = {}) {
         console.log("✅ Middleware: Connected to MongoDB");
         // Start cron scheduler after DB connection
         await cronScheduler.start();
+        await healthChecksScheduler.start();
+        await healthChecksBootstrap.bootstrap();
         return true;
       })
       .catch((err) => {
         console.error("❌ Middleware: MongoDB connection error:", err);
         return false;
       });
+
+  router.get(`${adminPath}/health-checks`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-health-checks.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
     
     // Store the promise so it can be awaited if needed
     router.connectionPromise = connectionPromise;
@@ -83,6 +120,12 @@ function createMiddleware(options = {}) {
     // Start cron scheduler for existing connection
     cronScheduler.start().catch(err => {
       console.error("Failed to start cron scheduler:", err);
+    });
+    healthChecksScheduler.start().catch(err => {
+      console.error("Failed to start health checks scheduler:", err);
+    });
+    healthChecksBootstrap.bootstrap().catch(err => {
+      console.error("Failed to bootstrap health checks:", err);
     });
   }
 
@@ -184,6 +227,7 @@ function createMiddleware(options = {}) {
   );
   router.use("/api/admin/orgs", require("./routes/orgAdmin.routes"));
   router.use("/api/admin/users", require("./routes/userAdmin.routes"));
+  router.use("/api/admin/rbac", require("./routes/adminRbac.routes"));
   router.use("/api/admin/notifications", require("./routes/notificationAdmin.routes"));
   router.use("/api/admin/stripe", require("./routes/stripeAdmin.routes"));
   
@@ -200,6 +244,37 @@ function createMiddleware(options = {}) {
       }
       try {
         const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/rbac`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-rbac.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);
@@ -303,6 +378,37 @@ function createMiddleware(options = {}) {
     });
   });
 
+  router.get(`${adminPath}/cache`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-cache.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use(
@@ -321,6 +427,8 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/headless", require("./routes/adminHeadless.routes"));
   router.use("/api/admin/scripts", require("./routes/adminScripts.routes"));
   router.use("/api/admin/crons", require("./routes/adminCrons.routes"));
+  router.use("/api/admin/health-checks", require("./routes/adminHealthChecks.routes"));
+  router.use("/api/admin/cache", require("./routes/adminCache.routes"));
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
@@ -333,6 +441,7 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/audit", basicAuth, require("./routes/adminAudit.routes"));
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
   router.use("/api/admin/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
+  router.use("/api/admin/pages", require("./routes/adminPages.routes"));
   router.use("/api/workflows", basicAuth, require("./routes/workflows.routes"));
   router.use("/w", require("./routes/workflowWebhook.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
@@ -350,6 +459,10 @@ function createMiddleware(options = {}) {
   router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
   router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
   router.use("/api/llm/ui", require("./routes/llmUi.routes"));
+  router.use("/api/rbac", require("./routes/rbac.routes"));
+
+  // Public health checks status (gated by global setting)
+  router.use("/api/health-checks", require("./routes/healthChecksPublic.routes"));
 
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));
@@ -468,6 +581,32 @@ function createMiddleware(options = {}) {
       }
       try {
         const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/pages`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-pages.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);
@@ -1049,6 +1188,20 @@ function createMiddleware(options = {}) {
 
   router.use("/api/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
+
+  // Store pagesPrefix and adminPath on app for pages router
+  router.use((req, res, next) => {
+    if (!req.app.get('pagesPrefix')) {
+      req.app.set('pagesPrefix', pagesPrefix);
+    }
+    if (!req.app.get('adminPath')) {
+      req.app.set('adminPath', adminPath);
+    }
+    next();
+  });
+
+  // Public pages router (catch-all, must be last before error handler)
+  router.use(require("./routes/pages.routes"));
 
   // Error handling middleware
   router.use(expressErrorMiddleware);
