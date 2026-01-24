@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Cache Layer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Cache Layer</h1>
+        <div class="text-sm text-gray-500">Configure caching backend, inspect keys, and manage cache entries</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="loadAll" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <!-- Left column: Config + Operations + Create + Info + Metrics -->
+      <div class="col-span-5 space-y-6">
+        <!-- Configuration -->
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Configuration</div>
+            <div class="text-xs text-gray-400">Saved to Global Settings</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Backend</label>
+                <select v-model="config.backend" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="memory">memory (memory + mongo offload)</option>
+                  <option value="redis">redis (redis only)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Eviction policy</label>
+                <select v-model="config.evictionPolicy" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="fifo">fifo</option>
+                  <option value="lru">lru</option>
+                  <option value="lfu">lfu</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded p-3 text-xs text-gray-700">
+              <div class="font-semibold text-gray-800 mb-2">Info: When to choose each eviction policy</div>
+              <div class="space-y-2">
+                <div>
+                  <div class="font-semibold">FIFO (First In, First Out)</div>
+                  <div>Choose FIFO when simplicity and low overhead matter most, access patterns are uniform, and you want minimal bookkeeping.</div>
+                </div>
+                <div>
+                  <div class="font-semibold">LRU (Least Recently Used)</div>
+                  <div>Choose LRU when recent access predicts future access. Solid default for most real workloads with temporal locality.</div>
+                </div>
+                <div>
+                  <div class="font-semibold">LFU (Least Frequently Used)</div>
+                  <div>Choose LFU when long-term popularity matters more than recency and access patterns are stable.</div>
+                </div>
+                <div>
+                  <div class="font-semibold">Rule of thumb</div>
+                  <div>Unsure → LRU. Ultra-simple/streaming → FIFO. Stable popularity distribution → LFU.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Default TTL (seconds)</label>
+                <input v-model.number="config.defaultTtlSeconds" type="number" class="mt-1 w-full border rounded px-3 py-2" />
+                <div class="text-xs text-gray-400 mt-1">Default: 600 (10 minutes). Use null per entry for no-expiry.</div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Max entry size (bytes)</label>
+                <input v-model.number="config.maxEntryBytes" type="number" class="mt-1 w-full border rounded px-3 py-2" />
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded p-3 text-xs text-gray-700">
+              <div class="font-semibold text-gray-800 mb-2">Info: TTL defaults</div>
+              <div class="space-y-2">
+                <div><span class="font-semibold">General-purpose app cache:</span> 5–15 minutes (if forced: 10 minutes).</div>
+                <div><span class="font-semibold">Highly dynamic data:</span> 30 seconds – 2 minutes.</div>
+                <div><span class="font-semibold">Mostly static data:</span> 1–24 hours.</div>
+                <div><span class="font-semibold">Negative caching:</span> 30–60 seconds.</div>
+                <div class="text-gray-500">Rule: TTL ≈ how long the data can be wrong without users noticing.</div>
+              </div>
+            </div>
+
+            <div v-if="config.backend === 'memory'" class="grid grid-cols-1 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Mongo offload threshold (bytes)</label>
+                <input v-model.number="config.offloadThresholdBytes" type="number" class="mt-1 w-full border rounded px-3 py-2" />
+                <div class="text-xs text-gray-400 mt-1">When memory usage exceeds this, entries are offloaded to Mongo.</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">At-rest format (global)</label>
+                <select v-model="config.atRestFormat" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="string">string</option>
+                  <option value="base64">base64</option>
+                </select>
+                <div class="text-xs text-gray-400 mt-1">String at rest auto-decodes JSON. Base64 is raw bytes.</div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Redis prefix</label>
+                <input v-model="config.redisPrefix" class="mt-1 w-full border rounded px-3 py-2" placeholder="superbackend:" />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Redis URL</label>
+              <input v-model="config.redisUrl" class="mt-1 w-full border rounded px-3 py-2" placeholder="redis://localhost:6379" />
+              <div class="text-xs text-gray-400 mt-1">Stored encrypted in Global Settings.</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="saveConfig" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+                <i class="ti ti-device-floppy mr-1"></i> Save
+              </button>
+              <div v-if="saveStatus" class="text-sm text-gray-600">{{ saveStatus }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Operations -->
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Operations</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Namespace (optional)</label>
+                <input v-model="ops.namespace" class="mt-1 w-full border rounded px-3 py-2" placeholder="default" />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Prefix (optional)</label>
+                <input v-model="ops.prefix" class="mt-1 w-full border rounded px-3 py-2" placeholder="user:" />
+              </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+              <button @click="clearCache('memory')" class="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">
+                Clear memory
+              </button>
+              <button @click="clearCache('mongo')" class="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">
+                Clear mongo
+              </button>
+              <button @click="clearCache('redis')" class="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">
+                Clear redis
+              </button>
+              <button @click="clearCache('all')" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">
+                Clear all
+              </button>
+            </div>
+
+            <div v-if="clearStatus" class="text-sm text-gray-600">{{ clearStatus }}</div>
+          </div>
+        </div>
+
+        <!-- Create new entry -->
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Create new entry</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Namespace</label>
+                <input v-model="create.namespace" class="mt-1 w-full border rounded px-3 py-2" placeholder="default" />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Key</label>
+                <input v-model="create.key" class="mt-1 w-full border rounded px-3 py-2" placeholder="my-key" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">TTL seconds</label>
+                <input v-model.number="create.ttlSeconds" class="mt-1 w-full border rounded px-3 py-2" placeholder="600" />
+                <div class="text-xs text-gray-400 mt-1">Use null for no-expiry.</div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">At-rest format</label>
+                <select v-model="create.atRestFormat" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">(use global)</option>
+                  <option value="string">string</option>
+                  <option value="base64">base64</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Value</label>
+              <textarea v-model="create.value" class="mt-1 w-full h-32 border rounded px-3 py-2 font-mono text-xs" placeholder='{"example": "data"} or plain text'></textarea>
+              <div class="text-xs text-gray-400 mt-1">JSON will be auto-decoded on reads. Plain text stored as-is.</div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="createEntry" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">
+                <i class="ti ti-plus mr-1"></i> Create entry
+              </button>
+              <div v-if="createStatus" class="text-sm text-gray-600">{{ createStatus }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Information -->
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Information</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="bg-gray-50 border border-gray-200 rounded p-3 text-xs text-gray-700">
+              <div class="font-semibold text-gray-800 mb-2">Programmatic Usage</div>
+              <div class="space-y-2">
+                <div><pre class="bg-gray-800 text-gray-100 p-2 rounded overflow-x-auto">const { cacheLayer } = require('superbackend');
+
+// Set a cache entry
+await cacheLayer.set('my-key', { data: 'value' }, {
+  namespace: 'my-app',
+  ttlSeconds: 600
+});
+
+// Get a cache entry
+const value = await cacheLayer.get('my-key', { 
+  namespace: 'my-app' 
+});
+
+// Delete a cache entry
+await cacheLayer.delete('my-key', { 
+  namespace: 'my-app' 
+});
+
+// Clear cache
+await cacheLayer.clear({ backend: 'all' });</pre></div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded p-3 text-xs text-gray-700">
+              <div class="font-semibold text-gray-800 mb-2">API Usage</div>
+              <div class="space-y-2">
+                <div><pre class="bg-gray-800 text-gray-100 p-2 rounded overflow-x-auto"># Set a cache entry
+curl -X PUT /api/admin/cache/entry \
+  -H "Content-Type: application/json" \
+  -d '{
+    "namespace": "my-app",
+    "key": "my-key",
+    "value": {"data": "value"},
+    "ttlSeconds": 600
+  }'
+
+# Get a cache entry
+curl "/api/admin/cache/entry?namespace=my-app&key=my-key"
+
+# Delete a cache entry
+curl -X DELETE "/api/admin/cache/entry?namespace=my-app&key=my-key"
+
+# List keys
+curl "/api/admin/cache/keys?namespace=my-app"
+
+# Clear cache
+curl -X POST /api/admin/cache/clear \
+  -H "Content-Type: application/json" \
+  -d '{"backend": "all"}'</pre></div>
+              </div>
+            </div>
+
+            <div class="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-700">
+              <div class="font-semibold text-blue-800 mb-2">Quick Tips</div>
+              <div class="space-y-1">
+                <div>• Use namespaces to isolate cache keys by app or feature</div>
+                <div>• JSON values are automatically decoded when retrieved</div>
+                <div>• Set TTL to null for entries that should never expire</div>
+                <div>• Use base64 format for binary data or special characters</div>
+                <div>• Monitor metrics to optimize your cache hit ratio</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metrics -->
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Metrics</div>
+          </div>
+          <div class="p-4">
+            <div v-if="metrics" class="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div class="text-xs text-gray-500">Backend</div>
+                <div class="font-semibold">{{ metrics.backend }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Eviction policy</div>
+                <div class="font-semibold">{{ metrics.evictionPolicy }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Memory entries</div>
+                <div class="font-semibold">{{ metrics.memory.entries }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Memory bytes (est.)</div>
+                <div class="font-semibold">{{ metrics.memory.estimatedBytes }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Mongo entries</div>
+                <div class="font-semibold">{{ metrics.mongo.entries }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Mongo bytes (est.)</div>
+                <div class="font-semibold">{{ metrics.mongo.estimatedBytes }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Hits / Misses</div>
+                <div class="font-semibold">{{ metrics.memory.hits }} / {{ metrics.memory.misses }}</div>
+              </div>
+              <div>
+                <div class="text-xs text-gray-500">Offloads</div>
+                <div class="font-semibold">{{ metrics.memory.offloads }}</div>
+              </div>
+              <div v-if="metrics.redis">
+                <div class="text-xs text-gray-500">Redis memory bytes</div>
+                <div class="font-semibold">{{ metrics.redis.usedMemoryBytes || metrics.redis.error }}</div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">No metrics yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column: Explorer -->
+      <div class="col-span-7">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Explorer</div>
+            <div class="flex items-center gap-2">
+              <input v-model="explorer.namespace" class="border rounded px-3 py-2 text-sm" placeholder="namespace (optional)" />
+              <input v-model="explorer.prefix" class="border rounded px-3 py-2 text-sm" placeholder="prefix (optional)" />
+              <button @click="loadKeys" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+                Load keys
+              </button>
+            </div>
+          </div>
+
+          <div class="p-4 grid grid-cols-12 gap-4">
+            <div class="col-span-5">
+              <div class="text-xs font-semibold text-gray-500 mb-2">Keys</div>
+              <div class="border rounded p-2 max-h-[70vh] overflow-auto">
+                <div v-if="Array.isArray(keys)" class="space-y-1">
+                  <button
+                    v-for="it in keys"
+                    :key="it.namespace + ':' + it.key + ':' + it.backend"
+                    @click="selectEntry(it.namespace, it.key)"
+                    class="w-full text-left px-2 py-1 rounded hover:bg-gray-50"
+                  >
+                    <div class="flex items-center justify-between">
+                      <div class="font-mono text-xs">{{ it.namespace }}:{{ it.key }}</div>
+                      <div class="text-[10px] text-gray-500">{{ it.backend }}</div>
+                    </div>
+                  </button>
+                </div>
+
+                <div v-else>
+                  <div class="text-xs text-gray-500 mb-2">Memory</div>
+                  <div class="space-y-1">
+                    <button
+                      v-for="it in keys.memory"
+                      :key="it.namespace + ':' + it.key + ':' + it.backend"
+                      @click="selectEntry(it.namespace, it.key)"
+                      class="w-full text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="font-mono text-xs">{{ it.namespace }}:{{ it.key }}</div>
+                        <div class="text-[10px] text-gray-500">{{ it.backend }}</div>
+                      </div>
+                    </button>
+                  </div>
+
+                  <div class="text-xs text-gray-500 mt-4 mb-2">Mongo</div>
+                  <div class="space-y-1">
+                    <button
+                      v-for="it in keys.mongo"
+                      :key="it.namespace + ':' + it.key + ':' + it.backend"
+                      @click="selectEntry(it.namespace, it.key)"
+                      class="w-full text-left px-2 py-1 rounded hover:bg-gray-50"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="font-mono text-xs">{{ it.namespace }}:{{ it.key }}</div>
+                        <div class="text-[10px] text-gray-500">{{ it.backend }}</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="col-span-7">
+              <div class="text-xs font-semibold text-gray-500 mb-2">Entry</div>
+
+              <div v-if="selected" class="border rounded p-3 space-y-3">
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <div class="text-xs text-gray-500">Namespace</div>
+                    <div class="font-mono">{{ selected.namespace }}</div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">Key</div>
+                    <div class="font-mono">{{ selected.key }}</div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">Backend</div>
+                    <div class="font-semibold">{{ selected.backend }}</div>
+                  </div>
+                  <div>
+                    <div class="text-xs text-gray-500">At-rest format</div>
+                    <div class="font-semibold">{{ selected.atRestFormat || 'string' }}</div>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="text-xs font-semibold text-gray-600">TTL seconds</label>
+                    <input v-model="edit.ttlSeconds" class="mt-1 w-full border rounded px-3 py-2" placeholder="e.g. 600 or null" />
+                    <div class="text-xs text-gray-400 mt-1">Use <span class="font-mono">null</span> for no-expiry.</div>
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-gray-600">At-rest format override</label>
+                    <select v-model="edit.atRestFormat" class="mt-1 w-full border rounded px-3 py-2">
+                      <option value="">(use global)</option>
+                      <option value="string">string</option>
+                      <option value="base64">base64</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Value</label>
+                  <textarea v-model="edit.value" class="mt-1 w-full h-48 border rounded px-3 py-2 font-mono text-xs"></textarea>
+                  <div class="text-xs text-gray-400 mt-1">Stored as string at rest. If valid JSON, reads auto-decode to JSON.</div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button @click="saveEntry" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+                    <i class="ti ti-device-floppy mr-1"></i> Save entry
+                  </button>
+                  <button @click="deleteEntry" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">
+                    <i class="ti ti-trash mr-1"></i> Delete
+                  </button>
+                  <div v-if="entryStatus" class="text-sm text-gray-600">{{ entryStatus }}</div>
+                </div>
+              </div>
+
+              <div v-else class="text-sm text-gray-500">Select a key to view/edit its value.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <style>
+    [v-cloak] { display: none; }
+  </style>
+
+  <script>
+    window.BASE_URL = '<%= baseUrl %>';
+
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          config: {
+            backend: 'memory',
+            evictionPolicy: 'lru',
+            redisPrefix: 'superbackend:',
+            redisUrl: '',
+            offloadThresholdBytes: 5 * 1024 * 1024,
+            maxEntryBytes: 256 * 1024,
+            defaultTtlSeconds: 600,
+            atRestFormat: 'string',
+          },
+          saveStatus: '',
+          clearStatus: '',
+          entryStatus: '',
+          createStatus: '',
+          metrics: null,
+          keys: { memory: [], mongo: [] },
+          selected: null,
+          edit: { ttlSeconds: '', atRestFormat: '', value: '' },
+          create: { namespace: '', key: '', ttlSeconds: 600, atRestFormat: '', value: '' },
+          explorer: { namespace: '', prefix: '' },
+          ops: { namespace: '', prefix: '' },
+        };
+      },
+      methods: {
+        async api(path, opts) {
+          const base = window.BASE_URL || '';
+          const res = await fetch(base + path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || 'Request failed');
+          return json;
+        },
+        async loadConfig() {
+          const data = await this.api('/api/admin/cache/config', { method: 'GET' });
+          const cfg = data.config || {};
+          this.config.backend = cfg.backend || 'memory';
+          this.config.evictionPolicy = cfg.evictionPolicy || 'lru';
+          this.config.redisPrefix = cfg.redisPrefix || 'superbackend:';
+          this.config.offloadThresholdBytes = cfg.offloadThresholdBytes || this.config.offloadThresholdBytes;
+          this.config.maxEntryBytes = cfg.maxEntryBytes || this.config.maxEntryBytes;
+          this.config.defaultTtlSeconds = cfg.defaultTtlSeconds || this.config.defaultTtlSeconds;
+          this.config.atRestFormat = cfg.atRestFormat || 'string';
+          // URL is not returned; keep existing input
+        },
+        async saveConfig() {
+          this.saveStatus = '';
+          try {
+            await this.api('/api/admin/cache/config', {
+              method: 'PUT',
+              body: JSON.stringify({
+                backend: this.config.backend,
+                evictionPolicy: this.config.evictionPolicy,
+                redisUrl: this.config.redisUrl,
+                redisPrefix: this.config.redisPrefix,
+                offloadThresholdBytes: this.config.offloadThresholdBytes,
+                maxEntryBytes: this.config.maxEntryBytes,
+                defaultTtlSeconds: this.config.defaultTtlSeconds,
+                atRestFormat: this.config.atRestFormat,
+              }),
+            });
+            this.saveStatus = 'Saved.';
+            await this.loadAll();
+          } catch (e) {
+            this.saveStatus = e.message || 'Failed.';
+          }
+        },
+        async loadMetrics() {
+          const data = await this.api('/api/admin/cache/metrics', { method: 'GET' });
+          this.metrics = data.metrics || null;
+        },
+        async clearCache(backend) {
+          this.clearStatus = '';
+          try {
+            const payload = {
+              backend,
+              namespace: this.ops.namespace || undefined,
+              prefix: this.ops.prefix || undefined,
+            };
+            const data = await this.api('/api/admin/cache/clear', { method: 'POST', body: JSON.stringify(payload) });
+            this.clearStatus = `Cleared: ${JSON.stringify(data.cleared)}`;
+            await this.loadAll();
+          } catch (e) {
+            this.clearStatus = e.message || 'Failed.';
+          }
+        },
+        async loadKeys() {
+          const qs = new URLSearchParams();
+          if (this.explorer.namespace) qs.set('namespace', this.explorer.namespace);
+          if (this.explorer.prefix) qs.set('prefix', this.explorer.prefix);
+          const data = await this.api('/api/admin/cache/keys?' + qs.toString(), { method: 'GET' });
+          this.keys = data.items;
+          this.selected = null;
+        },
+        async selectEntry(namespace, key) {
+          const qs = new URLSearchParams();
+          qs.set('namespace', namespace);
+          qs.set('key', key);
+          const data = await this.api('/api/admin/cache/entry?' + qs.toString(), { method: 'GET' });
+          this.selected = data.item;
+          this.edit.value = this.selected.value || '';
+          this.edit.ttlSeconds = '';
+          this.edit.atRestFormat = '';
+          this.entryStatus = '';
+        },
+        async saveEntry() {
+          if (!this.selected) return;
+          this.entryStatus = '';
+          try {
+            let ttlSeconds = this.edit.ttlSeconds;
+            if (ttlSeconds === 'null') ttlSeconds = null;
+            if (ttlSeconds === '') ttlSeconds = undefined;
+
+            await this.api('/api/admin/cache/entry', {
+              method: 'PUT',
+              body: JSON.stringify({
+                namespace: this.selected.namespace,
+                key: this.selected.key,
+                value: this.edit.value,
+                ttlSeconds,
+                atRestFormat: this.edit.atRestFormat || undefined,
+              }),
+            });
+            this.entryStatus = 'Saved.';
+            await this.selectEntry(this.selected.namespace, this.selected.key);
+            await this.loadKeys();
+            await this.loadMetrics();
+          } catch (e) {
+            this.entryStatus = e.message || 'Failed.';
+          }
+        },
+        async deleteEntry() {
+          if (!this.selected) return;
+          this.entryStatus = '';
+          try {
+            const qs = new URLSearchParams();
+            qs.set('namespace', this.selected.namespace);
+            qs.set('key', this.selected.key);
+            await this.api('/api/admin/cache/entry?' + qs.toString(), { method: 'DELETE' });
+            this.entryStatus = 'Deleted.';
+            this.selected = null;
+            await this.loadKeys();
+            await this.loadMetrics();
+          } catch (e) {
+            this.entryStatus = e.message || 'Failed.';
+          }
+        },
+        async createEntry() {
+          this.createStatus = '';
+          try {
+            if (!this.create.key) {
+              throw new Error('Key is required');
+            }
+            if (this.create.value === '') {
+              throw new Error('Value is required');
+            }
+
+            await this.api('/api/admin/cache/entry', {
+              method: 'PUT',
+              body: JSON.stringify({
+                namespace: this.create.namespace || 'default',
+                key: this.create.key,
+                value: this.create.value,
+                ttlSeconds: this.create.ttlSeconds,
+                atRestFormat: this.create.atRestFormat || undefined,
+              }),
+            });
+            this.createStatus = 'Created.';
+            // Reset form
+            this.create.key = '';
+            this.create.value = '';
+            this.create.namespace = '';
+            this.create.atRestFormat = '';
+            this.create.ttlSeconds = 600;
+            // Refresh keys and metrics
+            await this.loadKeys();
+            await this.loadMetrics();
+          } catch (e) {
+            this.createStatus = e.message || 'Failed.';
+          }
+        },
+        async loadAll() {
+          await this.loadConfig();
+          await this.loadMetrics();
+          await this.loadKeys();
+        },
+      },
+      async mounted() {
+        await this.loadAll();
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
