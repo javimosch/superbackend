@@ -299,6 +299,12 @@ Template/layout discovery:
   - built-in defaults
   - DB-backed Virtual EJS files created under `pages/templates/*.ejs` and `pages/layouts/*.ejs`
 
+Block templates:
+- Blocks are included by `block.type` and resolve as `pages/blocks/<type>.ejs`.
+- Templates can be overridden in the database via Virtual EJS using the same path:
+  - `pages/blocks/<type>.ejs`
+- The Page Builder admin UI (Blocks tab) provides a Template action to open the Virtual EJS editor for the block.
+
 ## Security
 
 - Page editing requires admin authentication (`basicAuth`)

@@ -151,6 +151,7 @@ async function resolveTemplateSource({ viewsRoot, relPath, allowDb = true }) {
   }
 
   if (fileDoc && fileDoc.enabled === true && typeof fileDoc.content === 'string' && fileDoc.content.trim() !== '') {
+    console.log(`[ejsVirtual] Resolved ${normalized} from DB (${fileDoc.content.length} chars)`);
     return {
       relPath: normalized,
       source: 'db',
@@ -160,6 +161,7 @@ async function resolveTemplateSource({ viewsRoot, relPath, allowDb = true }) {
   }
 
   const fsContent = await readFsView(viewsRoot, normalized);
+  console.log(`[ejsVirtual] Resolved ${normalized} from FS (${fsContent?.length || 0} chars)`);
   return {
     relPath: normalized,
     source: 'fs',
@@ -492,8 +494,9 @@ function resolveIncludeRelPath({ viewsRoot, parentAbsPath, includePath }) {
   }
 
   const normalizedAbs = path.resolve(includeAbs);
-  if (!normalizedAbs.startsWith(baseRoot)) {
-    const err = new Error('Include path escapes views root');
+  // Use path.sep to ensure we match the full directory name
+  if (!normalizedAbs.startsWith(baseRoot + path.sep) && normalizedAbs !== baseRoot) {
+    const err = new Error(`Include path escapes views root: ${normalizedAbs} (root: ${baseRoot})`);
     err.code = 'VALIDATION';
     throw err;
   }
@@ -511,14 +514,17 @@ async function preloadTemplatesForRender({ viewsRoot, entryRelPath }) {
   // This ensures dynamic includes (like blocks) that exist in DB are available.
   try {
     const dbFiles = await VirtualEjsFile.find({ enabled: true }).lean();
-    for (const f of dbFiles) {
-      templatesByRelPath.set(f.path, {
-        relPath: f.path,
-        source: 'db',
-        content: f.content,
-        updatedAt: f.updatedAt,
-      });
-      absByRelPath.set(f.path, resolveAbsPath(viewsRoot, f.path));
+    if (dbFiles && dbFiles.length > 0) {
+      console.log(`[ejsVirtual] Preloading ${dbFiles.length} enabled DB templates: ${dbFiles.map(f => `${f.path} (${f.content?.length || 0} chars)`).join(', ')}`);
+      for (const f of dbFiles) {
+        templatesByRelPath.set(f.path, {
+          relPath: f.path,
+          source: 'db',
+          content: f.content,
+          updatedAt: f.updatedAt,
+        });
+        absByRelPath.set(f.path, resolveAbsPath(viewsRoot, f.path));
+      }
     }
   } catch (err) {
     console.error('[ejsVirtual] Failed to preload DB templates:', err);
@@ -542,6 +548,7 @@ async function preloadTemplatesForRender({ viewsRoot, entryRelPath }) {
         templatesByRelPath.set(relPath, src);
       } catch (err) {
         // If not found, we still want to keep going, it might be on FS or missing
+        console.warn(`[ejsVirtual] Failed to resolve template source for ${relPath}:`, err.message);
         continue;
       }
     }
@@ -555,7 +562,7 @@ async function preloadTemplatesForRender({ viewsRoot, entryRelPath }) {
         const incRel = resolveIncludeRelPath({ viewsRoot, parentAbsPath: abs, includePath: inc });
         if (incRel) queue.push(incRel);
       } catch (err) {
-        // ignore invalid paths
+        console.warn(`[ejsVirtual] Failed to resolve include path "${inc}" in ${relPath}:`, err.message);
       }
     }
   }
@@ -567,17 +574,25 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
   const relPath = normalizeViewPath(viewPath);
   const viewsRoot = path.resolve(options.viewsRoot || (res && res.app ? res.app.get('views') : null) || getDefaultViewsRoot());
 
+  console.log(`[ejsVirtual] Rendering ${relPath} (viewsRoot: ${viewsRoot})`);
+
   const { templatesByRelPath, absByRelPath } = await preloadTemplatesForRender({
     viewsRoot,
     entryRelPath: relPath,
   });
 
+  if (templatesByRelPath.size === 0) {
+    console.warn(`[ejsVirtual] No templates preloaded for ${relPath}`);
+  }
+
   const entry = templatesByRelPath.get(relPath);
   if (!entry) {
-    const err = new Error('Template not found');
+    const err = new Error(`Template not found: ${relPath}`);
     err.code = 'NOT_FOUND';
     throw err;
   }
+
+  console.log(`[ejsVirtual] Entry template ${relPath} source: ${entry.source}`);
 
   const entryAbs = absByRelPath.get(relPath) || resolveAbsPath(viewsRoot, relPath);
 
@@ -587,6 +602,13 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
 
   const cached = getCachedTemplate(entry.relPath, versionKey);
   const entryTemplate = cached ? cached.template : entry.content;
+  
+  if (!entryTemplate || entryTemplate.trim() === '') {
+    console.warn(`[ejsVirtual] Entry template ${relPath} is empty! Source: ${entry.source}`);
+  } else {
+    console.log(`[ejsVirtual] Entry template ${relPath} content start: ${entryTemplate.substring(0, 50).replace(/\n/g, '\\n')}...`);
+  }
+
   if (!cached) {
     setCachedTemplate(entry.relPath, versionKey, entry.content, {});
   }
@@ -617,6 +639,7 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
       // Check if it exists on FS to avoid ENOENT crash
       try {
         if (incAbs && fs.existsSync(incAbs) && fs.statSync(incAbs).isFile()) {
+          console.log(`[ejsVirtual] Include ${incRel || includePath} found on FS (fallback)`);
           return { filename: incAbs };
         }
       } catch (e) {
@@ -624,10 +647,15 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
       }
       
       // If it doesn't exist anywhere, return a comment instead of crashing
-      console.warn(`[ejsVirtual] Include not found: ${incRel || includePath}`);
+      console.warn(`[ejsVirtual] Include not found: ${incRel || includePath} (parent: ${parentAbs})`);
       return { template: `<!-- Include not found: ${incRel || includePath} -->` };
     }
 
+    if (src.content === undefined || src.content === null || src.content.trim() === '') {
+      console.warn(`[ejsVirtual] Including ${incRel} from ${src.source} but content is empty`);
+    }
+
+    console.log(`[ejsVirtual] Including ${incRel} from ${src.source}`);
     return {
       filename: incAbs,
       template: src.content,
@@ -636,11 +664,19 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
 
   await recordIntegratedUsage(relPath, null);
 
-  return ejs.render(entryTemplate, { ...(data || {}), ...(res?.locals || {}) }, {
+  const rendered = ejs.render(entryTemplate, { ...(data || {}), ...(res?.locals || {}) }, {
     filename: entryAbs,
     async: false,
     includer,
   });
+
+  if (!rendered || rendered.trim() === '') {
+    console.warn(`[ejsVirtual] Rendered content for ${relPath} is empty!`);
+  } else {
+    console.log(`[ejsVirtual] Rendered content for ${relPath} length: ${rendered.length} chars`);
+  }
+
+  return rendered;
 }
 
 async function render(res, viewPath, data = {}, options = {}) {

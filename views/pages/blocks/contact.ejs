@@ -1,0 +1,27 @@
+<section class="py-16 bg-gray-50">
+  <div class="container mx-auto px-4 max-w-xl">
+    <% if (block.props?.title) { %>
+    <h2 class="text-3xl font-bold text-gray-900 text-center mb-8"><%= block.props.title %></h2>
+    <% } %>
+    <form action="<%= block.props?.action || '/api/forms/submit' %>" method="POST" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <% if (block.props?.formId) { %>
+      <input type="hidden" name="formId" value="<%= block.props.formId %>">
+      <% } %>
+      <div class="mb-4">
+        <label class="block text-gray-700 font-medium mb-2">Name</label>
+        <input type="text" name="name" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+      </div>
+      <div class="mb-4">
+        <label class="block text-gray-700 font-medium mb-2">Email</label>
+        <input type="email" name="email" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+      </div>
+      <div class="mb-6">
+        <label class="block text-gray-700 font-medium mb-2">Message</label>
+        <textarea name="message" rows="4" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"></textarea>
+      </div>
+      <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700 transition">
+        <%= block.props?.buttonText || 'Send Message' %>
+      </button>
+    </form>
+  </div>
+</section>

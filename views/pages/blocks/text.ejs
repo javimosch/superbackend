@@ -1,0 +1,10 @@
+<section class="py-12">
+  <div class="container mx-auto px-4 max-w-3xl">
+    <% if (block.props?.title) { %>
+    <h2 class="text-3xl font-bold text-gray-900 mb-6"><%= block.props.title %></h2>
+    <% } %>
+    <div class="prose prose-lg max-w-none text-gray-700">
+      <%- block.props?.content || '' %>
+    </div>
+  </div>
+</section>

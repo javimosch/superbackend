@@ -1,0 +1,13 @@
+<section class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white py-20">
+  <div class="container mx-auto px-4 text-center">
+    <h1 class="text-5xl font-bold mb-6"><%= block.props?.title || 'Welcome' %></h1>
+    <% if (block.props?.subtitle) { %>
+    <p class="text-xl opacity-90 mb-8"><%= block.props.subtitle %></p>
+    <% } %>
+    <% if (block.props?.ctaText) { %>
+    <a href="<%= block.props.ctaUrl || '#' %>" class="inline-block bg-white text-blue-600 font-semibold px-8 py-3 rounded-lg hover:bg-gray-100 transition">
+      <%= block.props.ctaText %>
+    </a>
+    <% } %>
+  </div>
+</section>

@@ -1,0 +1,18 @@
+<section class="py-16 bg-gray-100">
+  <div class="container mx-auto px-4 text-center">
+    <% if (block.props?.title) { %>
+    <h2 class="text-3xl font-bold text-gray-900 mb-4"><%= block.props.title %></h2>
+    <% } %>
+    <% if (block.props?.description) { %>
+    <p class="text-gray-600 mb-8 max-w-2xl mx-auto"><%= block.props.description %></p>
+    <% } %>
+    <% if (block.props?.buttonText) { %>
+    <a 
+      href="<%= block.props.buttonUrl || '#' %>" 
+      class="inline-block bg-blue-600 text-white font-semibold px-8 py-3 rounded-lg hover:bg-blue-700 transition"
+    >
+      <%= block.props.buttonText %>
+    </a>
+    <% } %>
+  </div>
+</section>

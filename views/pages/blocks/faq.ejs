@@ -1,0 +1,20 @@
+<section class="py-16">
+  <div class="container mx-auto px-4 max-w-3xl">
+    <% if (block.props?.title) { %>
+    <h2 class="text-3xl font-bold text-gray-900 text-center mb-12"><%= block.props.title %></h2>
+    <% } %>
+    <div class="space-y-4">
+      <% const items = block.props?.items || []; %>
+      <% for (let i = 0; i < items.length; i++) { %>
+      <% const item = items[i]; %>
+      <details class="bg-white rounded-lg border border-gray-200 p-4 group">
+        <summary class="font-semibold text-gray-900 cursor-pointer list-none flex justify-between items-center">
+          <%= item.question || 'Question' %>
+          <span class="text-gray-500 group-open:rotate-180 transition-transform">▼</span>
+        </summary>
+        <p class="text-gray-600 mt-4"><%= item.answer || '' %></p>
+      </details>
+      <% } %>
+    </div>
+  </div>
+</section>

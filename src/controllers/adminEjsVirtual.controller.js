@@ -83,10 +83,21 @@ exports.getFile = async (req, res) => {
     const viewsRoot = normalizeViewsRoot(req);
     const relPath = ejsVirtualService.normalizeRelPath(String(req.query.path || '').trim());
 
-    const fsContent = await ejsVirtualService.readFsView(viewsRoot, relPath);
+    let fsContent = '';
+    try {
+      fsContent = await ejsVirtualService.readFsView(viewsRoot, relPath);
+    } catch (_) {
+      fsContent = '';
+    }
+
     const override = await VirtualEjsFile.findOne({ path: relPath }).lean();
 
-    const effective = await ejsVirtualService.resolveTemplateSource({ viewsRoot, relPath, allowDb: true });
+    let effective;
+    try {
+      effective = await ejsVirtualService.resolveTemplateSource({ viewsRoot, relPath, allowDb: true });
+    } catch (_) {
+      effective = { source: override ? 'db' : 'none', content: override?.content || '' };
+    }
 
     res.json({
       path: relPath,
@@ -97,7 +108,6 @@ exports.getFile = async (req, res) => {
   } catch (err) {
     const code = err.code;
     if (code === 'VALIDATION') return res.status(400).json({ error: err.message });
-    if (code === 'NOT_FOUND') return res.status(404).json({ error: err.message });
     console.error('[adminEjsVirtual] getFile error', err);
     res.status(500).json({ error: 'Failed to load file' });
   }
