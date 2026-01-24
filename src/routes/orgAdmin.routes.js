@@ -14,6 +14,7 @@ router.patch('/:orgId/enable', basicAuth, asyncHandler(orgAdminController.enable
 router.delete('/:orgId', basicAuth, asyncHandler(orgAdminController.deleteOrganization));
 
 router.get('/:orgId/members', basicAuth, asyncHandler(orgAdminController.listMembers));
+router.post('/:orgId/members', basicAuth, asyncHandler(orgAdminController.addMember));
 router.patch('/:orgId/members/:memberId', basicAuth, asyncHandler(orgAdminController.updateMember));
 router.delete('/:orgId/members/:memberId', basicAuth, asyncHandler(orgAdminController.removeMember));
 

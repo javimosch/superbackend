@@ -13,7 +13,11 @@ jest.mock('mongoose', () => {
     set: jest.fn(),
     pre: jest.fn(),
     post: jest.fn(),
-    plugin: jest.fn()
+    plugin: jest.fn(),
+    virtual: jest.fn().mockImplementation(() => ({
+      get: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+    })),
   }));
 
   mockSchema.Types = {
@@ -85,7 +89,12 @@ jest.mock('./services/featureFlags.service', () => ({
 }));
 
 jest.mock('./middleware/auth', () => ({
-  basicAuth: jest.fn((req, res, next) => next())
+  basicAuth: jest.fn((req, res, next) => next()),
+  authenticate: jest.fn((req, res, next) => {
+    req.user = { _id: 'test-user-id', role: 'user' };
+    next();
+  }),
+  requireAdmin: jest.fn((req, res, next) => next()),
 }));
 
 jest.mock('./controllers/billing.controller', () => ({

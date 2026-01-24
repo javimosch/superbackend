@@ -505,24 +505,58 @@ function resolveIncludeRelPath({ viewsRoot, parentAbsPath, includePath }) {
 async function preloadTemplatesForRender({ viewsRoot, entryRelPath }) {
   const templatesByRelPath = new Map();
   const absByRelPath = new Map();
-  const queue = [entryRelPath];
   const seen = new Set();
+
+  // 1. Pre-populate with all enabled DB overrides.
+  // This ensures dynamic includes (like blocks) that exist in DB are available.
+  try {
+    const dbFiles = await VirtualEjsFile.find({ enabled: true }).lean();
+    for (const f of dbFiles) {
+      templatesByRelPath.set(f.path, {
+        relPath: f.path,
+        source: 'db',
+        content: f.content,
+        updatedAt: f.updatedAt,
+      });
+      absByRelPath.set(f.path, resolveAbsPath(viewsRoot, f.path));
+    }
+  } catch (err) {
+    console.error('[ejsVirtual] Failed to preload DB templates:', err);
+  }
+
+  const queue = [entryRelPath];
+  // Also crawl static includes of DB-overridden files
+  for (const p of templatesByRelPath.keys()) {
+    queue.push(p);
+  }
 
   while (queue.length > 0) {
     const relPath = queue.shift();
     if (!relPath || seen.has(relPath)) continue;
     seen.add(relPath);
 
-    const src = await resolveTemplateSource({ viewsRoot, relPath, allowDb: true });
-    const abs = resolveAbsPath(viewsRoot, relPath);
+    let src = templatesByRelPath.get(relPath);
+    if (!src) {
+      try {
+        src = await resolveTemplateSource({ viewsRoot, relPath, allowDb: true });
+        templatesByRelPath.set(relPath, src);
+      } catch (err) {
+        // If not found, we still want to keep going, it might be on FS or missing
+        continue;
+      }
+    }
 
-    templatesByRelPath.set(relPath, src);
+    const abs = absByRelPath.get(relPath) || resolveAbsPath(viewsRoot, relPath);
     absByRelPath.set(relPath, abs);
 
     const includes = extractIncludePaths(src.content);
     for (const inc of includes) {
-      const incRel = resolveIncludeRelPath({ viewsRoot, parentAbsPath: abs, includePath: inc });
-      if (incRel) queue.push(incRel);
+      try {
+        const incRel = resolveIncludeRelPath({ viewsRoot, parentAbsPath: abs, includePath: inc });
+        if (incRel) queue.push(incRel);
+      } catch (err) {
+        // ignore invalid paths
+      }
     }
   }
 
@@ -577,8 +611,21 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
 
     const incAbs = incRel ? absByRelPath.get(incRel) || resolveAbsPath(viewsRoot, incRel) : parentAbs;
     const src = incRel ? templatesByRelPath.get(incRel) : null;
+    
     if (!incRel || !src) {
-      return { filename: incAbs };
+      // If not in preloaded map, it might be on FS.
+      // Check if it exists on FS to avoid ENOENT crash
+      try {
+        if (incAbs && fs.existsSync(incAbs) && fs.statSync(incAbs).isFile()) {
+          return { filename: incAbs };
+        }
+      } catch (e) {
+        // ignore errors
+      }
+      
+      // If it doesn't exist anywhere, return a comment instead of crashing
+      console.warn(`[ejsVirtual] Include not found: ${incRel || includePath}`);
+      return { template: `<!-- Include not found: ${incRel || includePath} -->` };
     }
 
     return {
