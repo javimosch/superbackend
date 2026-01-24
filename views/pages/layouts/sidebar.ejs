@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= seoMeta.title || page.title || 'Page' %></title>
+  <% if (seoMeta.description) { %>
+  <meta name="description" content="<%= seoMeta.description %>">
+  <% } %>
+  <% if (seoMeta.keywords) { %>
+  <meta name="keywords" content="<%= seoMeta.keywords %>">
+  <% } %>
+  <% if (seoMeta.ogImage) { %>
+  <meta property="og:image" content="<%= seoMeta.ogImage %>">
+  <% } %>
+  <% if (seoMeta.canonicalUrl) { %>
+  <link rel="canonical" href="<%= seoMeta.canonicalUrl %>">
+  <% } %>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    <% if (customCss) { %>
+    <%= customCss %>
+    <% } %>
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50">
+  <%- include('../partials/header.ejs', { page, req }) %>
+  
+  <div class="container mx-auto px-4 py-8">
+    <div class="flex flex-col lg:flex-row gap-8">
+      <aside class="lg:w-64 flex-shrink-0">
+        <%- include('../partials/sidebar.ejs', { page, req }) %>
+      </aside>
+      
+      <main class="flex-1">
+        <%- include('../templates/' + (templatePath ? templatePath.replace('pages/templates/', '') : 'default.ejs'), { 
+          page, 
+          blocks, 
+          seoMeta,
+          req 
+        }) %>
+      </main>
+    </div>
+  </div>
+  
+  <%- include('../partials/footer.ejs', { page, req }) %>
+  
+  <% if (customJs) { %>
+  <script>
+    <%= customJs %>
+  </script>
+  <% } %>
+</body>
+</html>

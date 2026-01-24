@@ -1,0 +1,20 @@
+<article class="container mx-auto px-4 py-12 max-w-3xl">
+  <header class="mb-8">
+    <h1 class="text-4xl font-bold text-gray-900 mb-4"><%= page.title %></h1>
+    <% if (page.publishedAt) { %>
+    <p class="text-gray-500 text-sm">
+      Published on <%= new Date(page.publishedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) %>
+    </p>
+    <% } %>
+  </header>
+  
+  <div class="prose prose-lg max-w-none">
+    <% if (blocks && blocks.length > 0) { %>
+      <% for (const block of blocks) { %>
+        <%- include('../blocks/' + block.type + '.ejs', { block, page, req }) %>
+      <% } %>
+    <% } else { %>
+      <p class="text-gray-600">This article has no content yet.</p>
+    <% } %>
+  </div>
+</article>

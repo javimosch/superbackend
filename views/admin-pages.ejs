@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Builder - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+    .block-item { cursor: grab; }
+    .block-item:active { cursor: grabbing; }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <div id="app" class="container mx-auto px-4 py-8">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900">Page Builder</h1>
+        <p class="text-gray-600 text-sm">Create and manage pages with drag-and-drop blocks</p>
+      </div>
+      <a href="<%= adminPath %>" class="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1">
+        <i class="ti ti-arrow-left"></i> Back to Dashboard
+      </a>
+    </div>
+
+    <div class="flex gap-2 mb-6 border-b border-gray-200">
+      <button id="tab-pages" class="px-4 py-2 text-sm font-medium tab-active" onclick="switchTab('pages')">Pages</button>
+      <button id="tab-collections" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchTab('collections')">Collections</button>
+      <button id="tab-templates" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchTab('templates')">Templates</button>
+      <button id="tab-layouts" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchTab('layouts')">Layouts</button>
+      <button id="tab-blocks" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchTab('blocks')">Blocks</button>
+    </div>
+
+    <div id="panel-pages">
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <input type="text" id="pages-search" placeholder="Search pages..." class="border rounded px-3 py-2 text-sm flex-1 min-w-48">
+          <select id="pages-status" class="border rounded px-3 py-2 text-sm">
+            <option value="">All statuses</option>
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+            <option value="archived">Archived</option>
+          </select>
+          <select id="pages-collection" class="border rounded px-3 py-2 text-sm">
+            <option value="">All collections</option>
+          </select>
+          <button onclick="loadPages()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+            <i class="ti ti-refresh"></i> Refresh
+          </button>
+          <button onclick="openCreatePageModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+            <i class="ti ti-plus"></i> New Page
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Title</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Slug</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Collection</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Updated</th>
+              <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="pages-tbody"></tbody>
+        </table>
+        <div id="pages-empty" class="hidden p-8 text-center text-gray-500">
+          No pages found. Create your first page!
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between mt-4">
+        <div id="pages-info" class="text-sm text-gray-600"></div>
+        <div class="flex gap-2">
+          <button id="pages-prev" onclick="pagesPrev()" class="px-3 py-1 text-sm border rounded disabled:opacity-50" disabled>Previous</button>
+          <button id="pages-next" onclick="pagesNext()" class="px-3 py-1 text-sm border rounded disabled:opacity-50" disabled>Next</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-collections" class="hidden">
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <input type="text" id="collections-search" placeholder="Search collections..." class="border rounded px-3 py-2 text-sm flex-1 min-w-48">
+          <button onclick="loadCollections()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+            <i class="ti ti-refresh"></i> Refresh
+          </button>
+          <button onclick="openCreateCollectionModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+            <i class="ti ti-plus"></i> New Collection
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Name</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Slug</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Updated</th>
+              <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="collections-tbody"></tbody>
+        </table>
+        <div id="collections-empty" class="hidden p-8 text-center text-gray-500">
+          No collections found. Create your first collection!
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-templates" class="hidden">
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <button onclick="loadTemplates()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+            <i class="ti ti-refresh"></i> Refresh
+          </button>
+          <button onclick="openCreateEjsFileModal('template')" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+            <i class="ti ti-plus"></i> New Template
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Key</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Name</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Description</th>
+              <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="templates-tbody"></tbody>
+        </table>
+        <div id="templates-empty" class="hidden p-8 text-center text-gray-500">
+          No templates found.
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-layouts" class="hidden">
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <button onclick="loadLayouts()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+            <i class="ti ti-refresh"></i> Refresh
+          </button>
+          <button onclick="openCreateEjsFileModal('layout')" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+            <i class="ti ti-plus"></i> New Layout
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Key</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Name</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Description</th>
+              <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="layouts-tbody"></tbody>
+        </table>
+        <div id="layouts-empty" class="hidden p-8 text-center text-gray-500">
+          No layouts found.
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-blocks" class="hidden">
+      <div class="bg-white rounded-lg shadow-sm border p-4 mb-4">
+        <div class="flex items-center gap-4 flex-wrap">
+          <button onclick="loadBlockDefinitions()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+            <i class="ti ti-refresh"></i> Refresh
+          </button>
+          <button onclick="openCreateBlockDefinitionModal()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700">
+            <i class="ti ti-plus"></i> New Block
+          </button>
+          <button onclick="openAiGenerateBlockModal()" class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700">
+            <i class="ti ti-sparkles"></i> Generate with AI
+          </button>
+        </div>
+      </div>
+
+      <div class="flex gap-2 mb-4 border-b border-gray-200">
+        <button id="blocks-subtab-definitions" class="px-4 py-2 text-sm font-medium tab-active" onclick="switchBlocksSubTab('definitions')">Definitions</button>
+        <button id="blocks-subtab-settings" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchBlocksSubTab('settings')">Settings</button>
+      </div>
+
+      <div id="panel-blocks-definitions">
+      <div class="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-50 border-b">
+            <tr>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Code</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Label</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Status</th>
+              <th class="text-left px-4 py-3 font-medium text-gray-700">Updated</th>
+              <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="blockdefs-tbody"></tbody>
+        </table>
+        <div id="blockdefs-empty" class="hidden p-8 text-center text-gray-500">
+          No block definitions found.
+        </div>
+      </div>
+      </div>
+
+      <div id="panel-blocks-settings" class="hidden">
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+          <div class="text-sm text-gray-700 mb-4">
+            Configure which LLM provider/model the Blocks AI Assistant uses.
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Provider (required)</label>
+              <select id="blocks-ai-provider" class="w-full border rounded px-3 py-2 text-sm"></select>
+              <div class="text-xs text-gray-500 mt-1">Populated from <span class="font-mono">/api/admin/llm/config</span> (enabled providers only).</div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Model (optional)</label>
+              <input id="blocks-ai-model" type="text" class="w-full border rounded px-3 py-2 text-sm" placeholder="e.g. gpt-4.1-mini" />
+              <div id="blocks-ai-model-hint" class="text-xs text-gray-500 mt-1"></div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-4 border-t mt-4">
+            <button type="button" onclick="loadBlocksAiSettings()" class="px-4 py-2 border rounded hover:bg-gray-50">Reload</button>
+            <button type="button" onclick="saveBlocksAiSettings()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+          </div>
+
+          <div class="text-xs text-gray-500 mt-3">
+            Resolution order: request override → Global settings (<span class="font-mono">pageBuilder.blocks.ai.providerKey</span>, <span class="font-mono">pageBuilder.blocks.ai.model</span>) → env (<span class="font-mono">DEFAULT_LLM_PROVIDER_KEY</span>, <span class="font-mono">DEFAULT_LLM_MODEL</span>).
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-page" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-page-title" class="text-lg font-semibold">Create Page</h2>
+        <button onclick="closePageModal()" class="text-gray-500 hover:text-gray-700"><i class="ti ti-x text-xl"></i></button>
+      </div>
+      <form id="page-form" class="p-4 space-y-4">
+        <input type="hidden" id="page-id">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+            <input type="text" id="page-title" required class="w-full border rounded px-3 py-2">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Slug *</label>
+            <input type="text" id="page-slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" class="w-full border rounded px-3 py-2" placeholder="my-page">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Collection</label>
+            <select id="page-collection" class="w-full border rounded px-3 py-2">
+              <option value="">No collection (root level)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="page-status" class="w-full border rounded px-3 py-2">
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Template</label>
+            <select id="page-template" class="w-full border rounded px-3 py-2">
+              <option value="default">Default</option>
+              <option value="landing">Landing Page</option>
+              <option value="article">Article</option>
+              <option value="listing">Listing</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Layout</label>
+            <select id="page-layout" class="w-full border rounded px-3 py-2">
+              <option value="default">Default</option>
+              <option value="minimal">Minimal</option>
+              <option value="sidebar">Sidebar</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">SEO Title</label>
+          <input type="text" id="page-seo-title" class="w-full border rounded px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">SEO Description</label>
+          <textarea id="page-seo-description" rows="2" class="w-full border rounded px-3 py-2"></textarea>
+        </div>
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-sm font-medium text-gray-700">Blocks</label>
+            <div class="flex items-center gap-2">
+              <select id="blocks-add-type" class="border rounded px-3 py-2 text-sm">
+                <option value="">Select block type</option>
+              </select>
+              <button type="button" onclick="addSelectedBlock()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+                <i class="ti ti-plus"></i> Add Block
+              </button>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500 mb-2">
+            Drag to reorder. Edit fields per block. Types/fields come from the JSON Config alias: <span class="font-mono">page-builder-blocks-schema</span>.
+          </div>
+          <div id="blocks-editor" class="space-y-3"></div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Custom CSS</label>
+          <textarea id="page-css" rows="3" class="w-full border rounded px-3 py-2 font-mono text-sm"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Custom JS</label>
+          <textarea id="page-js" rows="3" class="w-full border rounded px-3 py-2 font-mono text-sm"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="closePageModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Page</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-collection" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-collection-title" class="text-lg font-semibold">Create Collection</h2>
+        <button onclick="closeCollectionModal()" class="text-gray-500 hover:text-gray-700"><i class="ti ti-x text-xl"></i></button>
+      </div>
+      <form id="collection-form" class="p-4 space-y-4">
+        <input type="hidden" id="collection-id">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+          <input type="text" id="collection-name" required class="w-full border rounded px-3 py-2">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Slug *</label>
+          <input type="text" id="collection-slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" class="w-full border rounded px-3 py-2" placeholder="my-collection">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <textarea id="collection-description" rows="2" class="w-full border rounded px-3 py-2"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select id="collection-status" class="w-full border rounded px-3 py-2">
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="closeCollectionModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Collection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-ejs" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto m-4">
+      <div class="flex items-center justify-between p-4 border-b">
+        <div>
+          <h2 id="modal-ejs-title" class="text-lg font-semibold">Edit EJS</h2>
+          <div id="modal-ejs-path" class="text-xs text-gray-500 font-mono"></div>
+        </div>
+        <button onclick="closeEjsModal()" class="text-gray-500 hover:text-gray-700"><i class="ti ti-x text-xl"></i></button>
+      </div>
+      <div class="p-4 space-y-3">
+        <div class="flex items-center gap-3">
+          <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input id="ejs-enabled" type="checkbox" />
+            <span>Override enabled</span>
+          </label>
+          <button type="button" onclick="revertEjsOverride()" class="px-3 py-2 text-sm border rounded hover:bg-gray-50">Revert</button>
+          <button type="button" onclick="loadEjsHistory()" class="px-3 py-2 text-sm border rounded hover:bg-gray-50">History</button>
+        </div>
+
+        <textarea id="ejs-content" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="18"></textarea>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">AI vibe prompt</label>
+          <div class="flex gap-2">
+            <input id="ejs-ai-prompt" type="text" class="flex-1 border rounded px-3 py-2 text-sm" placeholder="Describe the change to apply..." />
+            <button type="button" onclick="runEjsVibe()" class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700">Run</button>
+          </div>
+        </div>
+
+        <div id="ejs-history" class="hidden border rounded p-3 bg-gray-50">
+          <div class="text-sm font-medium text-gray-800 mb-2">History</div>
+          <div id="ejs-history-items" class="space-y-2"></div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="closeEjsModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Close</button>
+          <button type="button" onclick="saveEjsOverride()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-create-ejs" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-create-ejs-title" class="text-lg font-semibold">Create</h2>
+        <button onclick="closeCreateEjsModal()" class="text-gray-500 hover:text-gray-700"><i class="ti ti-x text-xl"></i></button>
+      </div>
+      <form id="create-ejs-form" class="p-4 space-y-4">
+        <input type="hidden" id="create-ejs-kind" />
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Key *</label>
+          <input type="text" id="create-ejs-key" required pattern="[a-z0-9]+(-[a-z0-9]+)*" class="w-full border rounded px-3 py-2" placeholder="custom-template" />
+        </div>
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="closeCreateEjsModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-blockdef" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto m-4">
+      <div class="flex items-center justify-between p-4 border-b">
+        <h2 id="modal-blockdef-title" class="text-lg font-semibold">Block</h2>
+        <button onclick="closeBlockDefinitionModal()" class="text-gray-500 hover:text-gray-700"><i class="ti ti-x text-xl"></i></button>
+      </div>
+      <form id="blockdef-form" class="p-4 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Code *</label>
+            <input type="text" id="blockdef-code" required pattern="[a-z][a-z0-9_-]{1,63}" class="w-full border rounded px-3 py-2" placeholder="pricing" />
+            <div class="text-xs text-gray-500 mt-1">Lowercase, stable identifier used as <span class="font-mono">block.type</span>.</div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Label *</label>
+            <input type="text" id="blockdef-label" required class="w-full border rounded px-3 py-2" placeholder="Pricing" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <input type="text" id="blockdef-description" class="w-full border rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Fields (JSON object)</label>
+          <textarea id="blockdef-fields" rows="10" class="w-full border rounded px-3 py-2 font-mono text-xs"></textarea>
+          <div class="text-xs text-gray-500 mt-1">Keys are prop names; values define field type/label/options/example.</div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">AI prompt</label>
+          <div class="flex gap-2">
+            <input id="blockdef-ai-prompt" type="text" class="flex-1 border rounded px-3 py-2 text-sm" placeholder="Describe the block or the edits..." />
+            <button type="button" onclick="runAiForBlockDefinition()" class="bg-purple-600 text-white px-4 py-2 rounded text-sm hover:bg-purple-700">Run</button>
+          </div>
+          <div class="text-xs text-gray-500 mt-1">For existing blocks, uses AI propose; for new blocks, uses AI generate.</div>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-4 border-t">
+          <button type="button" onclick="closeBlockDefinitionModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white hidden z-50"></div>
+
+  <script>
+    const API_BASE = '<%= baseUrl %>';
+    const ADMIN_PATH = '<%= adminPath %>';
+
+    const state = {
+      pages: { items: [], offset: 0, limit: 25, total: 0 },
+      collections: { items: [], offset: 0, limit: 25, total: 0 },
+    };
+
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white z-50 ${type === 'error' ? 'bg-red-600' : 'bg-green-600'}`;
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function switchTab(tab) {
+      const tabs = ['pages', 'collections', 'templates', 'layouts', 'blocks'];
+      tabs.forEach((t) => {
+        document.getElementById(`tab-${t}`).classList.toggle('tab-active', tab === t);
+        document.getElementById(`tab-${t}`).classList.toggle('text-gray-600', tab !== t);
+        document.getElementById(`panel-${t}`).classList.toggle('hidden', tab !== t);
+      });
+
+      if (tab === 'blocks') {
+        if (!state.blocksSubTab) state.blocksSubTab = 'definitions';
+        switchBlocksSubTab(state.blocksSubTab);
+      }
+    }
+
+    function switchBlocksSubTab(subTab) {
+      const tabs = ['definitions', 'settings'];
+      const normalized = tabs.includes(subTab) ? subTab : 'definitions';
+      state.blocksSubTab = normalized;
+
+      tabs.forEach((t) => {
+        document.getElementById(`blocks-subtab-${t}`)?.classList.toggle('tab-active', normalized === t);
+        document.getElementById(`blocks-subtab-${t}`)?.classList.toggle('text-gray-600', normalized !== t);
+      });
+
+      document.getElementById('panel-blocks-definitions')?.classList.toggle('hidden', normalized !== 'definitions');
+      document.getElementById('panel-blocks-settings')?.classList.toggle('hidden', normalized !== 'settings');
+
+      if (normalized === 'settings') {
+        loadBlocksAiSettings();
+      }
+    }
+
+    async function loadLlmProvidersForBlocksSettings() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/llm/config`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const providersObj = data.providers && typeof data.providers === 'object' ? data.providers : {};
+        const providers = Object.entries(providersObj)
+          .map(([key, val]) => ({
+            key,
+            label: String((val && val.label) || key),
+            defaultModel: String((val && val.defaultModel) || ''),
+            enabled: val ? val.enabled !== false : true,
+          }))
+          .filter((p) => p.enabled);
+
+        state.llmProviders = providers;
+        return providers;
+      } catch (_) {
+        state.llmProviders = [];
+        return [];
+      }
+    }
+
+    async function getSettingValueOrEmpty(key) {
+      const res = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, { credentials: 'same-origin' });
+      if (res.status === 404) return '';
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return String(data.value || '').trim();
+    }
+
+    async function upsertStringSetting({ key, value, description }) {
+      const getRes = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, { credentials: 'same-origin' });
+      if (getRes.status === 404) {
+        const createRes = await fetch(`${API_BASE}/api/admin/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            key,
+            value: String(value || ''),
+            type: 'string',
+            description: description || key,
+            public: false,
+          }),
+        });
+        const createData = await createRes.json();
+        if (!createRes.ok) throw new Error(createData.error);
+        return;
+      }
+
+      const putRes = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ value: String(value || '') }),
+      });
+      const putData = await putRes.json();
+      if (!putRes.ok) throw new Error(putData.error);
+    }
+
+    async function loadBlocksAiSettings() {
+      try {
+        const providers = await loadLlmProvidersForBlocksSettings();
+        const providerEl = document.getElementById('blocks-ai-provider');
+        const modelEl = document.getElementById('blocks-ai-model');
+        const hintEl = document.getElementById('blocks-ai-model-hint');
+        if (!providerEl || !modelEl || !hintEl) return;
+
+        providerEl.innerHTML = '<option value="">Select provider...</option>';
+        providers.forEach((p) => {
+          providerEl.innerHTML += `<option value="${escapeHtml(p.key)}">${escapeHtml(p.label)} (${escapeHtml(p.key)})</option>`;
+        });
+
+        const providerKey = await getSettingValueOrEmpty('pageBuilder.blocks.ai.providerKey');
+        const model = await getSettingValueOrEmpty('pageBuilder.blocks.ai.model');
+
+        providerEl.value = providerKey;
+        modelEl.value = model;
+
+        const selected = providers.find((p) => p.key === providerEl.value);
+        hintEl.textContent = selected && selected.defaultModel
+          ? `Provider default model: ${selected.defaultModel}`
+          : '';
+
+        providerEl.onchange = () => {
+          const sel = providers.find((p) => p.key === providerEl.value);
+          hintEl.textContent = sel && sel.defaultModel ? `Provider default model: ${sel.defaultModel}` : '';
+        };
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function saveBlocksAiSettings() {
+      try {
+        const providers = Array.isArray(state.llmProviders) ? state.llmProviders : [];
+        const providerKey = String(document.getElementById('blocks-ai-provider')?.value || '').trim();
+        const model = String(document.getElementById('blocks-ai-model')?.value || '').trim();
+
+        if (!providerKey) {
+          showToast('Provider is required', 'error');
+          return;
+        }
+
+        if (!providers.find((p) => p.key === providerKey)) {
+          showToast('Provider must be one of the enabled LLM providers', 'error');
+          return;
+        }
+
+        await upsertStringSetting({
+          key: 'pageBuilder.blocks.ai.providerKey',
+          value: providerKey,
+          description: 'Default LLM providerKey for Page Builder Blocks AI assistant',
+        });
+
+        await upsertStringSetting({
+          key: 'pageBuilder.blocks.ai.model',
+          value: model,
+          description: 'Default LLM model for Page Builder Blocks AI assistant',
+        });
+
+        showToast('Blocks AI settings saved');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function loadCollections() {
+      try {
+        const search = document.getElementById('collections-search')?.value || '';
+        const params = new URLSearchParams({ offset: state.collections.offset, limit: state.collections.limit });
+        if (search) params.set('search', search);
+
+        const res = await fetch(`${API_BASE}/api/admin/pages/collections?${params}`, { credentials: 'same-origin' });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error);
+
+        state.collections.items = data.collections || [];
+        state.collections.total = data.total || 0;
+        renderCollections();
+        updateCollectionSelect();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderCollections() {
+      const tbody = document.getElementById('collections-tbody');
+      const empty = document.getElementById('collections-empty');
+
+      if (state.collections.items.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = state.collections.items.map(c => `
+        <tr class="border-b hover:bg-gray-50">
+          <td class="px-4 py-3 font-medium">${escapeHtml(c.name)}</td>
+          <td class="px-4 py-3 text-gray-600">/${escapeHtml(c.slug)}</td>
+          <td class="px-4 py-3">
+            <span class="px-2 py-1 text-xs rounded ${c.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">${c.status}</span>
+          </td>
+          <td class="px-4 py-3 text-gray-600">${formatDate(c.updatedAt)}</td>
+          <td class="px-4 py-3 text-right">
+            <button onclick="editCollection('${c._id}')" class="text-blue-600 hover:text-blue-800 mr-2"><i class="ti ti-edit"></i></button>
+            <button onclick="deleteCollection('${c._id}', '${escapeHtml(c.name)}')" class="text-red-600 hover:text-red-800"><i class="ti ti-trash"></i></button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadPages() {
+      try {
+        const search = document.getElementById('pages-search')?.value || '';
+        const status = document.getElementById('pages-status')?.value || '';
+        const collectionId = document.getElementById('pages-collection')?.value || '';
+
+        const params = new URLSearchParams({ offset: state.pages.offset, limit: state.pages.limit });
+        if (search) params.set('search', search);
+        if (status) params.set('status', status);
+        if (collectionId) params.set('collectionId', collectionId);
+
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages?${params}`, { credentials: 'same-origin' });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error);
+
+        state.pages.items = data.pages || [];
+        state.pages.total = data.total || 0;
+        renderPages();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderPages() {
+      const tbody = document.getElementById('pages-tbody');
+      const empty = document.getElementById('pages-empty');
+      const info = document.getElementById('pages-info');
+
+      if (state.pages.items.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        info.textContent = '';
+        return;
+      }
+
+      empty.classList.add('hidden');
+      info.textContent = `Showing ${state.pages.offset + 1}-${Math.min(state.pages.offset + state.pages.items.length, state.pages.total)} of ${state.pages.total}`;
+
+      document.getElementById('pages-prev').disabled = state.pages.offset === 0;
+      document.getElementById('pages-next').disabled = state.pages.offset + state.pages.limit >= state.pages.total;
+
+      tbody.innerHTML = state.pages.items.map(p => {
+        const collectionSlug = p.collectionId?.slug || '';
+        const fullPath = collectionSlug ? `/${collectionSlug}/${p.slug}` : `/${p.slug}`;
+        return `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3 font-medium">${escapeHtml(p.title)}</td>
+            <td class="px-4 py-3 text-gray-600">
+              <a href="${fullPath}" target="_blank" class="text-blue-600 hover:underline">${fullPath}</a>
+            </td>
+            <td class="px-4 py-3 text-gray-600">${p.collectionId?.name || '-'}</td>
+            <td class="px-4 py-3">
+              <span class="px-2 py-1 text-xs rounded ${getStatusClass(p.status)}">${p.status}</span>
+            </td>
+            <td class="px-4 py-3 text-gray-600">${formatDate(p.updatedAt)}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="previewPage('${p._id}')" class="text-gray-600 hover:text-gray-900 mr-2" title="Preview"><i class="ti ti-eye"></i></button>
+              ${p.status !== 'published' ? `<button onclick="publishPage('${p._id}')" class="text-green-600 hover:text-green-800 mr-2" title="Publish"><i class="ti ti-send"></i></button>` : ''}
+              ${p.status === 'published' ? `<button onclick="unpublishPage('${p._id}')" class="text-orange-600 hover:text-orange-800 mr-2" title="Unpublish"><i class="ti ti-send-off"></i></button>` : ''}
+              <button onclick="editPage('${p._id}')" class="text-blue-600 hover:text-blue-800 mr-2"><i class="ti ti-edit"></i></button>
+              <button onclick="deletePage('${p._id}', '${escapeHtml(p.title)}')" class="text-red-600 hover:text-red-800"><i class="ti ti-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function getStatusClass(status) {
+      switch (status) {
+        case 'published': return 'bg-green-100 text-green-800';
+        case 'draft': return 'bg-yellow-100 text-yellow-800';
+        case 'archived': return 'bg-gray-100 text-gray-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    }
+
+    function updateCollectionSelect() {
+      const selects = [document.getElementById('pages-collection'), document.getElementById('page-collection')];
+      selects.forEach(select => {
+        if (!select) return;
+        const current = select.value;
+        const isFilter = select.id === 'pages-collection';
+        select.innerHTML = isFilter ? '<option value="">All collections</option>' : '<option value="">No collection (root level)</option>';
+        state.collections.items.filter(c => c.status === 'active').forEach(c => {
+          select.innerHTML += `<option value="${c._id}">${escapeHtml(c.name)} (/${c.slug})</option>`;
+        });
+        select.value = current;
+      });
+    }
+
+    function pagesPrev() {
+      state.pages.offset = Math.max(0, state.pages.offset - state.pages.limit);
+      loadPages();
+    }
+
+    function pagesNext() {
+      state.pages.offset += state.pages.limit;
+      loadPages();
+    }
+
+    function openCreatePageModal() {
+      document.getElementById('modal-page-title').textContent = 'Create Page';
+      document.getElementById('page-form').reset();
+      document.getElementById('page-id').value = '';
+      state.currentPage = null;
+      state.currentBlocks = [];
+      renderBlocksEditor();
+      document.getElementById('modal-page').classList.remove('hidden');
+      document.getElementById('modal-page').classList.add('flex');
+    }
+
+    function closePageModal() {
+      document.getElementById('modal-page').classList.add('hidden');
+      document.getElementById('modal-page').classList.remove('flex');
+    }
+
+    async function editPage(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const p = data.page;
+        state.currentPage = p;
+        state.currentBlocks = normalizeBlocks(p.blocks || []);
+        document.getElementById('modal-page-title').textContent = 'Edit Page';
+        document.getElementById('page-id').value = p._id;
+        document.getElementById('page-title').value = p.title;
+        document.getElementById('page-slug').value = p.slug;
+        document.getElementById('page-collection').value = p.collectionId?._id || p.collectionId || '';
+        document.getElementById('page-status').value = p.status;
+        document.getElementById('page-template').value = p.templateKey || 'default';
+        document.getElementById('page-layout').value = p.layoutKey || 'default';
+        document.getElementById('page-seo-title').value = p.seoMeta?.title || '';
+        document.getElementById('page-seo-description').value = p.seoMeta?.description || '';
+        document.getElementById('page-css').value = p.customCss || '';
+        document.getElementById('page-js').value = p.customJs || '';
+
+        renderBlocksEditor();
+
+        document.getElementById('modal-page').classList.remove('hidden');
+        document.getElementById('modal-page').classList.add('flex');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function deletePage(id, title) {
+      if (!confirm(`Delete page "${title}"? This cannot be undone.`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Page deleted');
+        loadPages();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function publishPage(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}/publish`, { method: 'POST', credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Page published');
+        loadPages();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function unpublishPage(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}/unpublish`, { method: 'POST', credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Page unpublished');
+        loadPages();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function openCreateCollectionModal() {
+      document.getElementById('modal-collection-title').textContent = 'Create Collection';
+      document.getElementById('collection-form').reset();
+      document.getElementById('collection-id').value = '';
+      document.getElementById('modal-collection').classList.remove('hidden');
+      document.getElementById('modal-collection').classList.add('flex');
+    }
+
+    function closeCollectionModal() {
+      document.getElementById('modal-collection').classList.add('hidden');
+      document.getElementById('modal-collection').classList.remove('flex');
+    }
+
+    async function editCollection(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/collections/${id}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const c = data.collection;
+        document.getElementById('modal-collection-title').textContent = 'Edit Collection';
+        document.getElementById('collection-id').value = c._id;
+        document.getElementById('collection-name').value = c.name;
+        document.getElementById('collection-slug').value = c.slug;
+        document.getElementById('collection-description').value = c.description || '';
+        document.getElementById('collection-status').value = c.status;
+
+        document.getElementById('modal-collection').classList.remove('hidden');
+        document.getElementById('modal-collection').classList.add('flex');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function deleteCollection(id, name) {
+      if (!confirm(`Delete collection "${name}"? This cannot be undone.`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/collections/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Collection deleted');
+        loadCollections();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    document.getElementById('page-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('page-id').value;
+      const body = {
+        title: document.getElementById('page-title').value,
+        slug: document.getElementById('page-slug').value,
+        collectionId: document.getElementById('page-collection').value || null,
+        status: document.getElementById('page-status').value,
+        templateKey: document.getElementById('page-template').value,
+        layoutKey: document.getElementById('page-layout').value,
+        blocks: state.currentBlocks || [],
+        seoMeta: {
+          title: document.getElementById('page-seo-title').value,
+          description: document.getElementById('page-seo-description').value,
+        },
+        customCss: document.getElementById('page-css').value,
+        customJs: document.getElementById('page-js').value,
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages${id ? `/${id}` : ''}`, {
+          method: id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(id ? 'Page updated' : 'Page created');
+        closePageModal();
+        loadPages();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    });
+
+    document.getElementById('collection-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('collection-id').value;
+      const body = {
+        name: document.getElementById('collection-name').value,
+        slug: document.getElementById('collection-slug').value,
+        description: document.getElementById('collection-description').value,
+        status: document.getElementById('collection-status').value,
+      };
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/collections${id ? `/${id}` : ''}`, {
+          method: id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(id ? 'Collection updated' : 'Collection created');
+        closeCollectionModal();
+        loadCollections();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    });
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str || '';
+      return div.innerHTML;
+    }
+
+    async function loadBlocksSchema() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/blocks-schema`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.blocksSchema = data.schema || null;
+        state.blocksSchemaAlias = data.alias || null;
+        populateBlockTypeSelect();
+      } catch (e) {
+        state.blocksSchema = null;
+        state.blocksSchemaAlias = null;
+        populateBlockTypeSelect();
+      }
+    }
+
+    async function loadTemplates() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/templates`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.templates = Array.isArray(data.templates) ? data.templates : [];
+        renderTemplates();
+        updateTemplateSelect();
+      } catch (e) {
+        state.templates = [];
+        renderTemplates();
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadLayouts() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/layouts`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.layouts = Array.isArray(data.layouts) ? data.layouts : [];
+        renderLayouts();
+        updateLayoutSelect();
+      } catch (e) {
+        state.layouts = [];
+        renderLayouts();
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderTemplates() {
+      const tbody = document.getElementById('templates-tbody');
+      const empty = document.getElementById('templates-empty');
+      const items = state.templates || [];
+
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = items.map((t) => {
+        const key = String(t.key || '');
+        const name = String(t.name || key);
+        const desc = String(t.description || '');
+        return `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3 font-mono">${escapeHtml(key)}</td>
+            <td class="px-4 py-3">${escapeHtml(name)}</td>
+            <td class="px-4 py-3 text-gray-600">${escapeHtml(desc)}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="openEjsEditorByKey('template','${escapeHtml(key)}')" class="text-blue-600 hover:text-blue-800"><i class="ti ti-edit"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderLayouts() {
+      const tbody = document.getElementById('layouts-tbody');
+      const empty = document.getElementById('layouts-empty');
+      const items = state.layouts || [];
+
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = items.map((l) => {
+        const key = String(l.key || '');
+        const name = String(l.name || key);
+        const desc = String(l.description || '');
+        return `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3 font-mono">${escapeHtml(key)}</td>
+            <td class="px-4 py-3">${escapeHtml(name)}</td>
+            <td class="px-4 py-3 text-gray-600">${escapeHtml(desc)}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="openEjsEditorByKey('layout','${escapeHtml(key)}')" class="text-blue-600 hover:text-blue-800"><i class="ti ti-edit"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function updateTemplateSelect() {
+      const select = document.getElementById('page-template');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = '';
+      (state.templates || []).forEach((t) => {
+        const key = String(t.key || '').trim();
+        if (!key) return;
+        const name = String(t.name || key);
+        select.innerHTML += `<option value="${escapeHtml(key)}">${escapeHtml(name)} (${escapeHtml(key)})</option>`;
+      });
+      select.value = current || 'default';
+    }
+
+    function updateLayoutSelect() {
+      const select = document.getElementById('page-layout');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = '';
+      (state.layouts || []).forEach((l) => {
+        const key = String(l.key || '').trim();
+        if (!key) return;
+        const name = String(l.name || key);
+        select.innerHTML += `<option value="${escapeHtml(key)}">${escapeHtml(name)} (${escapeHtml(key)})</option>`;
+      });
+      select.value = current || 'default';
+    }
+
+    function openCreateEjsFileModal(kind) {
+      document.getElementById('create-ejs-kind').value = kind;
+      document.getElementById('create-ejs-key').value = '';
+      document.getElementById('modal-create-ejs-title').textContent = kind === 'layout' ? 'Create Layout' : 'Create Template';
+      document.getElementById('modal-create-ejs').classList.remove('hidden');
+      document.getElementById('modal-create-ejs').classList.add('flex');
+    }
+
+    function closeCreateEjsModal() {
+      document.getElementById('modal-create-ejs').classList.add('hidden');
+      document.getElementById('modal-create-ejs').classList.remove('flex');
+    }
+
+    document.getElementById('create-ejs-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const kind = document.getElementById('create-ejs-kind').value;
+      const key = String(document.getElementById('create-ejs-key').value || '').trim();
+      if (!key) return;
+
+      const relPath = kind === 'layout' ? `pages/layouts/${key}.ejs` : `pages/templates/${key}.ejs`;
+      const defaultContent = kind === 'layout'
+        ? `<%%- include('../partials/header.ejs', { page, req }) %>\n<main class="container mx-auto px-4 py-8">\n  <%%- include(templatePath, { page, blocks, seoMeta, customCss, customJs, layoutPath, templatePath, req }) %>\n</main>\n<%%- include('../partials/footer.ejs', { page, req }) %>\n`
+        : `<div class="page-template">\n  <h1 class="text-2xl font-bold mb-4"><%%= page.title %></h1>\n  <%% for (const block of (blocks || [])) { %>\n    <%%- include('../blocks/' + block.type + '.ejs', { block, page, req }) %>\n  <%% } %>\n</div>\n`;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/file?path=${encodeURIComponent(relPath)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ content: defaultContent, enabled: true, description: `create ${kind} ${key}` }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        closeCreateEjsModal();
+        showToast(`${kind === 'layout' ? 'Layout' : 'Template'} created`);
+        if (kind === 'layout') await loadLayouts();
+        else await loadTemplates();
+        openEjsEditor(relPath);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+
+    function openEjsEditorByKey(kind, key) {
+      const relPath = kind === 'layout' ? `pages/layouts/${key}.ejs` : `pages/templates/${key}.ejs`;
+      openEjsEditor(relPath);
+    }
+
+    async function openEjsEditor(relPath) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/file?path=${encodeURIComponent(relPath)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        state.currentEjsPath = data.path;
+        state.currentEjsDbEnabled = Boolean(data.db?.enabled);
+        document.getElementById('modal-ejs-title').textContent = 'Edit EJS';
+        document.getElementById('modal-ejs-path').textContent = data.path;
+        document.getElementById('ejs-enabled').checked = Boolean(data.db?.enabled);
+        document.getElementById('ejs-content').value = String((data.db && typeof data.db.content === 'string') ? data.db.content : data.effective?.content || '');
+        document.getElementById('ejs-ai-prompt').value = '';
+        document.getElementById('ejs-history').classList.add('hidden');
+        document.getElementById('ejs-history-items').innerHTML = '';
+
+        document.getElementById('modal-ejs').classList.remove('hidden');
+        document.getElementById('modal-ejs').classList.add('flex');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function closeEjsModal() {
+      document.getElementById('modal-ejs').classList.add('hidden');
+      document.getElementById('modal-ejs').classList.remove('flex');
+      state.currentEjsPath = null;
+    }
+
+    async function saveEjsOverride() {
+      const relPath = state.currentEjsPath;
+      if (!relPath) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/file?path=${encodeURIComponent(relPath)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            content: document.getElementById('ejs-content').value,
+            enabled: document.getElementById('ejs-enabled').checked,
+            description: 'save from page builder',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Saved');
+        await loadTemplates();
+        await loadLayouts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function revertEjsOverride() {
+      const relPath = state.currentEjsPath;
+      if (!relPath) return;
+      if (!confirm('Revert to default filesystem view?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/file/revert?path=${encodeURIComponent(relPath)}`, {
+          method: 'POST',
+          credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Reverted');
+        await openEjsEditor(relPath);
+        await loadTemplates();
+        await loadLayouts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function loadEjsHistory() {
+      const relPath = state.currentEjsPath;
+      if (!relPath) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/history?path=${encodeURIComponent(relPath)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const versions = Array.isArray(data.versions) ? data.versions : [];
+        document.getElementById('ejs-history').classList.remove('hidden');
+        document.getElementById('ejs-history-items').innerHTML = versions.map((v) => {
+          return `
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-xs text-gray-700 font-mono">${escapeHtml(String(v._id || ''))}</div>
+              <button type="button" class="text-sm text-blue-600 hover:underline" onclick="rollbackEjsVersion('${escapeHtml(String(v._id || ''))}')">Rollback</button>
+            </div>
+          `;
+        }).join('') || '<div class="text-sm text-gray-600">No versions</div>';
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function rollbackEjsVersion(versionId) {
+      const relPath = state.currentEjsPath;
+      if (!relPath) return;
+      if (!versionId) return;
+      if (!confirm('Rollback to this version?')) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/rollback`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ versionId }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Rolled back');
+        await openEjsEditor(relPath);
+        await loadTemplates();
+        await loadLayouts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function runEjsVibe() {
+      const relPath = state.currentEjsPath;
+      if (!relPath) return;
+      const prompt = String(document.getElementById('ejs-ai-prompt').value || '').trim();
+      if (!prompt) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/vibe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt, paths: [relPath] }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('AI applied');
+        await openEjsEditor(relPath);
+        await loadTemplates();
+        await loadLayouts();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function loadBlockDefinitions() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/block-definitions`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.blockDefinitions = Array.isArray(data.items) ? data.items : [];
+        renderBlockDefinitions();
+        await loadBlocksSchema();
+      } catch (e) {
+        state.blockDefinitions = [];
+        renderBlockDefinitions();
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderBlockDefinitions() {
+      const tbody = document.getElementById('blockdefs-tbody');
+      const empty = document.getElementById('blockdefs-empty');
+      const items = state.blockDefinitions || [];
+
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = items.map((b) => {
+        const code = String(b.code || '');
+        const label = String(b.label || code);
+        const active = b.isActive === false ? 'inactive' : 'active';
+        return `
+          <tr class="border-b hover:bg-gray-50">
+            <td class="px-4 py-3 font-mono">${escapeHtml(code)}</td>
+            <td class="px-4 py-3">${escapeHtml(label)}</td>
+            <td class="px-4 py-3">
+              <span class="px-2 py-1 text-xs rounded ${active === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}">${escapeHtml(active)}</span>
+            </td>
+            <td class="px-4 py-3 text-gray-600">${formatDate(b.updatedAt)}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="openBlockTemplate('${escapeHtml(code)}')" class="text-gray-700 hover:text-gray-900 mr-2" title="Edit block template"><i class="ti ti-template"></i></button>
+              <button onclick="editBlockDefinition('${escapeHtml(code)}')" class="text-blue-600 hover:text-blue-800 mr-2"><i class="ti ti-edit"></i></button>
+              <button onclick="aiEditBlockDefinition('${escapeHtml(code)}')" class="text-purple-600 hover:text-purple-800 mr-2" title="AI propose"><i class="ti ti-sparkles"></i></button>
+              <button onclick="deleteBlockDefinition('${escapeHtml(code)}')" class="text-red-600 hover:text-red-800"><i class="ti ti-trash"></i></button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function defaultBlockTemplateContent(blockCode) {
+      const code = String(blockCode || '').trim();
+      return `<section class="py-8">\n  <div class="container mx-auto px-4">\n    <h2 class="text-2xl font-bold mb-4">${escapeHtml(code || 'Block')}</h2>\n    <pre class="text-sm bg-gray-50 border rounded p-4 overflow-x-auto"><%%= JSON.stringify(block.props || {}, null, 2) %></pre>\n  </div>\n</section>\n`;
+    }
+
+    async function openBlockTemplate(code) {
+      const blockCode = String(code || '').trim().toLowerCase();
+      if (!blockCode) return;
+      const relPath = `pages/blocks/${blockCode}.ejs`;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/ejs-virtual/file?path=${encodeURIComponent(relPath)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const hasDb = Boolean(data.db && typeof data.db.content === 'string' && data.db.content.trim() !== '');
+        const hasFs = Boolean(data.fs && typeof data.fs.content === 'string' && data.fs.content.trim() !== '');
+
+        if (!hasDb && !hasFs) {
+          const createRes = await fetch(`${API_BASE}/api/admin/ejs-virtual/file?path=${encodeURIComponent(relPath)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content: defaultBlockTemplateContent(blockCode), enabled: true, description: `create block template ${blockCode}` }),
+          });
+          const createData = await createRes.json();
+          if (!createRes.ok) throw new Error(createData.error);
+        }
+
+        await openEjsEditor(relPath);
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function openCreateBlockDefinitionModal() {
+      state.blockdefMode = 'create';
+      document.getElementById('modal-blockdef-title').textContent = 'Create Block';
+      document.getElementById('blockdef-code').disabled = false;
+      document.getElementById('blockdef-code').value = '';
+      document.getElementById('blockdef-label').value = '';
+      document.getElementById('blockdef-description').value = '';
+      document.getElementById('blockdef-fields').value = JSON.stringify({}, null, 2);
+      document.getElementById('blockdef-ai-prompt').value = '';
+      document.getElementById('modal-blockdef').classList.remove('hidden');
+      document.getElementById('modal-blockdef').classList.add('flex');
+    }
+
+    async function openAiGenerateBlockModal() {
+      openCreateBlockDefinitionModal();
+      document.getElementById('blockdef-ai-prompt').focus();
+    }
+
+    function closeBlockDefinitionModal() {
+      document.getElementById('modal-blockdef').classList.add('hidden');
+      document.getElementById('modal-blockdef').classList.remove('flex');
+      state.blockdefMode = null;
+    }
+
+    async function editBlockDefinition(code) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/block-definitions/${encodeURIComponent(code)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const item = data.item;
+
+        state.blockdefMode = 'edit';
+        document.getElementById('modal-blockdef-title').textContent = `Edit Block: ${item.code}`;
+        document.getElementById('blockdef-code').value = item.code;
+        document.getElementById('blockdef-code').disabled = true;
+        document.getElementById('blockdef-label').value = item.label || '';
+        document.getElementById('blockdef-description').value = item.description || '';
+        document.getElementById('blockdef-fields').value = JSON.stringify(item.fields || {}, null, 2);
+        document.getElementById('blockdef-ai-prompt').value = '';
+
+        document.getElementById('modal-blockdef').classList.remove('hidden');
+        document.getElementById('modal-blockdef').classList.add('flex');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function aiEditBlockDefinition(code) {
+      await editBlockDefinition(code);
+      document.getElementById('blockdef-ai-prompt').focus();
+    }
+
+    async function runAiForBlockDefinition() {
+      const prompt = String(document.getElementById('blockdef-ai-prompt').value || '').trim();
+      if (!prompt) return;
+      const code = String(document.getElementById('blockdef-code').value || '').trim();
+      const isEdit = state.blockdefMode === 'edit';
+
+      try {
+        const url = isEdit
+          ? `${API_BASE}/api/admin/pages/ai/block-definitions/${encodeURIComponent(code)}/propose`
+          : `${API_BASE}/api/admin/pages/ai/block-definitions/generate`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const proposal = data.proposal;
+        document.getElementById('blockdef-code').value = proposal.code;
+        document.getElementById('blockdef-label').value = proposal.label;
+        document.getElementById('blockdef-description').value = proposal.description || '';
+        document.getElementById('blockdef-fields').value = JSON.stringify(proposal.fields || {}, null, 2);
+        showToast('AI proposal loaded');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    document.getElementById('blockdef-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const mode = state.blockdefMode;
+      const code = String(document.getElementById('blockdef-code').value || '').trim().toLowerCase();
+      const label = String(document.getElementById('blockdef-label').value || '').trim();
+      const description = String(document.getElementById('blockdef-description').value || '');
+      const fieldsRaw = String(document.getElementById('blockdef-fields').value || '').trim();
+
+      let fields = {};
+      if (fieldsRaw) {
+        try {
+          fields = JSON.parse(fieldsRaw);
+        } catch (err) {
+          showToast('Fields must be valid JSON', 'error');
+          return;
+        }
+      }
+
+      try {
+        const url = mode === 'edit'
+          ? `${API_BASE}/api/admin/pages/block-definitions/${encodeURIComponent(code)}`
+          : `${API_BASE}/api/admin/pages/block-definitions`;
+        const method = mode === 'edit' ? 'PUT' : 'POST';
+        const body = { code, label, description, fields, isActive: true };
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(mode === 'edit' ? 'Block updated' : 'Block created');
+        closeBlockDefinitionModal();
+        await loadBlockDefinitions();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    });
+
+    async function deleteBlockDefinition(code) {
+      if (!confirm(`Delete block "${code}"?`)) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/block-definitions/${encodeURIComponent(code)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Block deleted');
+        await loadBlockDefinitions();
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function populateBlockTypeSelect() {
+      const select = document.getElementById('blocks-add-type');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = '<option value="">Select block type</option>';
+      const defs = state.blocksSchema?.blocks || {};
+      Object.keys(defs).forEach((type) => {
+        const label = defs[type]?.label || type;
+        select.innerHTML += `<option value="${type}">${escapeHtml(label)} (${type})</option>`;
+      });
+      select.value = current;
+    }
+
+    function addSelectedBlock() {
+      const type = document.getElementById('blocks-add-type')?.value;
+      if (!type) return;
+      addBlock(type);
+    }
+
+    function uuid() {
+      if (window.crypto && crypto.getRandomValues) {
+        const buf = new Uint8Array(16);
+        crypto.getRandomValues(buf);
+        return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+      return 'b' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+    }
+
+    function normalizeBlocks(blocks) {
+      if (!Array.isArray(blocks)) return [];
+      return blocks
+        .filter(b => b && typeof b === 'object')
+        .map((b) => ({
+          id: String(b.id || '').trim() || uuid(),
+          type: String(b.type || '').trim(),
+          props: (b.props && typeof b.props === 'object' && !Array.isArray(b.props)) ? b.props : {},
+        }))
+        .filter(b => b.type);
+    }
+
+    function addBlock(type) {
+      if (!state.currentBlocks) state.currentBlocks = [];
+      const def = state.blocksSchema?.blocks?.[type] || null;
+      const fields = def?.fields || {};
+      const props = {};
+      Object.keys(fields).forEach((k) => {
+        const ft = String(fields[k]?.type || '').toLowerCase();
+        if (ft === 'boolean') props[k] = false;
+        else props[k] = '';
+      });
+      state.currentBlocks.push({ id: uuid(), type, props });
+      renderBlocksEditor();
+    }
+
+    function removeBlock(blockId) {
+      state.currentBlocks = (state.currentBlocks || []).filter(b => b.id !== blockId);
+      renderBlocksEditor();
+    }
+
+    function moveBlock(fromIdx, toIdx) {
+      const blocks = state.currentBlocks || [];
+      if (fromIdx < 0 || toIdx < 0 || fromIdx >= blocks.length || toIdx >= blocks.length) return;
+      const [item] = blocks.splice(fromIdx, 1);
+      blocks.splice(toIdx, 0, item);
+      state.currentBlocks = blocks;
+      renderBlocksEditor();
+    }
+
+    function onBlockDragStart(e) {
+      const idx = e.currentTarget?.dataset?.idx;
+      if (idx === undefined) return;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(idx));
+    }
+
+    function onBlockDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function onBlockDrop(e) {
+      e.preventDefault();
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const toIdx = parseInt(e.currentTarget?.dataset?.idx, 10);
+      if (Number.isNaN(fromIdx) || Number.isNaN(toIdx)) return;
+      moveBlock(fromIdx, toIdx);
+    }
+
+    function updateBlockProp(blockId, key, rawValue) {
+      const blocks = state.currentBlocks || [];
+      const idx = blocks.findIndex(b => b.id === blockId);
+      if (idx === -1) return;
+      const b = blocks[idx];
+      const def = state.blocksSchema?.blocks?.[b.type] || {};
+      const field = def?.fields?.[key] || {};
+      const ft = String(field.type || '').toLowerCase();
+
+      let val = rawValue;
+      if (ft === 'boolean') {
+        val = Boolean(rawValue);
+      } else if (ft === 'number') {
+        const n = Number(rawValue);
+        val = Number.isNaN(n) ? rawValue : n;
+      } else if (ft === 'json') {
+        if (typeof rawValue === 'string' && rawValue.trim() !== '') {
+          try {
+            val = JSON.parse(rawValue);
+          } catch {
+            val = rawValue;
+          }
+        }
+      }
+
+      blocks[idx] = { ...b, props: { ...(b.props || {}), [key]: val } };
+      state.currentBlocks = blocks;
+    }
+
+    function getFullPathForPage(p) {
+      const collectionSlug = p.collectionId?.slug || '';
+      return collectionSlug ? `/${collectionSlug}/${p.slug}` : `/${p.slug}`;
+    }
+
+    async function previewPage(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const p = data.page;
+        const fullPath = getFullPathForPage(p);
+        const isPublished = p.status === 'published';
+        const url = isPublished ? fullPath : `${fullPath}?draft=1`;
+        window.open(url, '_blank');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function renderBlocksEditor() {
+      const container = document.getElementById('blocks-editor');
+      if (!container) return;
+      const blocks = state.currentBlocks || [];
+      const defs = state.blocksSchema?.blocks || {};
+
+      if (!state.blocksSchema) {
+        container.innerHTML = '<div class="text-sm text-gray-600">Blocks schema not loaded. Create a JSON Config with alias <span class="font-mono">page-builder-blocks-schema</span> or rely on the default schema.</div>';
+      }
+
+      if (blocks.length === 0) {
+        container.innerHTML = '<div class="text-sm text-gray-500">No blocks yet. Add one above.</div>';
+        return;
+      }
+
+      container.innerHTML = blocks.map((b, idx) => {
+        const def = defs[b.type] || {};
+        const label = def.label || b.type;
+        const fields = def.fields || {};
+        const fieldsHtml = Object.keys(fields).map((key) => {
+          const field = fields[key] || {};
+          const ft = String(field.type || '').toLowerCase();
+          const fLabel = field.label || key;
+          const propVal = (b.props || {})[key];
+
+          if (ft === 'boolean') {
+            const checked = propVal === true ? 'checked' : '';
+            return `
+              <label class="flex items-center gap-2 text-sm text-gray-700">
+                <input type="checkbox" ${checked} onchange="updateBlockProp('${b.id}', '${escapeHtml(key)}', this.checked)" />
+                <span>${escapeHtml(fLabel)}</span>
+              </label>
+            `;
+          }
+
+          if (ft === 'select') {
+            const options = Array.isArray(field.options) ? field.options : [];
+            const current = (typeof propVal === 'string' ? propVal : '');
+            return `
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(fLabel)}</label>
+                <select class="w-full border rounded px-3 py-2 text-sm" onchange="updateBlockProp('${b.id}', '${escapeHtml(key)}', this.value)">
+                  ${options.map(opt => `<option value="${escapeHtml(String(opt))}" ${String(opt) === current ? 'selected' : ''}>${escapeHtml(String(opt))}</option>`).join('')}
+                </select>
+              </div>
+            `;
+          }
+
+          if (ft === 'json') {
+            const display = typeof propVal === 'string' ? propVal : JSON.stringify(propVal ?? null, null, 2);
+            return `
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(fLabel)}</label>
+                ${field.example !== undefined ? `<div class="text-xs text-gray-500 mb-1">Example:</div><pre class="bg-gray-50 border rounded p-2 text-xs overflow-auto">${escapeHtml(JSON.stringify(field.example, null, 2))}</pre>` : ''}
+                <textarea class="w-full border rounded px-3 py-2 font-mono text-xs" rows="6" oninput="updateBlockProp('${b.id}', '${escapeHtml(key)}', this.value)">${escapeHtml(display || '')}</textarea>
+              </div>
+            `;
+          }
+
+          const value = typeof propVal === 'string' ? propVal : (propVal ?? '');
+          const isLong = ft === 'html';
+          if (isLong) {
+            return `
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(fLabel)}</label>
+                <textarea class="w-full border rounded px-3 py-2 font-mono text-sm" rows="5" oninput="updateBlockProp('${b.id}', '${escapeHtml(key)}', this.value)">${escapeHtml(String(value || ''))}</textarea>
+              </div>
+            `;
+          }
+
+          return `
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">${escapeHtml(fLabel)}</label>
+              <input type="text" class="w-full border rounded px-3 py-2 text-sm" value="${escapeHtml(String(value || ''))}" oninput="updateBlockProp('${b.id}', '${escapeHtml(key)}', this.value)" />
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="border rounded-lg bg-white p-3" draggable="true" data-idx="${idx}" ondragstart="onBlockDragStart(event)" ondragover="onBlockDragOver(event)" ondrop="onBlockDrop(event)">
+            <div class="flex items-center justify-between mb-3">
+              <div class="flex items-center gap-2">
+                <span class="text-gray-400"><i class="ti ti-grip-vertical"></i></span>
+                <div>
+                  <div class="text-sm font-semibold text-gray-900">${escapeHtml(label)}</div>
+                  <div class="text-xs text-gray-500 font-mono">${escapeHtml(b.type)} • ${escapeHtml(b.id)}</div>
+                </div>
+              </div>
+              <button type="button" class="text-red-600 hover:text-red-800" onclick="removeBlock('${b.id}')" title="Remove"><i class="ti ti-trash"></i></button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              ${fieldsHtml || '<div class="text-sm text-gray-500">No fields defined for this block type.</div>'}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function formatDate(d) {
+      if (!d) return '-';
+      return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    loadBlocksSchema().then(() => loadCollections().then(() => loadPages()));
+    loadTemplates();
+    loadLayouts();
+    loadBlockDefinitions();
+  </script>
+</body>
+</html>

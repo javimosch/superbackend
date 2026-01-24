@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= seoMeta.title || page.title || 'Page' %></title>
+  <% if (seoMeta.description) { %>
+  <meta name="description" content="<%= seoMeta.description %>">
+  <% } %>
+  <% if (seoMeta.keywords) { %>
+  <meta name="keywords" content="<%= seoMeta.keywords %>">
+  <% } %>
+  <% if (seoMeta.ogImage) { %>
+  <meta property="og:image" content="<%= seoMeta.ogImage %>">
+  <% } %>
+  <% if (seoMeta.canonicalUrl) { %>
+  <link rel="canonical" href="<%= seoMeta.canonicalUrl %>">
+  <% } %>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    <% if (customCss) { %>
+    <%= customCss %>
+    <% } %>
+  </style>
+</head>
+<body class="min-h-screen bg-white">
+  <main class="container mx-auto px-4 py-8">
+    <%- include('../templates/' + (templatePath ? templatePath.replace('pages/templates/', '') : 'default.ejs'), { 
+      page, 
+      blocks, 
+      seoMeta,
+      req 
+    }) %>
+  </main>
+  
+  <% if (customJs) { %>
+  <script>
+    <%= customJs %>
+  </script>
+  <% } %>
+</body>
+</html>
