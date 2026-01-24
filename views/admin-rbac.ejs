@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin RBAC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">RBAC</h1>
+        <div class="text-sm text-gray-500">Manage roles, groups, grants and test effective rights</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="loadAll" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg mb-6">
+      <div class="px-4 py-3 border-b border-gray-200 flex items-center gap-2">
+        <button
+          @click="activeTab='rights'"
+          class="px-3 py-2 rounded text-sm"
+          :class="activeTab==='rights' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+        >Rights</button>
+        <button
+          @click="activeTab='groups'"
+          class="px-3 py-2 rounded text-sm"
+          :class="activeTab==='groups' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+        >Groups</button>
+        <button
+          @click="activeTab='roles'"
+          class="px-3 py-2 rounded text-sm"
+          :class="activeTab==='roles' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
+        >Roles</button>
+      </div>
+    </div>
+
+    <div v-if="activeTab==='rights'" class="grid grid-cols-12 gap-6">
+      <div class="col-span-5 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Test rights</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">User</label>
+              <input v-model="test.userQuery" @input="debouncedSearchUsers" class="mt-1 w-full border rounded px-3 py-2" placeholder="type email or name" />
+              <div v-if="userResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                <button
+                  v-for="u in userResults"
+                  :key="u.id"
+                  @click="selectUser(u)"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                >
+                  <div class="font-mono text-xs">{{ u.email }}</div>
+                  <div class="text-xs text-gray-500">{{ u.name || '-' }}</div>
+                </button>
+              </div>
+              <div v-if="test.user" class="text-xs text-gray-500 mt-2">Selected: <span class="font-mono">{{ test.user.email }}</span></div>
+            </div>
+
+            <div v-if="test.user && orgs.length > 1">
+              <label class="text-xs font-semibold text-gray-600">Organization</label>
+              <select v-model="test.orgId" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="" disabled>Select an org</option>
+                <option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }} ({{ o.slug }})</option>
+              </select>
+            </div>
+            <div v-else-if="test.user && orgs.length === 1" class="text-xs text-gray-500">
+              Org: <span class="font-mono">{{ orgs[0].name }}</span>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Right</label>
+              <input
+                v-model="test.right"
+                @input="filterTestRights"
+                @focus="filterTestRights"
+                class="mt-1 w-full border rounded px-3 py-2 font-mono"
+                placeholder="e.g. backoffice:dashboard:access"
+              />
+              <div v-if="testRightResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                <button
+                  v-for="r in testRightResults"
+                  :key="r"
+                  @click="selectTestRight(r)"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-50 text-xs font-mono"
+                >
+                  {{ r }}
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="runTest" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+                <i class="ti ti-check mr-1"></i> Test
+              </button>
+              <div v-if="testStatus" class="text-sm text-gray-600">{{ testStatus }}</div>
+            </div>
+
+            <div v-if="testResult" class="border rounded p-3 bg-gray-50 text-xs">
+              <div class="font-semibold" :class="testResult.allowed ? 'text-green-700' : 'text-red-700'">
+                {{ testResult.allowed ? 'ALLOWED' : 'DENIED' }}
+              </div>
+              <div class="text-gray-600 mt-1">Reason: <span class="font-mono">{{ testResult.reason }}</span></div>
+              <div v-if="testResult.decisionLayer" class="text-gray-600 mt-1">Decision layer: <span class="font-mono">{{ testResult.decisionLayer }}</span></div>
+
+              <div v-if="testResult.context" class="mt-3">
+                <div class="font-semibold text-gray-700 mb-1">Context</div>
+                <div class="bg-white border rounded p-2 space-y-1">
+                  <div class="text-gray-600">Groups: <span class="font-mono">{{ (testResult.context.groups || []).map(g => g.id).join(', ') || '-' }}</span></div>
+                  <div class="text-gray-600">Roles: <span class="font-mono">{{ (testResult.context.roles || []).map(r => r.roleId + (r.source==='group' ? '@' + r.groupId : '')).join(', ') || '-' }}</span></div>
+                </div>
+              </div>
+
+              <div v-if="testResult.explain && testResult.explain.length" class="mt-3">
+                <div class="font-semibold text-gray-700 mb-1">Matched grants</div>
+                <div class="space-y-1">
+                  <div v-for="e in testResult.explain" :key="e.id" class="bg-white border rounded p-2">
+                    <div class="font-mono">{{ e.effect }} {{ e.right }}</div>
+                    <div class="text-gray-500">{{ e.source }} | {{ e.scopeType }} {{ e.scopeId || '' }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Create grant</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Subject type</label>
+                <select v-model="grant.subjectType" @change="onGrantSubjectTypeChange" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="user">user</option>
+                  <option value="role">role</option>
+                  <option value="group">group</option>
+                  <option value="org">org</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Effect</label>
+                <select v-model="grant.effect" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="allow">allow</option>
+                  <option value="deny">deny</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Subject ID</label>
+
+              <div v-if="grant.subjectType === 'user'">
+                <input
+                  v-model="grant.userQuery"
+                  @input="debouncedSearchGrantUsers"
+                  class="mt-1 w-full border rounded px-3 py-2"
+                  placeholder="type email or name"
+                />
+                <div v-if="grantUserResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                  <button
+                    v-for="u in grantUserResults"
+                    :key="u.id"
+                    @click="selectGrantUser(u)"
+                    class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                  >
+                    <div class="font-mono text-xs">{{ u.email }}</div>
+                    <div class="text-xs text-gray-500">{{ u.name || '-' }}</div>
+                  </button>
+                </div>
+                <div v-if="grant.subjectId" class="text-xs text-gray-500 mt-2">Selected: <span class="font-mono">{{ grant.subjectId }}</span></div>
+              </div>
+
+              <div v-else-if="grant.subjectType === 'role'">
+                <select v-model="grant.subjectId" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select role</option>
+                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.key }} ({{ r.isGlobal ? 'global' : 'org' }})</option>
+                </select>
+              </div>
+
+              <div v-else-if="grant.subjectType === 'group'">
+                <select v-model="grant.subjectId" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select group</option>
+                  <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }} ({{ g.isGlobal ? 'global' : 'org' }})</option>
+                </select>
+              </div>
+
+              <div v-else-if="grant.subjectType === 'org'">
+                <select v-model="grant.subjectId" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select org</option>
+                  <option v-for="o in organizations" :key="o._id" :value="o._id">{{ o.name }} ({{ o.slug }})</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Scope</label>
+                <select v-model="grant.scopeType" @change="onGrantScopeTypeChange" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="global">global</option>
+                  <option value="org">org</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Scope orgId</label>
+                <select v-model="grant.scopeId" :disabled="grant.scopeType !== 'org'" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select org</option>
+                  <option v-for="o in organizations" :key="o._id" :value="o._id">{{ o.name }} ({{ o.slug }})</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Right</label>
+              <input
+                v-model="grant.right"
+                @input="filterGrantRights"
+                @focus="filterGrantRights"
+                class="mt-1 w-full border rounded px-3 py-2 font-mono"
+              />
+              <div v-if="grantRightResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                <button
+                  v-for="r in grantRightResults"
+                  :key="r"
+                  @click="selectGrantRight(r)"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-50 text-xs font-mono"
+                >
+                  {{ r }}
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button @click="createGrant" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">
+                <i class="ti ti-plus mr-1"></i> Create
+              </button>
+              <div v-if="grantStatus" class="text-sm text-gray-600">{{ grantStatus }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-span-7">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Grants</div>
+            <button @click="loadGrants" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Reload</button>
+          </div>
+          <div class="p-4">
+            <div v-if="grants.length" class="space-y-2">
+              <div v-for="g in grants" :key="g.id" class="border rounded p-3">
+                <div class="flex items-center justify-between">
+                  <div class="font-mono text-xs">{{ g.effect }} {{ g.right }}</div>
+                  <button @click="deleteGrant(g.id)" class="text-xs text-red-600 hover:underline">Delete</button>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                  subject: {{ g.subjectType }} {{ g.subjectId }} | scope: {{ g.scopeType }} {{ g.scopeId || '' }}
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">No grants yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="activeTab==='groups'" class="grid grid-cols-12 gap-6">
+      <div class="col-span-5 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200">
+            <div class="text-sm font-semibold text-gray-800">Create group</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Name</label>
+              <input v-model="groupForm.name" class="mt-1 w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Description</label>
+              <input v-model="groupForm.description" class="mt-1 w-full border rounded px-3 py-2" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Scope</label>
+                <select v-model="groupForm.isGlobal" class="mt-1 w-full border rounded px-3 py-2">
+                  <option :value="true">global</option>
+                  <option :value="false">org</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Org</label>
+                <select v-model="groupForm.orgId" :disabled="groupForm.isGlobal" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select org</option>
+                  <option v-for="o in organizations" :key="o._id" :value="o._id">{{ o.name }} ({{ o.slug }})</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="createGroup" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">
+                <i class="ti ti-plus mr-1"></i> Create
+              </button>
+              <div v-if="groupStatus" class="text-sm text-gray-600">{{ groupStatus }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200">
+            <div class="text-sm font-semibold text-gray-800">Group roles</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Group</label>
+              <select v-model="selectedGroupId" @change="loadSelectedGroupRoles" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="">Select group</option>
+                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }} ({{ g.isGlobal ? 'global' : 'org' }})</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Role</label>
+                <select v-model="groupRoleForm.roleId" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select role</option>
+                  <option v-for="r in roles" :key="r.id" :value="r.id">{{ r.key }} ({{ r.isGlobal ? 'global' : 'org' }})</option>
+                </select>
+              </div>
+              <div class="flex items-end">
+                <button @click="addRoleToGroup" :disabled="!selectedGroupId || !groupRoleForm.roleId" class="w-full px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50">
+                  Assign
+                </button>
+              </div>
+            </div>
+            <div v-if="selectedGroupRoles.length" class="space-y-2">
+              <div v-for="gr in selectedGroupRoles" :key="gr.id" class="border rounded p-3">
+                <div class="flex items-center justify-between">
+                  <div class="font-mono text-xs">{{ gr.key }} ({{ gr.isGlobal ? 'global' : 'org' }})</div>
+                  <button @click="removeRoleFromGroup(gr.id)" class="text-xs text-red-600 hover:underline">Remove</button>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">roleId: {{ gr.roleId }}</div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">No roles assigned.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-span-7">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Groups</div>
+            <button @click="loadGroups" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Reload</button>
+          </div>
+          <div class="p-4">
+            <div v-if="groups.length" class="space-y-2">
+              <div v-for="g in groups" :key="g.id" class="border rounded p-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-sm font-semibold text-gray-800">{{ g.name }}</div>
+                  <div class="text-xs text-gray-500">{{ g.isGlobal ? 'global' : ('org ' + (g.orgId || '')) }}</div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">{{ g.description || '-' }}</div>
+                <div class="text-xs text-gray-400 mt-1">id: <span class="font-mono">{{ g.id }}</span></div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">No groups yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="activeTab==='roles'" class="grid grid-cols-12 gap-6">
+      <div class="col-span-5 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200">
+            <div class="text-sm font-semibold text-gray-800">Create role</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Code</label>
+              <input v-model="roleForm.key" class="mt-1 w-full border rounded px-3 py-2 font-mono" placeholder="unique code" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Name</label>
+              <input v-model="roleForm.name" class="mt-1 w-full border rounded px-3 py-2" />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Description</label>
+              <input v-model="roleForm.description" class="mt-1 w-full border rounded px-3 py-2" />
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Scope</label>
+                <select v-model="roleForm.isGlobal" class="mt-1 w-full border rounded px-3 py-2">
+                  <option :value="true">global</option>
+                  <option :value="false">org</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Org</label>
+                <select v-model="roleForm.orgId" :disabled="roleForm.isGlobal" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="">Select org</option>
+                  <option v-for="o in organizations" :key="o._id" :value="o._id">{{ o.name }} ({{ o.slug }})</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="createRole" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">
+                <i class="ti ti-plus mr-1"></i> Create
+              </button>
+              <div v-if="roleStatus" class="text-sm text-gray-600">{{ roleStatus }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-span-7">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Roles</div>
+            <button @click="loadRoles" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Reload</button>
+          </div>
+          <div class="p-4">
+            <div v-if="roles.length" class="space-y-2">
+              <div v-for="r in roles" :key="r.id" class="border rounded p-3">
+                <div class="flex items-center justify-between">
+                  <div class="font-mono text-xs">{{ r.key }}</div>
+                  <div class="text-xs text-gray-500">{{ r.isGlobal ? 'global' : ('org ' + (r.orgId || '')) }}</div>
+                </div>
+                <div class="text-sm text-gray-800 mt-1">{{ r.name }}</div>
+                <div class="text-xs text-gray-500 mt-1">{{ r.description || '-' }}</div>
+                <div class="text-xs text-gray-400 mt-1">id: <span class="font-mono">{{ r.id }}</span></div>
+              </div>
+            </div>
+            <div v-else class="text-sm text-gray-500">No roles yet.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    [v-cloak] { display: none; }
+  </style>
+
+  <script>
+    window.BASE_URL = '<%= baseUrl %>';
+
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          activeTab: 'rights',
+          rights: [],
+          grants: [],
+          roles: [],
+          groups: [],
+          organizations: [],
+          selectedGroupId: '',
+          selectedGroupRoles: [],
+          userResults: [],
+          grantUserResults: [],
+          testRightResults: [],
+          grantRightResults: [],
+          orgs: [],
+          testStatus: '',
+          testResult: null,
+          grantStatus: '',
+          roleStatus: '',
+          groupStatus: '',
+          test: {
+            userQuery: '',
+            user: null,
+            orgId: '',
+            right: '',
+          },
+          roleForm: {
+            key: '',
+            name: '',
+            description: '',
+            isGlobal: true,
+            orgId: '',
+          },
+          groupForm: {
+            name: '',
+            description: '',
+            isGlobal: true,
+            orgId: '',
+          },
+          groupRoleForm: {
+            roleId: '',
+          },
+          grant: {
+            subjectType: 'user',
+            subjectId: '',
+            userQuery: '',
+            scopeType: 'org',
+            scopeId: '',
+            right: '',
+            effect: 'allow',
+          },
+          _userSearchTimer: null,
+          _grantUserSearchTimer: null,
+        };
+      },
+      methods: {
+        async api(path, opts) {
+          const base = window.BASE_URL || '';
+          const res = await fetch(base + path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || 'Request failed');
+          return json;
+        },
+        debouncedSearchUsers() {
+          clearTimeout(this._userSearchTimer);
+          this._userSearchTimer = setTimeout(() => this.searchUsers(), 250);
+        },
+        async searchUsers() {
+          const q = (this.test.userQuery || '').trim();
+          if (!q) {
+            this.userResults = [];
+            return;
+          }
+          const qs = new URLSearchParams();
+          qs.set('q', q);
+          const data = await this.api('/api/admin/rbac/users?' + qs.toString(), { method: 'GET' });
+          this.userResults = data.users || [];
+        },
+
+        filterTestRights() {
+          const q = String(this.test.right || '').trim().toLowerCase();
+          if (!q) {
+            this.testRightResults = (this.rights || []).slice(0, 50);
+            return;
+          }
+          this.testRightResults = (this.rights || []).filter((r) => String(r).toLowerCase().includes(q)).slice(0, 50);
+        },
+        selectTestRight(r) {
+          this.test.right = r;
+          this.testRightResults = [];
+        },
+
+        filterGrantRights() {
+          const q = String(this.grant.right || '').trim().toLowerCase();
+          if (!q) {
+            this.grantRightResults = (this.rights || []).slice(0, 50);
+            return;
+          }
+          this.grantRightResults = (this.rights || []).filter((r) => String(r).toLowerCase().includes(q)).slice(0, 50);
+        },
+        selectGrantRight(r) {
+          this.grant.right = r;
+          this.grantRightResults = [];
+        },
+
+        debouncedSearchGrantUsers() {
+          clearTimeout(this._grantUserSearchTimer);
+          this._grantUserSearchTimer = setTimeout(() => this.searchGrantUsers(), 250);
+        },
+        async searchGrantUsers() {
+          const q = (this.grant.userQuery || '').trim();
+          if (!q) {
+            this.grantUserResults = [];
+            return;
+          }
+          const qs = new URLSearchParams();
+          qs.set('q', q);
+          const data = await this.api('/api/admin/rbac/users?' + qs.toString(), { method: 'GET' });
+          this.grantUserResults = data.users || [];
+        },
+        async selectGrantUser(u) {
+          this.grant.subjectId = u.id;
+          this.grant.userQuery = u.email;
+          this.grantUserResults = [];
+        },
+        onGrantSubjectTypeChange() {
+          this.grant.subjectId = '';
+          this.grant.userQuery = '';
+          this.grantUserResults = [];
+        },
+        onGrantScopeTypeChange() {
+          if (this.grant.scopeType !== 'org') {
+            this.grant.scopeId = '';
+          }
+        },
+        async selectUser(u) {
+          this.test.user = u;
+          this.userResults = [];
+          this.test.userQuery = u.email;
+          this.testResult = null;
+          this.testStatus = '';
+
+          const data = await this.api('/api/admin/rbac/users/' + u.id + '/orgs', { method: 'GET' });
+          this.orgs = data.orgs || [];
+          if (this.orgs.length === 1) {
+            this.test.orgId = this.orgs[0].id;
+          } else {
+            this.test.orgId = '';
+          }
+        },
+        async runTest() {
+          this.testStatus = '';
+          this.testResult = null;
+          try {
+            if (!this.test.user) throw new Error('Select a user');
+            if (!this.test.orgId) throw new Error('Select an org');
+            if (!this.test.right) throw new Error('Enter a right');
+
+            const data = await this.api('/api/admin/rbac/test', {
+              method: 'POST',
+              body: JSON.stringify({
+                userId: this.test.user.id,
+                orgId: this.test.orgId,
+                right: this.test.right,
+              }),
+            });
+            this.testResult = data;
+          } catch (e) {
+            this.testStatus = e.message || 'Failed.';
+          }
+        },
+        async loadRights() {
+          // Derive unique rights from existing grants
+          const uniqueRights = new Set();
+          (this.grants || []).forEach(g => {
+            if (g.right) uniqueRights.add(g.right);
+          });
+          this.rights = Array.from(uniqueRights).sort();
+        },
+        async loadGrants() {
+          const data = await this.api('/api/admin/rbac/grants', { method: 'GET' });
+          this.grants = data.grants || [];
+        },
+        async loadOrganizations() {
+          const qs = new URLSearchParams();
+          qs.set('limit', '500');
+          const data = await this.api('/api/admin/orgs?' + qs.toString(), { method: 'GET' });
+          this.organizations = data.orgs || [];
+        },
+        async loadRoles() {
+          const data = await this.api('/api/admin/rbac/roles', { method: 'GET' });
+          this.roles = data.roles || [];
+        },
+        async loadGroups() {
+          const data = await this.api('/api/admin/rbac/groups', { method: 'GET' });
+          this.groups = data.groups || [];
+        },
+        async createRole() {
+          this.roleStatus = '';
+          try {
+            if (!this.roleForm.key) throw new Error('code is required');
+            if (!this.roleForm.name) throw new Error('name is required');
+            if (!this.roleForm.isGlobal && !this.roleForm.orgId) throw new Error('org is required for org-scoped roles');
+
+            await this.api('/api/admin/rbac/roles', {
+              method: 'POST',
+              body: JSON.stringify({
+                key: this.roleForm.key,
+                name: this.roleForm.name,
+                description: this.roleForm.description,
+                isGlobal: this.roleForm.isGlobal,
+                orgId: this.roleForm.isGlobal ? undefined : this.roleForm.orgId,
+              }),
+            });
+
+            this.roleStatus = 'Created.';
+            this.roleForm.key = '';
+            this.roleForm.name = '';
+            this.roleForm.description = '';
+            this.roleForm.isGlobal = true;
+            this.roleForm.orgId = '';
+            await this.loadRoles();
+          } catch (e) {
+            this.roleStatus = e.message || 'Failed.';
+          }
+        },
+        async createGroup() {
+          this.groupStatus = '';
+          try {
+            if (!this.groupForm.name) throw new Error('name is required');
+            if (!this.groupForm.isGlobal && !this.groupForm.orgId) throw new Error('org is required for org-scoped groups');
+
+            await this.api('/api/admin/rbac/groups', {
+              method: 'POST',
+              body: JSON.stringify({
+                name: this.groupForm.name,
+                description: this.groupForm.description,
+                isGlobal: this.groupForm.isGlobal,
+                orgId: this.groupForm.isGlobal ? undefined : this.groupForm.orgId,
+              }),
+            });
+
+            this.groupStatus = 'Created.';
+            this.groupForm.name = '';
+            this.groupForm.description = '';
+            this.groupForm.isGlobal = true;
+            this.groupForm.orgId = '';
+            await this.loadGroups();
+          } catch (e) {
+            this.groupStatus = e.message || 'Failed.';
+          }
+        },
+        async loadSelectedGroupRoles() {
+          this.selectedGroupRoles = [];
+          this.groupRoleForm.roleId = '';
+          if (!this.selectedGroupId) return;
+          const data = await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/roles', { method: 'GET' });
+          this.selectedGroupRoles = data.roles || [];
+        },
+        async addRoleToGroup() {
+          if (!this.selectedGroupId || !this.groupRoleForm.roleId) return;
+          try {
+            await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/roles', {
+              method: 'POST',
+              body: JSON.stringify({ roleId: this.groupRoleForm.roleId }),
+            });
+            await this.loadSelectedGroupRoles();
+          } catch (e) {
+            this.groupStatus = e.message || 'Failed.';
+          }
+        },
+        async removeRoleFromGroup(groupRoleId) {
+          if (!this.selectedGroupId || !groupRoleId) return;
+          try {
+            await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/roles/' + groupRoleId, { method: 'DELETE' });
+            await this.loadSelectedGroupRoles();
+          } catch (e) {
+            this.groupStatus = e.message || 'Failed.';
+          }
+        },
+        async createGrant() {
+          this.grantStatus = '';
+          try {
+            if (!this.grant.subjectId) throw new Error('Subject ID is required');
+            if (!this.grant.right) throw new Error('Right is required');
+
+            await this.api('/api/admin/rbac/grants', {
+              method: 'POST',
+              body: JSON.stringify({
+                subjectId: this.grant.subjectId,
+                subjectType: this.grant.subjectType,
+                right: this.grant.right,
+                effect: this.grant.effect,
+                scopeType: this.grant.scopeType,
+                scopeId: this.grant.scopeId,
+              }),
+            });
+            this.grantStatus = 'Grant created.';
+            this.grant = { subjectType: 'user', subjectId: '', right: '', effect: 'allow', scopeType: null, scopeId: '' };
+            await this.loadGrants();
+            await this.loadRights();
+          } catch (e) {
+            this.grantStatus = e.message || 'Failed.';
+          }
+        },
+        async deleteGrant(id) {
+          try {
+            await this.api('/api/admin/rbac/grants/' + id, { method: 'DELETE' });
+            await this.loadGrants();
+            await this.loadRights();
+          } catch (e) {
+            // ignore
+          }
+        },
+        async loadAll() {
+          await this.loadGrants();
+          await this.loadRights();
+          await this.loadOrganizations();
+          await this.loadRoles();
+          await this.loadGroups();
+        },
+      },
+      async mounted() {
+        await this.loadGrants();
+        await this.loadRights();
+        await this.loadOrganizations();
+        await this.loadRoles();
+        await this.loadGroups();
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
