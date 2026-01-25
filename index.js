@@ -76,6 +76,7 @@ const saasbackend = {
     workflow: require("./src/services/workflow.service"),
     healthChecks: require("./src/services/healthChecks.service"),
     dbBrowser: require("./src/services/dbBrowser.service"),
+    rateLimiter: require("./src/services/rateLimiter.service"),
   },
   models: {
     ActionEvent: require("./src/models/ActionEvent"),
@@ -83,6 +84,8 @@ const saasbackend = {
     Asset: require("./src/models/Asset"),
     AuditEvent: require("./src/models/AuditEvent"),
     CacheEntry: require("./src/models/CacheEntry"),
+    RateLimitCounter: require("./src/models/RateLimitCounter"),
+    RateLimitMetricBucket: require("./src/models/RateLimitMetricBucket"),
     RbacRole: require("./src/models/RbacRole"),
     RbacUserRole: require("./src/models/RbacUserRole"),
     RbacGroup: require("./src/models/RbacGroup"),
@@ -125,6 +128,7 @@ const saasbackend = {
     i18n: require("./src/services/i18n.service"),
     jsonConfigs: require("./src/services/jsonConfigs.service"),
     terminals: require("./src/services/terminalsWs.service"),
+    rateLimiter: require("./src/services/rateLimiter.service"),
   },
 };
 
