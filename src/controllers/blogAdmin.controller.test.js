@@ -88,6 +88,118 @@ describe('blogAdmin.controller', () => {
     });
   });
 
+  describe('suggestions', () => {
+    test('returns unique categories, tags, and authors', async () => {
+      BlogPost.distinct
+        .mockResolvedValueOnce(['Tech', 'AI']) // categories
+        .mockResolvedValueOnce(['Author 1']); // authorNames
+      
+      BlogPost.aggregate.mockResolvedValue([{ tag: 'news' }, { tag: 'node' }]);
+
+      await controller.suggestions(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        categories: ['AI', 'Tech'],
+        tags: ['news', 'node'],
+        authorNames: ['Author 1']
+      });
+    });
+  });
+
+  describe('publish', () => {
+    test('marks post as published and sets publishedAt', async () => {
+      const save = jest.fn().mockResolvedValue();
+      const mockPost = {
+        _id: '1',
+        status: 'draft',
+        save,
+        toObject: function() { return { ...this, status: 'published' }; }
+      };
+      BlogPost.findById.mockResolvedValue(mockPost);
+      mockReq.params.id = '1';
+
+      await controller.publish(mockReq, mockRes);
+
+      expect(mockPost.status).toBe('published');
+      expect(save).toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalledWith({ item: expect.objectContaining({ status: 'published' }) });
+    });
+  });
+
+  describe('schedule', () => {
+    test('schedules post for future date', async () => {
+      const save = jest.fn().mockResolvedValue();
+      const mockPost = {
+        _id: '1',
+        status: 'draft',
+        save,
+        toObject: function() { return { ...this, status: 'scheduled' }; }
+      };
+      BlogPost.findById.mockResolvedValue(mockPost);
+      
+      const futureDate = new Date(Date.now() + 86400000).toISOString();
+      mockReq.params.id = '1';
+      mockReq.body = { scheduledAt: futureDate };
+
+      await controller.schedule(mockReq, mockRes);
+
+      expect(mockPost.status).toBe('scheduled');
+      expect(mockPost.scheduledAt).toBeInstanceOf(Date);
+      expect(save).toHaveBeenCalled();
+    });
+
+    test('returns 400 for invalid date', async () => {
+      BlogPost.findById.mockResolvedValue({ _id: '1' });
+      mockReq.params.id = '1';
+      mockReq.body = { scheduledAt: 'invalid' };
+
+      await controller.schedule(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe('remove', () => {
+    test('deletes post from database', async () => {
+      BlogPost.findById.mockResolvedValue({ _id: '1' });
+      BlogPost.deleteOne.mockResolvedValue({ deletedCount: 1 });
+      mockReq.params.id = '1';
+
+      await controller.remove(mockReq, mockRes);
+
+      expect(BlogPost.deleteOne).toHaveBeenCalledWith({ _id: '1' });
+      expect(mockRes.json).toHaveBeenCalledWith({ deleted: true });
+    });
+  });
+
+  describe('update', () => {
+    test('updates post fields successfully', async () => {
+      const mockPost = {
+        _id: '1',
+        title: 'Old Title',
+        save: jest.fn().mockResolvedValue(true),
+        toObject: function() { return this; }
+      };
+      BlogPost.findById.mockResolvedValue(mockPost);
+      mockReq.params.id = '1';
+      mockReq.body = { title: 'New Title', slug: 'new-slug' };
+
+      await controller.update(mockReq, mockRes);
+
+      expect(mockPost.title).toBe('New Title');
+      expect(mockPost.slug).toBe('new-slug');
+      expect(mockPost.save).toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalled();
+    });
+
+    test('returns 404 if post not found', async () => {
+      BlogPost.findById.mockResolvedValue(null);
+      mockReq.params.id = 'missing';
+      await controller.update(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+    });
+  });
+
   describe('archive', () => {
     test('sets status archived and clears scheduledAt', async () => {
       const save = jest.fn().mockResolvedValue();

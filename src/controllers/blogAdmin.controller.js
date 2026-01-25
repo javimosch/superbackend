@@ -73,6 +73,32 @@ exports.list = async (req, res) => {
   }
 };
 
+exports.suggestions = async (req, res) => {
+  try {
+    const [categories, authorNames, tagsAgg] = await Promise.all([
+      BlogPost.distinct('category', { category: { $ne: '' } }),
+      BlogPost.distinct('authorName', { authorName: { $ne: '' } }),
+      BlogPost.aggregate([
+        { $unwind: '$tags' },
+        { $match: { tags: { $ne: '' } } },
+        { $group: { _id: '$tags' } },
+        { $project: { _id: 0, tag: '$_id' } },
+      ]),
+    ]);
+
+    const tags = (tagsAgg || []).map((t) => String(t.tag || '')).filter(Boolean);
+
+    res.json({
+      categories: (categories || []).map((x) => String(x || '')).filter(Boolean).sort(),
+      tags: tags.sort(),
+      authorNames: (authorNames || []).map((x) => String(x || '')).filter(Boolean).sort(),
+    });
+  } catch (error) {
+    console.error('Error building blog suggestions:', error);
+    res.status(500).json({ error: 'Failed to load suggestions' });
+  }
+};
+
 exports.create = async (req, res) => {
   try {
     const payload = req.body || {};

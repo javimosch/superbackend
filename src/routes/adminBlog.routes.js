@@ -8,6 +8,7 @@ router.use(basicAuth);
 router.use(express.json({ limit: '2mb' }));
 
 router.get('/blog-posts', controller.list);
+router.get('/blog-posts/suggestions', controller.suggestions);
 router.post('/blog-posts', controller.create);
 router.get('/blog-posts/:id', controller.get);
 router.put('/blog-posts/:id', controller.update);
