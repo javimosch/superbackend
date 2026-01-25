@@ -132,4 +132,52 @@ describe('headlessApiTokens.service', () => {
       expect(tokenAllowsOperation(token, 'Other', 'read')).toBe(false);
     });
   });
+
+  describe('CRUD operations', () => {
+    test('listApiTokens returns all tokens', async () => {
+      const mockTokens = [{ name: 't1' }, { name: 't2' }];
+      HeadlessApiToken.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockTokens)
+      });
+
+      const result = await listApiTokens();
+      expect(result).toEqual(mockTokens);
+    });
+
+    test('getApiTokenById returns a token by ID', async () => {
+      const mockToken = { _id: 'id123', name: 't1' };
+      HeadlessApiToken.findById.mockReturnValue({
+        lean: jest.fn().mockResolvedValue(mockToken)
+      });
+
+      const result = await getApiTokenById('id123');
+      expect(result).toEqual(mockToken);
+    });
+
+    test('updateApiToken updates token fields', async () => {
+      const mockDoc = {
+        _id: 'id123',
+        name: 'old',
+        save: jest.fn().mockResolvedValue(true),
+        toObject: function() { return this; }
+      };
+      HeadlessApiToken.findById.mockResolvedValue(mockDoc);
+
+      const result = await updateApiToken('id123', { name: 'new', isActive: false });
+
+      expect(mockDoc.name).toBe('new');
+      expect(mockDoc.isActive).toBe(false);
+      expect(mockDoc.save).toHaveBeenCalled();
+    });
+
+    test('deleteApiToken removes token', async () => {
+      HeadlessApiToken.findById.mockResolvedValue({ _id: 'id123' });
+      HeadlessApiToken.deleteOne.mockResolvedValue({ deletedCount: 1 });
+
+      const result = await deleteApiToken('id123');
+      expect(result.success).toBe(true);
+      expect(HeadlessApiToken.deleteOne).toHaveBeenCalledWith({ _id: 'id123' });
+    });
+  });
 });
