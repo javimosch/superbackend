@@ -78,4 +78,22 @@ describe('orgRoles.js', () => {
       expect(await orgRoles.getOrgRoleLevel('missing')).toBe(0);
     });
   });
+
+  describe('isRoleAtLeast', () => {
+    test('correctly compares role levels', async () => {
+      globalSettingsService.getSettingValue.mockResolvedValue(null);
+      expect(await orgRoles.isRoleAtLeast('admin', 'member')).toBe(true);
+      expect(await orgRoles.isRoleAtLeast('member', 'admin')).toBe(false);
+      expect(await orgRoles.isRoleAtLeast('owner', 'owner')).toBe(true);
+    });
+  });
+
+  describe('isRoleHigherThan', () => {
+    test('correctly compares role levels strictly', async () => {
+      globalSettingsService.getSettingValue.mockResolvedValue(null);
+      expect(await orgRoles.isRoleHigherThan('owner', 'admin')).toBe(true);
+      expect(await orgRoles.isRoleHigherThan('admin', 'admin')).toBe(false);
+      expect(await orgRoles.isRoleHigherThan('viewer', 'member')).toBe(false);
+    });
+  });
 });
