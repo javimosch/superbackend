@@ -12,6 +12,7 @@ const consoleOverride = require("./services/consoleOverride.service");
 const cronScheduler = require("./services/cronScheduler.service");
 const healthChecksScheduler = require("./services/healthChecksScheduler.service");
 const healthChecksBootstrap = require("./services/healthChecksBootstrap.service");
+const blogCronsBootstrap = require("./services/blogCronsBootstrap.service");
 const {
   hookConsoleError,
   setupProcessHandlers,
@@ -106,6 +107,7 @@ function createMiddleware(options = {}) {
         await cronScheduler.start();
         await healthChecksScheduler.start();
         await healthChecksBootstrap.bootstrap();
+        await blogCronsBootstrap.bootstrap();
         return true;
       })
       .catch((err) => {
@@ -157,6 +159,9 @@ function createMiddleware(options = {}) {
     });
     healthChecksBootstrap.bootstrap().catch(err => {
       console.error("Failed to bootstrap health checks:", err);
+    });
+    blogCronsBootstrap.bootstrap().catch(err => {
+      console.error("Failed to bootstrap blog crons:", err);
     });
   }
 
@@ -547,6 +552,9 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
   router.use("/api/admin/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
   router.use("/api/admin/pages", require("./routes/adminPages.routes"));
+  router.use("/api/admin", require("./routes/adminBlog.routes"));
+  router.use("/api/admin", require("./routes/adminBlogAi.routes"));
+  router.use("/api/admin", require("./routes/adminBlogAutomation.routes"));
   router.use("/api/workflows", basicAuth, require("./routes/workflows.routes"));
   router.use("/w", require("./routes/workflowWebhook.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
@@ -566,6 +574,12 @@ function createMiddleware(options = {}) {
   router.use("/api/llm/ui", require("./routes/llmUi.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
+
+  // Public blog APIs (headless)
+  router.use("/api", require("./routes/blogPublic.routes"));
+
+  // Internal blog endpoints (used by HTTP CronJobs)
+  router.use("/api/internal", require("./routes/blogInternal.routes"));
 
   // Public health checks status (gated by global setting)
   router.use("/api/health-checks", require("./routes/healthChecksPublic.routes"));
@@ -712,6 +726,82 @@ function createMiddleware(options = {}) {
           {
             filename: templatePath,
           },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/blog`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-blog.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/blog-automation`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-blog-automation.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/blog/new`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-blog-edit.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          { baseUrl: req.baseUrl, adminPath, postId: '', mode: 'new' },
+          { filename: templatePath },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/blog/edit/:id`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-blog-edit.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          { baseUrl: req.baseUrl, adminPath, postId: String(req.params.id || ''), mode: 'edit' },
+          { filename: templatePath },
         );
         res.send(html);
       } catch (renderErr) {
