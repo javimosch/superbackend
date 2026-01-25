@@ -136,6 +136,15 @@ describe('JWT Utilities', () => {
 
       expect(jwt.verify).toHaveBeenCalledWith('token', 'access-secret-change-me');
     });
+
+    test('should throw error for malformed token structure', () => {
+      jwt.verify.mockImplementation(() => {
+        throw new Error('jwt malformed');
+      });
+
+      expect(() => verifyAccessToken('malformed'))
+        .toThrow('Invalid or expired token');
+    });
   });
 
   describe('verifyRefreshToken', () => {
