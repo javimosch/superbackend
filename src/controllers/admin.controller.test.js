@@ -1,27 +1,55 @@
 const {
   getUsers,
+  registerUser,
   getUser,
   updateUserSubscription,
+  updateUserPassword,
+  deleteUser,
   reconcileUser,
   getWebhookEvents: getAllWebhookEvents,
   retryFailedWebhookEvents,
   retrySingleWebhookEvent: reprocessWebhookEvent,
   getWebhookStats,
+  provisionCoolifyDeploy,
 } = require('./admin.controller');
 const User = require('../models/User');
+const Organization = require('../models/Organization');
+const OrganizationMember = require('../models/OrganizationMember');
+const Asset = require('../models/Asset');
+const Notification = require('../models/Notification');
+const Invite = require('../models/Invite');
+const EmailLog = require('../models/EmailLog');
+const FormSubmission = require('../models/FormSubmission');
 const StripeWebhookEvent = require('../models/StripeWebhookEvent');
 const webhookRetry = require('../utils/webhookRetry');
+const fs = require('fs');
+const path = require('path');
 
 jest.mock('../utils/asyncHandler', () => (fn) => fn);
 
 // Mock dependencies
 jest.mock('../models/User');
+jest.mock('../models/Organization');
+jest.mock('../models/OrganizationMember');
+jest.mock('../models/Asset');
+jest.mock('../models/Notification');
+jest.mock('../models/Invite');
+jest.mock('../models/EmailLog');
+jest.mock('../models/FormSubmission');
 jest.mock('../models/StripeWebhookEvent');
 jest.mock('../utils/webhookRetry');
+jest.mock('fs');
 jest.mock('stripe', () => {
   return jest.fn().mockImplementation(() => ({
     customers: {
+      create: jest.fn().mockResolvedValue({ id: 'cus_new' }),
       retrieve: jest.fn()
+    },
+    checkout: {
+      sessions: {
+        create: jest.fn(),
+        list: jest.fn(),
+      },
     },
     subscriptions: {
       list: jest.fn(),
@@ -55,6 +83,120 @@ describe('Admin Controller', () => {
   afterAll(() => {
     mockConsoleError.mockRestore();
     mockConsoleLog.mockRestore();
+  });
+
+  describe('registerUser', () => {
+    test('should register new user successfully', async () => {
+      mockReq.body = {
+        email: 'newadmin@example.com',
+        password: 'password123',
+        name: 'New Admin',
+        role: 'admin'
+      };
+
+      const mockUser = {
+        email: 'newadmin@example.com',
+        role: 'admin',
+        save: jest.fn().mockResolvedValue(),
+        toJSON: jest.fn().mockReturnValue({ email: 'newadmin@example.com', role: 'admin' })
+      };
+
+      User.findOne.mockResolvedValue(null);
+      User.mockImplementation(() => mockUser);
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    test('should return 400 for invalid role', async () => {
+      mockReq.body = {
+        email: 'test@example.com',
+        password: 'password123',
+        role: 'superadmin' // Invalid role
+      };
+
+      await registerUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Role must be either "user" or "admin"' });
+    });
+  });
+
+  describe('updateUserPassword', () => {
+    test('should update password for user', async () => {
+      mockReq.params.id = 'user123';
+      mockReq.body.passwordHash = 'new-plaintext-password';
+
+      const mockUser = {
+        _id: 'user123',
+        save: jest.fn().mockResolvedValue(),
+        toJSON: jest.fn().mockReturnValue({ _id: 'user123' })
+      };
+
+      User.findById.mockResolvedValue(mockUser);
+
+      await updateUserPassword(mockReq, mockRes);
+
+      expect(mockUser.passwordHash).toBe('new-plaintext-password');
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(mockRes.json).toHaveBeenCalled();
+    });
+
+    test('should return 400 if password appears to be already hashed', async () => {
+      mockReq.params.id = 'user123';
+      mockReq.body.passwordHash = '$2a$10$abcdefghijklmnopqrstuv'; // Bcrypt hash pattern
+
+      User.findById.mockResolvedValue({ _id: 'user123' });
+
+      await updateUserPassword(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Invalid password format' }));
+    });
+  });
+
+  describe('provisionCoolifyDeploy', () => {
+    test('should provision deploy script', async () => {
+      fs.existsSync.mockReturnValue(false);
+      mockReq.body = { overwrite: true };
+
+      await provisionCoolifyDeploy(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
+
+  describe('deleteUser', () => {
+    test('should delete user and cleanup data', async () => {
+      mockReq.params.id = 'user123';
+      const mockUser = { _id: 'user123', email: 'delete@test.com', role: 'user' };
+      
+      User.findById.mockResolvedValue(mockUser);
+      User.countDocuments.mockResolvedValue(2); // More than 1 admin
+      Organization.find.mockResolvedValue([]);
+      
+      await deleteUser(mockReq, mockRes);
+
+      expect(User.findByIdAndDelete).toHaveBeenCalledWith('user123');
+      expect(OrganizationMember.deleteMany).toHaveBeenCalledWith({ userId: 'user123' });
+      expect(mockRes.json).toHaveBeenCalledWith({ message: 'User deleted successfully' });
+    });
+
+    test('should prevent deleting the last admin', async () => {
+      mockReq.params.id = 'admin123';
+      const mockAdmin = { _id: 'admin123', role: 'admin' };
+      
+      User.findById.mockResolvedValue(mockAdmin);
+      User.countDocuments.mockResolvedValue(1); // Only 1 admin
+      
+      await deleteUser(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Cannot delete the last admin user' });
+    });
   });
 
   describe('getUsers', () => {
