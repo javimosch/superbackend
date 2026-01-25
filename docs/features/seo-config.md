@@ -11,15 +11,20 @@ When mounted at `/saas`, all routes are prefixed:
 
 ## Configuration
 
-### Environment variables
-- `OPENROUTER_API_KEY` (optional): API key for AI features
-- `OPENROUTER_MODEL` (optional): Default model for AI operations
-
 ### Global settings
-- `seoconfig.ai.openrouter.apiKey` (encrypted): Scoped AI API key
-- `seoconfig.ai.openrouter.model` (optional): Scoped AI model
-- `ai.openrouter.apiKey` (encrypted): Fallback AI API key
-- `ai.openrouter.model` (optional): Fallback AI model
+- Centralized defaults:
+  - System defaults:
+    - `llm.systemDefaults.seoConfig.entry.generate.{providerKey,model}`
+    - `llm.systemDefaults.seoConfig.entry.improve.{providerKey,model}`
+    - `llm.systemDefaults.seoConfig.ogSvg.edit.{providerKey,model}`
+  - Global defaults: `llm.defaults.{providerKey,model}`
+
+- Legacy OpenRouter settings (still supported during migration):
+  - `seoconfig.ai.openrouter.apiKey` (encrypted): Scoped OpenRouter API key override
+  - `seoconfig.ai.openrouter.model` (optional): Scoped model fallback
+  - `ai.openrouter.apiKey` (encrypted): Fallback OpenRouter API key override
+  - `ai.openrouter.model` (optional): Fallback model (not recommended as primary)
+
 - `seoconfig.og.svg` (html): OG image SVG template
 
 ### Default configuration

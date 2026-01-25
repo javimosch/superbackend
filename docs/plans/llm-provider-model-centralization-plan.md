@@ -26,17 +26,23 @@ Non-goals (for this phase):
 
 These `systemKey` values are intended to be stable, human-readable, and map 1:1 to a user-facing “system” in the admin UI.
 
+Decision (locked): use `feature.action` keys so each feature can expose multiple AI actions with separate defaults.
+
 Proposed mapping:
 
 | System | Proposed `systemKey` | Current legacy defaults keys |
 |---|---|---|
-| Page Builder → Blocks AI | `pageBuilder.blocksAi` | `pageBuilder.blocks.ai.providerKey`, `pageBuilder.blocks.ai.model` |
-| EJS Virtual Codebase → Vibe | `ejsVirtual.vibe` | `ejsVirtual.ai.providerKey`, `ejsVirtual.ai.model` |
-| UI Components → AI Propose | `uiComponents.proposeEdit` | `uiComponents.ai.providerKey`, `uiComponents.ai.model` |
-| Headless → AI Model Builder | `headless.aiModelBuilder` | `headless.aiProviderKey`, `headless.aiModel` |
-| Workflow Engine → LLM node | `workflow.llmNode` | (none; currently node-level `provider/model`) |
-| SEO Config → AI | `seoConfig.ai` | (uses OpenRouter-specific helpers today) |
-| i18n → AI Translation | `i18n.aiTranslation` | `i18n.ai.model` (apiKey from `i18n.ai.openrouter.apiKey` / `ai.openrouter.apiKey`) |
+| Page Builder → Blocks AI: Generate | `pageBuilder.blocks.generate` | `pageBuilder.blocks.ai.providerKey`, `pageBuilder.blocks.ai.model` |
+| Page Builder → Blocks AI: Propose | `pageBuilder.blocks.propose` | `pageBuilder.blocks.ai.providerKey`, `pageBuilder.blocks.ai.model` |
+| EJS Virtual Codebase → Vibe | `ejsVirtual.vibe.apply` | `ejsVirtual.ai.providerKey`, `ejsVirtual.ai.model` |
+| UI Components → Propose edit | `uiComponents.proposeEdit` | `uiComponents.ai.providerKey`, `uiComponents.ai.model` |
+| Headless → AI Model Builder | `headless.modelBuilder.chat` | `headless.aiProviderKey`, `headless.aiModel` |
+| Workflow Engine → LLM node | `workflow.node.llm` | (none; currently node-level `provider/model`) |
+| SEO Config → Generate entry | `seoConfig.entry.generate` | (uses OpenRouter-specific helpers today) |
+| SEO Config → Improve entry | `seoConfig.entry.improve` | (uses OpenRouter-specific helpers today) |
+| SEO Config → Edit OG SVG | `seoConfig.ogSvg.edit` | (uses OpenRouter-specific helpers today) |
+| i18n → AI Preview | `i18n.translate.preview` | `i18n.ai.model` (apiKey from `i18n.ai.openrouter.apiKey` / `ai.openrouter.apiKey`) |
+| i18n → AI Translate Text | `i18n.translate.text` | `i18n.ai.model` (apiKey from `i18n.ai.openrouter.apiKey` / `ai.openrouter.apiKey`) |
 
 If you want these to align with audit event action names, we can alternatively choose keys like `pageBuilder.blocks.ai.generate` / `pageBuilder.blocks.ai.propose` etc., but that may be overly granular.
 
@@ -129,7 +135,7 @@ Where `systemKey` is a stable identifier, e.g.:
 
 ### 2.2 Model suggestions / “predefined models” per provider
 Add a provider model registry to global settings:
-- `llm.providerModels.<providerKey>` => JSON array of model IDs (strings)
+- `llm.providerModels` => JSON object map: `{ [providerKey]: string[] }`
 
 Example:
 ```json
@@ -140,9 +146,7 @@ Notes:
 - This is for **UI autocomplete/suggestions**, not enforcement.
 - For OpenRouter, optionally fetch remote model list in the admin UI (see 2.5).
 
-Storage shape decision pending (choose one):
-- A) Keep `llm.providerModels.<providerKey>` (one global setting per provider)
-- B) Use a single `llm.providerModels` JSON map: `{ [providerKey]: string[] }`
+Decision (locked): use a single `llm.providerModels` JSON map.
 
 ### 2.3 Resolution precedence
 Define a single backend function `resolveLlmProviderModel({ systemKey, uiProviderKey, uiModel })` that returns `{ providerKey, model, sourceMeta }`.
@@ -251,15 +255,13 @@ The partial should:
 
 ## 6) Open questions (need your decision before implementation)
 
-1. Per-provider models storage shape: choose A or B (see section 2.2).
+1. Confirm the `systemKey` list in section 2.6 (rename any keys now if desired).
 
-2. Confirm the `systemKey` list in section 2.6 (rename any keys now if desired).
+2. Workflow LLM node defaults (locked):
+   - Keep node-level `provider/model` (current)
+   - Add centralized fallback when node-level is missing using `systemKey = workflow.node.llm`
 
-3. Workflow LLM node: do you want an additional level of defaults?
-   - A) Only node-level `provider/model` (current), plus centralized fallback when node-level is missing.
-   - B) Add per-workflow defaults (e.g. `workflow.<workflowId>.llmDefaults.*`) (more complex).
-
-4. Confirm env behavior: keep `DEFAULT_LLM_*` and `HEADLESS_AI_*` as last-resort fallbacks only (recommended).
+3. Env behavior (locked): keep `DEFAULT_LLM_*` and `HEADLESS_AI_*` as last-resort fallbacks only.
 
 ---
 

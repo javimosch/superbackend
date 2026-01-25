@@ -263,12 +263,20 @@ Features:
 
 ### Blocks AI settings
 
-The Blocks registry AI endpoints can use global defaults stored in GlobalSetting:
+The Blocks registry AI endpoints use the centralized LLM defaults resolver.
 
-| Setting key | Description |
-|------------|-------------|
-| `pageBuilder.blocks.ai.providerKey` | Default LLM provider key used by Blocks AI |
-| `pageBuilder.blocks.ai.model` | Default model used by Blocks AI (optional) |
+Defaults resolve in this order:
+1. Request body: `providerKey` / `model`
+2. Centralized defaults:
+   - System defaults: `llm.systemDefaults.pageBuilder.blocks.generate.{providerKey,model}` and `llm.systemDefaults.pageBuilder.blocks.propose.{providerKey,model}`
+   - Global defaults: `llm.defaults.{providerKey,model}`
+3. Legacy fallback:
+   - `pageBuilder.blocks.ai.providerKey`
+   - `pageBuilder.blocks.ai.model`
+4. Environment fallback (last resort):
+   - `DEFAULT_LLM_PROVIDER_KEY`
+   - `DEFAULT_LLM_MODEL`
+5. Hard default model: `x-ai/grok-code-fast-1`
 
 The Page Builder admin UI exposes these under:
 - Blocks → Settings

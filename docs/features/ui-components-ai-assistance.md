@@ -29,13 +29,16 @@ Response:
 ## Provider/model defaults
 Defaults are resolved in this order:
 1. Explicit `providerKey`/`model` from request body.
-2. GlobalSettings:
+2. Centralized defaults:
+   - System defaults: `llm.systemDefaults.uiComponents.proposeEdit.{providerKey,model}`
+   - Global defaults: `llm.defaults.{providerKey,model}`
+3. Legacy fallback:
    - `uiComponents.ai.providerKey`
    - `uiComponents.ai.model`
-3. Environment variables:
+4. Environment fallback (last resort):
    - `DEFAULT_LLM_PROVIDER_KEY`
    - `DEFAULT_LLM_MODEL`
-4. Service fallback model.
+5. Hard default model: `x-ai/grok-code-fast-1`
 
 ## Patch format
 The LLM must return only FIELD patch blocks:

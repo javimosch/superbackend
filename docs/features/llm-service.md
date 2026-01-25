@@ -44,6 +44,13 @@ LLM configuration is stored in global settings as JSON:
 - `llm.prompts` - Prompt templates for various tasks
 - `llm.provider.{name}.apiKey` - Encrypted API keys per provider
 
+Centralized provider/model defaults:
+
+- `llm.defaults.providerKey`
+- `llm.defaults.model`
+- `llm.systemDefaults` (JSON map)
+- `llm.providerModels` (JSON map)
+
 ## API
 
 ### Admin endpoints (Basic auth required)
@@ -78,7 +85,13 @@ GET ${BASE_URL}/api/admin/admin-llm/config
     "seo_title": "Generate an SEO-optimized title for: {content}",
     "seo_description": "Generate a 160-character SEO description for: {content}",
     "seo_keywords": "Generate 5 relevant keywords for: {content}"
-  }
+  },
+  "defaults": {
+    "providerKey": "openrouter",
+    "model": "google/gemini-2.5-flash-lite"
+  },
+  "systemDefaults": {},
+  "providerModels": {}
 }
 ```
 
@@ -106,8 +119,24 @@ POST ${BASE_URL}/api/admin/admin-llm/config
     "seo_title": "Create an SEO title for: {content}",
     "seo_description": "Create a 160-char SEO description for: {content}",
     "seo_keywords": "Generate 5 keywords for: {content}"
-  }
+  },
+  "defaults": {
+    "providerKey": "openrouter",
+    "model": "google/gemini-2.5-flash-lite"
+  },
+  "systemDefaults": {},
+  "providerModels": {}
 }
+```
+
+#### List OpenRouter models (admin)
+```
+GET ${BASE_URL}/api/admin/admin-llm/openrouter/models
+```
+
+Returns:
+```json
+{ "models": ["..."] }
 ```
 
 **Response:**

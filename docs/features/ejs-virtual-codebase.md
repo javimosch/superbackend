@@ -40,13 +40,16 @@ Capabilities:
 ## LLM provider/model selection
 Provider/model selection resolves defaults in this order:
 1. UI-provided `providerKey` + `model`
-2. Global settings:
+2. Centralized defaults:
+   - System defaults: `llm.systemDefaults.ejsVirtual.vibe.apply.{providerKey,model}`
+   - Global defaults: `llm.defaults.{providerKey,model}`
+3. Legacy fallback:
    - `ejsVirtual.ai.providerKey`
    - `ejsVirtual.ai.model`
-3. Environment:
+4. Environment fallback (last resort):
    - `DEFAULT_LLM_PROVIDER_KEY`
    - `DEFAULT_LLM_MODEL`
-4. Hard default model:
+5. Hard default model:
    - `x-ai/grok-code-fast-1`
 
 If no provider can be resolved, vibe coding fails with a validation error.
