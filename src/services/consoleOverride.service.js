@@ -54,7 +54,7 @@ const consoleOverride = {
       }
       
       // Wait a bit for stream to fully close, then truncate
-      setTimeout(() => {
+      const truncateTimer = setTimeout(() => {
         // Truncate log file on initialization (start with empty file)
         if (fs.existsSync(logPath)) {
           fs.truncateSync(logPath, 0);
@@ -87,6 +87,11 @@ const consoleOverride = {
         originalConsole.log(initMsg);
         this._writeToFile(initMsg);
       }, 10);
+
+      // Avoid keeping the event loop alive in tests / short-lived processes.
+      if (typeof truncateTimer.unref === "function") {
+        truncateTimer.unref();
+      }
       
     } catch (error) {
       // Fallback to console-only logging
