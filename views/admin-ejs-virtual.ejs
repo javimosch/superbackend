@@ -29,15 +29,13 @@
               <select id="fileSelect" class="w-full border rounded px-2 py-2 text-sm"></select>
             </div>
 
-            <div class="min-w-[200px]">
-              <label class="block text-xs font-medium text-gray-600 mb-1">LLM Provider Key</label>
-              <input id="providerKey" class="w-full border rounded px-2 py-2 text-sm" placeholder="e.g. openrouter" />
-            </div>
-
-            <div class="min-w-[260px]">
-              <label class="block text-xs font-medium text-gray-600 mb-1">Model</label>
-              <input id="model" class="w-full border rounded px-2 py-2 text-sm" placeholder="e.g. x-ai/grok-code-fast-1" />
-            </div>
+            <%- include('partials/llm-provider-model-picker', {
+              providerInputId: 'providerKey',
+              modelInputId: 'model',
+              providerLabel: 'LLM Provider Key',
+              modelLabel: 'Model',
+              showOpenRouterFetch: true,
+            }) %>
 
             <div class="flex items-center gap-2">
               <button id="btnReload" class="px-3 py-2 bg-gray-200 text-gray-900 rounded text-sm">Reload</button>
@@ -78,7 +76,7 @@
     </div>
 
     <script>
-      const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+      const API_BASE = window.location.origin + "<%= baseUrl || '' %>";
 
       const STORAGE_KEYS = {
         providerKey: 'ejsVirtual.providerKey',
@@ -106,6 +104,14 @@
         const model = localStorage.getItem(STORAGE_KEYS.model) || '';
         document.getElementById('providerKey').value = pk;
         document.getElementById('model').value = model;
+
+        if (window.__llmProviderModelPicker && window.__llmProviderModelPicker.init) {
+          window.__llmProviderModelPicker.init({
+            apiBase: API_BASE,
+            providerInputId: 'providerKey',
+            modelInputId: 'model',
+          });
+        }
       }
 
       function saveSettings() {
