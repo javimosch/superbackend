@@ -27,24 +27,35 @@ describe('blogInternal.controller', () => {
 
   describe('runAutomation', () => {
     test('defaults to manual trigger', async () => {
+      mockReq.body.configId = 'cfg1';
       blogAutomationService.runBlogAutomation.mockResolvedValue({ _id: 'run1' });
 
       await controller.runAutomation(mockReq, mockRes);
 
-      expect(blogAutomationService.runBlogAutomation).toHaveBeenCalledWith({ trigger: 'manual' });
+      expect(blogAutomationService.runBlogAutomation).toHaveBeenCalledWith({ trigger: 'manual', configId: 'cfg1' });
       expect(mockRes.json).toHaveBeenCalledWith({ run: { _id: 'run1' } });
     });
 
     test('accepts scheduled trigger', async () => {
       mockReq.body.trigger = 'scheduled';
+      mockReq.body.configId = 'cfg1';
       blogAutomationService.runBlogAutomation.mockResolvedValue({ _id: 'run1' });
 
       await controller.runAutomation(mockReq, mockRes);
 
-      expect(blogAutomationService.runBlogAutomation).toHaveBeenCalledWith({ trigger: 'scheduled' });
+      expect(blogAutomationService.runBlogAutomation).toHaveBeenCalledWith({ trigger: 'scheduled', configId: 'cfg1' });
+    });
+
+    test('returns 400 if configId missing', async () => {
+      await controller.runAutomation(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'configId is required' });
+      expect(blogAutomationService.runBlogAutomation).not.toHaveBeenCalled();
     });
 
     test('handles errors', async () => {
+      mockReq.body.configId = 'cfg1';
       blogAutomationService.runBlogAutomation.mockRejectedValue(new Error('boom'));
 
       await controller.runAutomation(mockReq, mockRes);

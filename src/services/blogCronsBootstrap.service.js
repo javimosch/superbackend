@@ -12,6 +12,12 @@ const INTERNAL_CRON_TOKEN_SETTING_KEY = 'blog.internalCronToken';
 const CRON_NAME_AUTOMATION = 'Blog: Automation (generate drafts)';
 const CRON_NAME_PUBLISH_SCHEDULED = 'Blog: Publish scheduled posts';
 
+const AUTOMATION_CRON_PREFIX = 'Blog: Automation';
+
+function getAutomationCronNameForConfigId(configId) {
+  return `${AUTOMATION_CRON_PREFIX} (${String(configId)})`;
+}
+
 function getDefaultInternalCronToken() {
   return crypto.randomBytes(24).toString('hex');
 }
@@ -62,25 +68,72 @@ async function ensureCronJobs({ baseUrl, token }) {
   const automationUrl = `${baseUrl}/api/internal/blog/automation/run`;
   const publishUrl = `${baseUrl}/api/internal/blog/publish-scheduled/run`;
 
-  const existingAutomation = await CronJob.findOne({ name: CRON_NAME_AUTOMATION, taskType: 'http' }).lean();
-  if (!existingAutomation) {
-    await CronJob.create({
-      name: CRON_NAME_AUTOMATION,
-      description: 'Scheduled blog automation run (disabled by default).',
-      cronExpression: '0 9 * * 2,4',
-      timezone: 'UTC',
-      enabled: false,
+  // Reconcile per-config automation cron jobs
+  const configs = await blogAutomationService.getBlogAutomationConfigs();
+  const configIds = new Set((configs.items || []).map((c) => String(c.id)));
+
+  const existingAutomationCrons = await CronJob.find({
+    taskType: 'http',
+    name: { $regex: `^${AUTOMATION_CRON_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(` },
+  }).lean();
+
+  for (const cron of existingAutomationCrons) {
+    const name = String(cron?.name || '');
+    const match = name.match(/^Blog: Automation \((.+)\)$/);
+    const id = match ? String(match[1]) : '';
+    if (id && !configIds.has(id)) {
+      await CronJob.deleteOne({ _id: cron._id }).catch(() => {});
+    }
+  }
+
+  for (const cfg of configs.items || []) {
+    const id = String(cfg.id);
+    const schedule = cfg && typeof cfg.schedule === 'object' ? cfg.schedule : {};
+    const managedBy = schedule.managedBy === 'manualOnly' ? 'manualOnly' : 'cronScheduler';
+    const cronName = getAutomationCronNameForConfigId(id);
+
+    if (managedBy !== 'cronScheduler') {
+      await CronJob.deleteOne({ name: cronName, taskType: 'http' }).catch(() => {});
+      continue;
+    }
+
+    const cronExpression = String(schedule.cronExpression || '').trim() || '0 9 * * 2,4';
+    const timezone = String(schedule.timezone || '').trim() || 'UTC';
+    const enabled = Boolean(cfg.enabled);
+
+    const payload = {
+      name: cronName,
+      description: `Scheduled blog automation run for config: ${String(cfg.name || '').trim() || id}`,
+      cronExpression,
+      timezone,
+      enabled,
       nextRunAt: null,
       taskType: 'http',
       httpMethod: 'POST',
       httpUrl: automationUrl,
       httpHeaders: [],
-      httpBody: JSON.stringify({ trigger: 'scheduled' }),
+      httpBody: JSON.stringify({ trigger: 'scheduled', configId: id }),
       httpBodyType: 'json',
       httpAuth: { type: 'bearer', token },
       timeoutMs: 10 * 60 * 1000,
       createdBy: 'system',
-    });
+    };
+
+    const existing = await CronJob.findOne({ name: cronName, taskType: 'http' });
+    if (!existing) {
+      await CronJob.create(payload);
+    } else {
+      existing.description = payload.description;
+      existing.cronExpression = payload.cronExpression;
+      existing.timezone = payload.timezone;
+      existing.enabled = payload.enabled;
+      existing.httpUrl = payload.httpUrl;
+      existing.httpBody = payload.httpBody;
+      existing.httpBodyType = payload.httpBodyType;
+      existing.httpAuth = payload.httpAuth;
+      existing.timeoutMs = payload.timeoutMs;
+      await existing.save();
+    }
   }
 
   const existingPublisher = await CronJob.findOne({ name: CRON_NAME_PUBLISH_SCHEDULED, taskType: 'http' }).lean();
@@ -107,7 +160,7 @@ async function ensureCronJobs({ baseUrl, token }) {
 
 async function bootstrap() {
   // Ensure blog automation settings exist (config + style guide)
-  await blogAutomationService.getBlogAutomationConfig();
+  await blogAutomationService.getBlogAutomationConfigs();
   await blogAutomationService.getBlogAutomationStyleGuide();
 
   await ensureBlogImagesNamespace();
@@ -127,4 +180,5 @@ module.exports = {
   INTERNAL_CRON_TOKEN_SETTING_KEY,
   CRON_NAME_AUTOMATION,
   CRON_NAME_PUBLISH_SCHEDULED,
+  getAutomationCronNameForConfigId,
 };

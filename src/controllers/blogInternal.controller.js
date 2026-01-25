@@ -4,7 +4,9 @@ const blogPublishingService = require('../services/blogPublishing.service');
 exports.runAutomation = async (req, res) => {
   try {
     const trigger = req.body?.trigger === 'scheduled' ? 'scheduled' : 'manual';
-    const run = await blogAutomationService.runBlogAutomation({ trigger });
+    const configId = String(req.body?.configId || '').trim();
+    if (!configId) return res.status(400).json({ error: 'configId is required' });
+    const run = await blogAutomationService.runBlogAutomation({ trigger, configId });
     res.json({ run });
   } catch (error) {
     console.error('internal automation run error:', error);

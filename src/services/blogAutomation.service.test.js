@@ -92,14 +92,70 @@ describe('blogAutomation.service', () => {
 
   describe('runBlogAutomation edge cases', () => {
     test('returns skipped if disabled', async () => {
-      globalSettingsService.getSettingValue.mockResolvedValue(JSON.stringify({ enabled: false }));
+      const configsPayload = {
+        version: 1,
+        items: [
+          {
+            id: 'cfg1',
+            name: 'Default',
+            enabled: false,
+            schedule: { managedBy: 'manualOnly', cronExpression: '0 9 * * 2,4', timezone: 'UTC' },
+          },
+        ],
+      };
+
+      GlobalSetting.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ key: 'x' }) });
+
+      globalSettingsService.getSettingValue.mockImplementation(async (key) => {
+        if (key === 'blog.automation.configs') return JSON.stringify(configsPayload);
+        if (key === 'blog.automation.config') return JSON.stringify({ enabled: false });
+        if (key === 'blog.automation.styleGuide') return 'style';
+        return null;
+      });
       const mockRun = { status: 'skipped', error: 'Blog automation is disabled', toObject: () => ({ status: 'skipped', error: 'Blog automation is disabled' }) };
       BlogAutomationRun.create.mockResolvedValue(mockRun);
       
-      const result = await blogAutomationService.runBlogAutomation({ trigger: 'manual' });
+      const result = await blogAutomationService.runBlogAutomation({ trigger: 'manual', configId: 'cfg1' });
       
       expect(result.status).toBe('skipped');
       expect(result.error).toBe('Blog automation is disabled');
+    });
+
+    test('returns skipped if rate limited (scheduled)', async () => {
+      const configsPayload = {
+        version: 1,
+        items: [
+          {
+            id: 'cfg1',
+            name: 'Default',
+            enabled: true,
+            schedule: { managedBy: 'cron', cronExpression: '0 * * * *', minIntervalHours: 24 },
+          },
+        ],
+      };
+
+      globalSettingsService.getSettingValue.mockImplementation(async (key) => {
+        if (key === 'blog.automation.configs') return JSON.stringify(configsPayload);
+        if (key === 'blog.automation.styleGuide') return 'style';
+        return null;
+      });
+
+      // Mock a recent successful run within the 24h interval
+      BlogAutomationRun.findOne.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({
+          createdAt: new Date(Date.now() - 3600000), // 1 hour ago
+          status: 'success'
+        })
+      });
+
+      const mockRun = { status: 'skipped', error: 'Rate limited', toObject: () => ({ status: 'skipped', error: 'Rate limited' }) };
+      BlogAutomationRun.create.mockResolvedValue(mockRun);
+
+      const result = await blogAutomationService.runBlogAutomation({ trigger: 'scheduled', configId: 'cfg1' });
+
+      expect(result.status).toBe('skipped');
+      expect(result.error).toContain('Rate limited');
     });
   });
 });

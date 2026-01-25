@@ -18,6 +18,7 @@ const {
 } = require('./blog.service');
 
 const BLOG_AUTOMATION_CONFIG_KEY = 'blog.automation.config';
+const BLOG_AUTOMATION_CONFIGS_KEY = 'blog.automation.configs';
 const BLOG_AUTOMATION_STYLE_GUIDE_KEY = 'blog.automation.styleGuide';
 
 function defaultBlogAutomationConfig() {
@@ -44,11 +45,22 @@ function defaultBlogAutomationConfig() {
       temperature: 0.6,
       maxTokens: 2800,
     },
+    textGeneration: {
+      providerKey: 'OpenRouter',
+      model: 'google/gemini-2.5-flash-lite',
+      temperature: 0.6,
+      maxTokens: 2800,
+    },
+    imageGeneration: {
+      providerKey: 'OpenRouter',
+      model: 'google/gemini-2.5-flash-image',
+    },
     images: {
       enabled: false,
       maxImagesTotal: 2,
       assetNamespace: 'blog-images',
       assetVisibility: 'public',
+      promptExtraInstruction: '',
       cover: {
         enabled: false,
         providerKey: 'OpenRouter',
@@ -61,6 +73,43 @@ function defaultBlogAutomationConfig() {
       },
     },
     dryRun: false,
+  };
+}
+
+async function previewPromptsByConfigId(configId) {
+  const cfg = await getBlogAutomationConfigById(configId);
+  const styleGuide = await getEffectiveStyleGuideForConfig(cfg);
+  const topic = Array.isArray(cfg.topics) && cfg.topics.length ? cfg.topics[0] : { key: 'topic', label: 'Topic' };
+  const idea = { angle: `Example angle about ${topic.label}`, searchQuery: `Example query about ${topic.label}`, audience: 'operators' };
+  const research = { summary: 'Example research summary', keyPoints: [], sources: [] };
+  const ctx = { theme: topic, idea, research };
+  const citationsEnabled = Boolean(cfg?.citations?.enabled);
+  const title = 'Example blog post title';
+
+  return {
+    postPrompt: buildPostPrompt({ styleGuide, ctx, citationsEnabled }),
+    imageCoverPrompt: buildImagePrompt({ kind: 'cover', title, extraInstruction: cfg?.images?.promptExtraInstruction }),
+    imageInlinePrompt: buildImagePrompt({ kind: 'inline', title, extraInstruction: cfg?.images?.promptExtraInstruction }),
+  };
+}
+
+function defaultBlogAutomationConfigs() {
+  const base = defaultBlogAutomationConfig();
+  return {
+    version: 1,
+    items: [
+      {
+        id: crypto.randomUUID(),
+        name: 'Default',
+        schedule: {
+          managedBy: 'cronScheduler',
+          cronExpression: '0 9 * * 2,4',
+          timezone: 'UTC',
+        },
+        styleGuideOverride: '',
+        ...base,
+      },
+    ],
   };
 }
 
@@ -87,6 +136,160 @@ async function ensureSettingExists({ key, type, description, defaultValue }) {
   globalSettingsService.clearSettingsCache();
 }
 
+function normalizeAutomationConfigForSave(cfg) {
+  const base = defaultBlogAutomationConfig();
+  const merged = { ...base, ...(cfg || {}) };
+  merged.enabled = Boolean(merged.enabled);
+  merged.runsPerDayLimit = Math.max(0, Number(merged.runsPerDayLimit || 0) || 0);
+  merged.maxPostsPerRun = Math.max(1, Number(merged.maxPostsPerRun || 1) || 1);
+  merged.dedupeWindowDays = Math.max(0, Number(merged.dedupeWindowDays || 0) || 0);
+  if (!Array.isArray(merged.topics)) merged.topics = base.topics;
+  if (!merged.citations) merged.citations = { enabled: true, format: 'bullets' };
+  if (!merged.images) merged.images = base.images;
+
+  // Backward compatibility: treat legacy `generation` as the source of truth if `textGeneration` is not present.
+  if (!merged.textGeneration && merged.generation) {
+    merged.textGeneration = merged.generation;
+  }
+  if (merged.textGeneration && !merged.generation) {
+    merged.generation = merged.textGeneration;
+  }
+  if (!merged.imageGeneration) {
+    merged.imageGeneration = base.imageGeneration;
+  }
+  if (merged.images && typeof merged.images === 'object') {
+    merged.images.promptExtraInstruction = String(merged.images.promptExtraInstruction || '').trim();
+  }
+
+  return merged;
+}
+
+function buildPostPrompt({ styleGuide, ctx, citationsEnabled }) {
+  return (
+    'Write a blog post based on the research and constraints below.\n' +
+    'Return JSON with keys: title, excerpt, category, tags(array), seoTitle, seoDescription, markdown.\n' +
+    'Ensure markdown is complete and publish-ready.\n' +
+    (citationsEnabled
+      ? "Include a 'Sources' section at the end with bullet links based on sources[].\n"
+      : '') +
+    '\nStyle guide:\n' +
+    String(styleGuide || '') +
+    '\n\nContext (JSON):\n' +
+    JSON.stringify(ctx || {}, null, 2)
+  );
+}
+
+function buildImagePrompt({ kind, title, extraInstruction }) {
+  const base =
+    kind === 'cover'
+      ? `Generate a clean cover image (no text) for a blog post about: ${title}.`
+      : `Generate a single inline illustrative image (no text) to complement the blog post: ${title}.`;
+  const extra = String(extraInstruction || '').trim();
+  if (!extra) return base;
+  return base + '\n\nExtra instructions:\n' + extra;
+}
+
+function normalizeAutomationConfigItemForSave(item) {
+  const base = defaultBlogAutomationConfig();
+  const raw = item && typeof item === 'object' ? item : {};
+  const id = String(raw.id || '').trim() || crypto.randomUUID();
+  const name = String(raw.name || '').trim() || 'Untitled';
+  const scheduleRaw = raw.schedule && typeof raw.schedule === 'object' ? raw.schedule : {};
+  const schedule = {
+    managedBy: scheduleRaw.managedBy === 'manualOnly' ? 'manualOnly' : 'cronScheduler',
+    cronExpression: String(scheduleRaw.cronExpression || '').trim() || '0 9 * * 2,4',
+    timezone: String(scheduleRaw.timezone || '').trim() || 'UTC',
+  };
+  const styleGuideOverride = String(raw.styleGuideOverride || '').trim();
+
+  const merged = normalizeAutomationConfigForSave(raw);
+  return {
+    id,
+    name,
+    schedule,
+    styleGuideOverride,
+    ...merged,
+  };
+}
+
+async function getBlogAutomationConfigs() {
+  // Ensure legacy exists to allow migration if needed
+  await ensureSettingExists({
+    key: BLOG_AUTOMATION_CONFIG_KEY,
+    type: 'json',
+    description: 'Blog automation configuration (JSON)',
+    defaultValue: defaultBlogAutomationConfig(),
+  });
+
+  await ensureSettingExists({
+    key: BLOG_AUTOMATION_CONFIGS_KEY,
+    type: 'json',
+    description: 'Blog automation configurations (JSON)',
+    defaultValue: defaultBlogAutomationConfigs(),
+  });
+
+  const raw = await globalSettingsService.getSettingValue(
+    BLOG_AUTOMATION_CONFIGS_KEY,
+    JSON.stringify(defaultBlogAutomationConfigs()),
+  );
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = null;
+  }
+
+  const items = Array.isArray(parsed?.items) ? parsed.items : null;
+  if (items && items.length) {
+    return {
+      version: Number(parsed?.version || 1) || 1,
+      items: items.map(normalizeAutomationConfigItemForSave),
+    };
+  }
+
+  // Migrate from legacy single config if configs are empty/invalid
+  const legacyRaw = await globalSettingsService.getSettingValue(
+    BLOG_AUTOMATION_CONFIG_KEY,
+    JSON.stringify(defaultBlogAutomationConfig()),
+  );
+
+  let legacy;
+  try {
+    legacy = JSON.parse(legacyRaw);
+  } catch {
+    legacy = {};
+  }
+
+  const migrated = {
+    version: 1,
+    items: [
+      normalizeAutomationConfigItemForSave({
+        id: crypto.randomUUID(),
+        name: 'Default',
+        schedule: {
+          managedBy: 'cronScheduler',
+          cronExpression: '0 9 * * 2,4',
+          timezone: 'UTC',
+        },
+        styleGuideOverride: '',
+        ...normalizeAutomationConfigForSave(legacy),
+      }),
+    ],
+  };
+
+  const doc = await GlobalSetting.findOne({ key: BLOG_AUTOMATION_CONFIGS_KEY });
+  doc.type = 'json';
+  doc.value = JSON.stringify(migrated);
+  if (!doc.description) doc.description = 'Blog automation configurations (JSON)';
+  await doc.save();
+  globalSettingsService.clearSettingsCache();
+
+  return migrated;
+}
+
+// Legacy single-config getter (kept for backward compatibility and migration support).
+// Multi-config (`blog.automation.configs`) is the primary source of truth.
 async function getBlogAutomationConfig() {
   await ensureSettingExists({
     key: BLOG_AUTOMATION_CONFIG_KEY,
@@ -107,11 +310,24 @@ async function getBlogAutomationConfig() {
     parsed = {};
   }
 
-  const merged = { ...defaultBlogAutomationConfig(), ...(parsed || {}) };
-  if (!Array.isArray(merged.topics)) merged.topics = defaultBlogAutomationConfig().topics;
-  if (!merged.citations) merged.citations = { enabled: true, format: 'bullets' };
-  if (!merged.images) merged.images = defaultBlogAutomationConfig().images;
-  return merged;
+  return normalizeAutomationConfigForSave(parsed || {});
+}
+
+async function getBlogAutomationConfigById(configId) {
+  const id = String(configId || '').trim();
+  if (!id) {
+    const err = new Error('configId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+  const { items } = await getBlogAutomationConfigs();
+  const found = items.find((i) => String(i.id) === id);
+  if (!found) {
+    const err = new Error('Config not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  return found;
 }
 
 async function getBlogAutomationStyleGuide() {
@@ -128,6 +344,12 @@ async function getBlogAutomationStyleGuide() {
   );
 
   return String(raw ?? '');
+}
+
+async function getEffectiveStyleGuideForConfig(config) {
+  const globalGuide = await getBlogAutomationStyleGuide();
+  const override = String(config?.styleGuideOverride || '').trim();
+  return override ? override : globalGuide;
 }
 
 function safeJsonParseLoose(text) {
@@ -258,14 +480,15 @@ async function uploadBufferAsPublicAsset({ buffer, contentType, originalName, na
   return { asset: asset.toObject(), publicUrl };
 }
 
-async function runBlogAutomation({ trigger }) {
-  const cfg = await getBlogAutomationConfig();
-  const styleGuide = await getBlogAutomationStyleGuide();
+async function runBlogAutomation({ trigger, configId }) {
+  const cfg = await getBlogAutomationConfigById(configId);
+  const styleGuide = await getEffectiveStyleGuideForConfig(cfg);
 
   if (!cfg.enabled) {
     const run = await BlogAutomationRun.create({
       trigger,
       status: 'skipped',
+      configId: String(cfg.id),
       configSnapshot: cfg,
       error: 'Blog automation is disabled',
     });
@@ -278,6 +501,7 @@ async function runBlogAutomation({ trigger }) {
       const run = await BlogAutomationRun.create({
         trigger,
         status: 'skipped',
+        configId: String(cfg.id),
         configSnapshot: cfg,
         error: 'runsPerDayLimit reached',
       });
@@ -290,6 +514,7 @@ async function runBlogAutomation({ trigger }) {
     const run = await BlogAutomationRun.create({
       trigger,
       status: 'skipped',
+      configId: String(cfg.id),
       configSnapshot: cfg,
       error: 'Another run is already in progress',
     });
@@ -300,6 +525,7 @@ async function runBlogAutomation({ trigger }) {
     trigger,
     status: 'running',
     startedAt: new Date(),
+    configId: String(cfg.id),
     configSnapshot: cfg,
     steps: [],
     results: {},
@@ -312,11 +538,11 @@ async function runBlogAutomation({ trigger }) {
 
     const citationsEnabled = Boolean(cfg?.citations?.enabled);
 
-    // Step 1: idea generation (generation provider)
+    // Step 1: idea generation (text generation provider)
     const ideaResp = await llmService.callAdhoc(
       {
-        providerKey: cfg.generation.providerKey,
-        model: cfg.generation.model,
+        providerKey: cfg.textGeneration.providerKey,
+        model: cfg.textGeneration.model,
         promptKeyForAudit: 'blog.automation.idea',
         messages: [
           {
@@ -382,29 +608,19 @@ async function runBlogAutomation({ trigger }) {
 
     // Step 3: generate post
     const ctx = { theme: topic, idea, research };
-    const basePostPrompt =
-      'Write a blog post based on the research and constraints below.\n' +
-      'Return JSON with keys: title, excerpt, category, tags(array), seoTitle, seoDescription, markdown.\n' +
-      'Ensure markdown is complete and publish-ready.\n' +
-      (citationsEnabled
-        ? "Include a 'Sources' section at the end with bullet links based on sources[].\n"
-        : '') +
-      '\nStyle guide:\n' +
-      styleGuide +
-      '\n\nContext (JSON):\n' +
-      JSON.stringify(ctx, null, 2);
+    const basePostPrompt = buildPostPrompt({ styleGuide, ctx, citationsEnabled });
 
     const postResp = await llmService.callAdhoc(
       {
-        providerKey: cfg.generation.providerKey,
-        model: cfg.generation.model,
+        providerKey: cfg.textGeneration.providerKey,
+        model: cfg.textGeneration.model,
         promptKeyForAudit: 'blog.automation.generate_post',
         messages: [
           { role: 'system', content: 'Return ONLY valid JSON (no markdown fences).' },
           { role: 'user', content: basePostPrompt },
         ],
       },
-      { temperature: cfg.generation.temperature, max_tokens: cfg.generation.maxTokens },
+      { temperature: cfg.textGeneration.temperature, max_tokens: cfg.textGeneration.maxTokens },
     );
 
     let postJson = safeJsonParseLoose(postResp.content);
@@ -414,8 +630,8 @@ async function runBlogAutomation({ trigger }) {
       // Fallback: markdown-only
       const mdOnly = await llmService.callAdhoc(
         {
-          providerKey: cfg.generation.providerKey,
-          model: cfg.generation.model,
+          providerKey: cfg.textGeneration.providerKey,
+          model: cfg.textGeneration.model,
           promptKeyForAudit: 'blog.automation.generate_markdown_only',
           messages: [
             {
@@ -436,7 +652,7 @@ async function runBlogAutomation({ trigger }) {
             },
           ],
         },
-        { temperature: cfg.generation.temperature, max_tokens: cfg.generation.maxTokens },
+        { temperature: cfg.textGeneration.temperature, max_tokens: cfg.textGeneration.maxTokens },
       );
 
       const fallbackMarkdown = String(mdOnly.content || '').trim();
@@ -536,9 +752,9 @@ async function runBlogAutomation({ trigger }) {
       if (coverEnabled && imagesLeft > 0) {
         try {
           coverImageUrl = await generateImage({
-            providerKey: String(cfg.images.cover.providerKey || cfg.generation.providerKey),
-            model: String(cfg.images.cover.model || ''),
-            prompt: `Generate a clean cover image (no text) for a blog post about: ${title}.`,
+            providerKey: String(cfg.images.cover.providerKey || cfg.imageGeneration.providerKey || cfg.textGeneration.providerKey),
+            model: String(cfg.images.cover.model || cfg.imageGeneration.model || ''),
+            prompt: buildImagePrompt({ kind: 'cover', title, extraInstruction: cfg?.images?.promptExtraInstruction }),
             name: 'blog-cover',
           });
         } catch (e) {
@@ -550,9 +766,9 @@ async function runBlogAutomation({ trigger }) {
       if (inlineEnabled && imagesLeft > 0) {
         try {
           const inlineUrl = await generateImage({
-            providerKey: String(cfg.images.inline.providerKey || cfg.generation.providerKey),
-            model: String(cfg.images.inline.model || ''),
-            prompt: `Generate a single inline illustrative image (no text) to complement the blog post: ${title}.`,
+            providerKey: String(cfg.images.inline.providerKey || cfg.imageGeneration.providerKey || cfg.textGeneration.providerKey),
+            model: String(cfg.images.inline.model || cfg.imageGeneration.model || ''),
+            prompt: buildImagePrompt({ kind: 'inline', title, extraInstruction: cfg?.images?.promptExtraInstruction }),
             name: 'blog-inline',
           });
           markdown = `\n![](${inlineUrl})\n\n` + markdown;
@@ -635,26 +851,93 @@ async function runBlogAutomation({ trigger }) {
   }
 }
 
-async function listRuns({ limit = 30 } = {}) {
+async function listRuns({ limit = 30, configId } = {}) {
   const l = Math.min(100, Math.max(1, Number(limit) || 30));
-  const runs = await BlogAutomationRun.find({}).sort({ createdAt: -1 }).limit(l).lean();
+  const filter = {};
+  if (String(configId || '').trim()) filter.configId = String(configId).trim();
+  const runs = await BlogAutomationRun.find(filter).sort({ createdAt: -1 }).limit(l).lean();
   return runs;
 }
 
-async function updateConfig(config) {
+async function saveBlogAutomationConfigs(configs) {
   await ensureSettingExists({
-    key: BLOG_AUTOMATION_CONFIG_KEY,
+    key: BLOG_AUTOMATION_CONFIGS_KEY,
     type: 'json',
-    description: 'Blog automation configuration (JSON)',
-    defaultValue: defaultBlogAutomationConfig(),
+    description: 'Blog automation configurations (JSON)',
+    defaultValue: defaultBlogAutomationConfigs(),
   });
 
-  const doc = await GlobalSetting.findOne({ key: BLOG_AUTOMATION_CONFIG_KEY });
+  const version = Number(configs?.version || 1) || 1;
+  const items = Array.isArray(configs?.items) ? configs.items : [];
+  const normalized = { version, items: items.map(normalizeAutomationConfigItemForSave) };
+
+  const doc = await GlobalSetting.findOne({ key: BLOG_AUTOMATION_CONFIGS_KEY });
   doc.type = 'json';
-  doc.value = JSON.stringify(config || {});
-  if (!doc.description) doc.description = 'Blog automation configuration (JSON)';
+  doc.value = JSON.stringify(normalized);
+  if (!doc.description) doc.description = 'Blog automation configurations (JSON)';
   await doc.save();
   globalSettingsService.clearSettingsCache();
+
+  return normalized;
+}
+
+async function createAutomationConfig({ name } = {}) {
+  const configs = await getBlogAutomationConfigs();
+  const item = normalizeAutomationConfigItemForSave({
+    id: crypto.randomUUID(),
+    name: String(name || '').trim() || 'New configuration',
+    schedule: {
+      managedBy: 'cronScheduler',
+      cronExpression: '0 9 * * 2,4',
+      timezone: 'UTC',
+    },
+    styleGuideOverride: '',
+  });
+
+  configs.items.unshift(item);
+  await saveBlogAutomationConfigs(configs);
+  return item;
+}
+
+async function updateAutomationConfig(configId, patch) {
+  const id = String(configId || '').trim();
+  if (!id) {
+    const err = new Error('configId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const configs = await getBlogAutomationConfigs();
+  const idx = configs.items.findIndex((i) => String(i.id) === id);
+  if (idx === -1) {
+    const err = new Error('Config not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const updated = normalizeAutomationConfigItemForSave({ ...configs.items[idx], ...(patch || {}), id });
+  configs.items[idx] = updated;
+  await saveBlogAutomationConfigs(configs);
+  return updated;
+}
+
+async function deleteAutomationConfig(configId) {
+  const id = String(configId || '').trim();
+  if (!id) {
+    const err = new Error('configId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const configs = await getBlogAutomationConfigs();
+  const before = configs.items.length;
+  configs.items = configs.items.filter((i) => String(i.id) !== id);
+  if (configs.items.length === before) {
+    const err = new Error('Config not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  await saveBlogAutomationConfigs(configs);
 }
 
 async function updateStyleGuide(styleGuide) {
@@ -675,13 +958,21 @@ async function updateStyleGuide(styleGuide) {
 
 module.exports = {
   BLOG_AUTOMATION_CONFIG_KEY,
+  BLOG_AUTOMATION_CONFIGS_KEY,
   BLOG_AUTOMATION_STYLE_GUIDE_KEY,
   defaultBlogAutomationConfig,
+  defaultBlogAutomationConfigs,
   defaultBlogAutomationStyleGuide,
   getBlogAutomationConfig,
+  getBlogAutomationConfigs,
+  getBlogAutomationConfigById,
   getBlogAutomationStyleGuide,
-  updateConfig,
+  saveBlogAutomationConfigs,
+  createAutomationConfig,
+  updateAutomationConfig,
+  deleteAutomationConfig,
   updateStyleGuide,
   listRuns,
   runBlogAutomation,
+  previewPromptsByConfigId,
 };
