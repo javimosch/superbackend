@@ -102,6 +102,15 @@
                   <label class="block text-sm font-medium">Route path</label>
                   <input id="seo-ai-route" class="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="/marketplace" />
                 </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <%- include('partials/llm-provider-model-picker', {
+                    providerInputId: 'seoAiProviderKey',
+                    modelInputId: 'seoAiModel',
+                    providerLabel: 'Provider',
+                    modelLabel: 'Model',
+                    showOpenRouterFetch: true,
+                  }) %>
+                </div>
                 <div class="flex gap-2">
                   <button class="px-3 py-2 bg-purple-600 text-white rounded hover:bg-purple-700 text-sm" onclick="seoAiGenerateFromView()">Generate entry</button>
                   <button class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm" onclick="seoAiApplyProposed()">Apply</button>
@@ -123,6 +132,15 @@
                 <div>
                   <label class="block text-sm font-medium">Instruction</label>
                   <input id="seo-ai-instruction" class="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Improve description including desktop apps" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <%- include('partials/llm-provider-model-picker', {
+                    providerInputId: 'seoAiImproveProviderKey',
+                    modelInputId: 'seoAiImproveModel',
+                    providerLabel: 'Provider',
+                    modelLabel: 'Model',
+                    showOpenRouterFetch: true,
+                  }) %>
                 </div>
                 <div class="flex gap-2">
                   <label class="inline-flex items-center gap-2 text-sm text-gray-700">
@@ -219,9 +237,16 @@
       </div>
 
       <div class="mb-3">
-        <label class="block text-sm font-medium mb-1">Model (optional override)</label>
-        <input id="ai-model" class="w-full border rounded px-3 py-2 text-sm" placeholder="google/gemini-2.5-flash-lite" />
-        <div class="mt-1 text-xs text-gray-600">Uses <code>seoconfig.ai.openrouter.*</code> settings with fallback to <code>ai.openrouter.*</code>. Disabled if no API key.</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <%- include('partials/llm-provider-model-picker', {
+            providerInputId: 'ogAiProviderKey',
+            modelInputId: 'ai-model',
+            providerLabel: 'Provider',
+            modelLabel: 'Model (optional override)',
+            showOpenRouterFetch: true,
+          }) %>
+        </div>
+        <div class="mt-1 text-xs text-gray-600">Legacy OpenRouter keys (<code>seoconfig.ai.openrouter.apiKey</code> / <code>ai.openrouter.apiKey</code>) are still supported when provider is <code>openrouter</code>.</div>
       </div>
 
       <div class="flex justify-end gap-2">
@@ -233,7 +258,15 @@
   </div>
 
   <script>
-    const API_BASE = window.location.origin + "<%= baseUrl %>";
+    const API_BASE = window.location.origin + "<%= baseUrl || '' %>";
+
+    function initLlmPickers() {
+      if (!window.__llmProviderModelPicker || !window.__llmProviderModelPicker.init) return;
+
+      window.__llmProviderModelPicker.init({ apiBase: API_BASE, providerInputId: 'seoAiProviderKey', modelInputId: 'seoAiModel' });
+      window.__llmProviderModelPicker.init({ apiBase: API_BASE, providerInputId: 'seoAiImproveProviderKey', modelInputId: 'seoAiImproveModel' });
+      window.__llmProviderModelPicker.init({ apiBase: API_BASE, providerInputId: 'ogAiProviderKey', modelInputId: 'ai-model' });
+    }
 
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
@@ -409,10 +442,17 @@
       try {
         const viewPath = document.getElementById('seo-ai-view').value;
         const routePath = document.getElementById('seo-ai-route').value;
+        const providerKey = document.getElementById('seoAiProviderKey')?.value;
+        const model = document.getElementById('seoAiModel')?.value;
         const res = await fetch(`${API_BASE}/api/admin/seo-config/ai/generate-entry`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ viewPath, routePath }),
+          body: JSON.stringify({
+            viewPath,
+            routePath,
+            providerKey: providerKey ? String(providerKey).trim() : undefined,
+            model: model ? String(model).trim() : undefined,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || 'Failed to generate entry');
@@ -432,10 +472,17 @@
       try {
         const routePath = document.getElementById('seo-ai-existing-route').value;
         const instruction = document.getElementById('seo-ai-instruction').value;
+        const providerKey = document.getElementById('seoAiImproveProviderKey')?.value;
+        const model = document.getElementById('seoAiImproveModel')?.value;
         const res = await fetch(`${API_BASE}/api/admin/seo-config/ai/improve-entry`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ routePath, instruction }),
+          body: JSON.stringify({
+            routePath,
+            instruction,
+            providerKey: providerKey ? String(providerKey).trim() : undefined,
+            model: model ? String(model).trim() : undefined,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || 'Failed to improve entry');
@@ -617,6 +664,7 @@
       document.getElementById('ai-instruction').value = '';
       document.getElementById('ai-model').value = '';
       document.getElementById('ai-modal').classList.remove('hidden');
+      initLlmPickers();
     }
 
     function closeAiModal() {
@@ -634,11 +682,17 @@
         const svgRaw = document.getElementById('og-svg-raw').value;
         const instruction = document.getElementById('ai-instruction').value;
         const model = document.getElementById('ai-model').value;
+        const providerKey = document.getElementById('ogAiProviderKey')?.value;
 
         const res = await fetch(`${API_BASE}/api/admin/seo-config/ai/edit-svg`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ svgRaw, instruction, model: model || undefined }),
+          body: JSON.stringify({
+            svgRaw,
+            instruction,
+            providerKey: providerKey ? String(providerKey).trim() : undefined,
+            model: model || undefined,
+          }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data?.error || 'AI failed');

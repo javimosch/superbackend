@@ -207,17 +207,13 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
               </div>
 
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Provider</label>
-                  <select v-model="ai.providerKey" class="w-full border rounded px-2 py-2 text-sm">
-                    <option value="">(default)</option>
-                    <option v-for="k in llmProviderKeys" :key="k" :value="k">{{ k }}</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">Model</label>
-                  <input v-model="ai.model" class="w-full border rounded px-2 py-2 text-sm" placeholder="(default)" />
-                </div>
+                <%- include('partials/llm-provider-model-picker', {
+                  providerInputId: 'uiComponentsAiProviderKey',
+                  modelInputId: 'uiComponentsAiModel',
+                  providerLabel: 'Provider',
+                  modelLabel: 'Model',
+                  showOpenRouterFetch: true,
+                }) %>
               </div>
 
               <div>
@@ -346,6 +342,7 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
         setup() {
           const baseUrl = '<%= baseUrl %>';
           const adminPath = '<%= adminPath %>';
+          const API_BASE = window.location.origin + baseUrl;
 
           const STORAGE_KEYS = {
             providerKey: 'uiComponents.ai.providerKey',
@@ -393,7 +390,6 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
           const assignments = ref([]);
           const lastGeneratedKey = ref('');
 
-          const llmProviderKeys = ref([]);
           const ai = ref({
             providerKey: localStorage.getItem(STORAGE_KEYS.providerKey) || '',
             model: localStorage.getItem(STORAGE_KEYS.model) || '',
@@ -428,11 +424,56 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
             persistHelpState();
           }
 
+          function syncAiPickerToVue() {
+            const providerEl = document.getElementById('uiComponentsAiProviderKey');
+            const modelEl = document.getElementById('uiComponentsAiModel');
+            if (providerEl) providerEl.value = String(ai.value.providerKey || '');
+            if (modelEl) modelEl.value = String(ai.value.model || '');
+          }
+
+          function wireAiPickerListeners() {
+            const providerEl = document.getElementById('uiComponentsAiProviderKey');
+            const modelEl = document.getElementById('uiComponentsAiModel');
+            if (!providerEl || !modelEl) return;
+
+            if (providerEl.dataset.wired === '1') return;
+            providerEl.dataset.wired = '1';
+            modelEl.dataset.wired = '1';
+
+            providerEl.addEventListener('input', () => {
+              ai.value.providerKey = String(providerEl.value || '');
+              persistAiSettings();
+            });
+            providerEl.addEventListener('change', () => {
+              ai.value.providerKey = String(providerEl.value || '');
+              persistAiSettings();
+            });
+
+            modelEl.addEventListener('input', () => {
+              ai.value.model = String(modelEl.value || '');
+              persistAiSettings();
+            });
+            modelEl.addEventListener('change', () => {
+              ai.value.model = String(modelEl.value || '');
+              persistAiSettings();
+            });
+          }
+
+          async function initAiPicker() {
+            if (!window.__llmProviderModelPicker || !window.__llmProviderModelPicker.init) return;
+            await window.__llmProviderModelPicker.init({
+              apiBase: API_BASE,
+              providerInputId: 'uiComponentsAiProviderKey',
+              modelInputId: 'uiComponentsAiModel',
+            });
+            syncAiPickerToVue();
+            wireAiPickerListeners();
+          }
+
           async function loadLlmConfig() {
             try {
-              const data = await api('/api/admin/llm/config');
-              const providers = data && data.providers ? data.providers : {};
-              llmProviderKeys.value = Object.keys(providers || {}).sort();
+              await initAiPicker();
+              showToast('LLM config reloaded', 'success');
             } catch (e) {
               showToast(e.message, 'error');
             }
@@ -658,13 +699,8 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
           onMounted(async () => {
             try {
               loadHelpState();
-              await loadLlmConfig();
               await refreshAll();
-              // Replace __ORIGIN__ in auto-inject snippet
-              const snippetEl = document.querySelector('.autoInjectSnippet code');
-              if (snippetEl) {
-                snippetEl.innerHTML = snippetEl.innerHTML.split('__ORIGIN__').join(window.location.origin);
-              }
+              await initAiPicker();
             } catch (e) {
               showToast(e.message, 'error');
             }
@@ -683,14 +719,10 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
             newProject,
             componentEditor,
             toggleHelp,
-            llmProviderKeys,
             ai,
             aiLoading,
             aiProposal,
             aiWarnings,
-            loadLlmConfig,
-            aiPropose,
-            aiApply,
             refreshAll,
             createProject,
             selectProject,

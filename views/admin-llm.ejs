@@ -34,6 +34,47 @@
       </div>
 
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <!-- Defaults + Model Suggestions -->
+        <div class="bg-white rounded-lg shadow">
+          <div class="px-4 py-3 border-b">
+            <h2 class="text-lg font-semibold text-gray-900">Centralized Defaults</h2>
+            <p class="text-sm text-gray-600">Global and per-system defaults used by AI features (provider/model). Models are suggestions only.</p>
+          </div>
+          <div class="p-4 space-y-4">
+            <div class="flex items-center justify-end">
+              <button id="btnSaveCentralDefaults" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">Save centralized defaults</button>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-medium mb-1">Global default providerKey</label>
+                <input id="defaultsProviderKey" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g. openrouter" />
+              </div>
+              <div>
+                <label class="block text-xs font-medium mb-1">Global default model</label>
+                <input id="defaultsModel" type="text" class="w-full border rounded px-2 py-1 text-sm" placeholder="e.g. google/gemini-2.5-flash-lite" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-medium">System defaults (JSON map)</label>
+                </div>
+                <textarea id="systemDefaultsJson" rows="8" class="w-full border rounded px-2 py-1 text-sm font-mono" placeholder="{\n  &quot;pageBuilder.blocks.generate&quot;: { &quot;providerKey&quot;: &quot;openrouter&quot;, &quot;model&quot;: &quot;...&quot; }\n}"></textarea>
+                <p class="text-[11px] text-gray-500 mt-1">Stored as <code>llm.systemDefaults</code>.</p>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="block text-xs font-medium">Provider model suggestions (JSON map)</label>
+                  <button id="btnFetchOpenRouterModels" class="px-2 py-1 bg-gray-200 text-gray-800 rounded text-xs">Fetch OpenRouter models</button>
+                </div>
+                <textarea id="providerModelsJson" rows="8" class="w-full border rounded px-2 py-1 text-sm font-mono" placeholder="{\n  &quot;openrouter&quot;: [\"google/gemini-2.5-flash-lite\"]\n}"></textarea>
+                <p class="text-[11px] text-gray-500 mt-1">Stored as <code>llm.providerModels</code>. Suggestions only.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Providers + Prompts -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <!-- Providers -->
@@ -388,6 +429,9 @@ console.log(result.content);</pre>
       const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
       let providers = {};
       let prompts = {};
+      let defaults = { providerKey: '', model: '' };
+      let systemDefaults = {};
+      let providerModels = {};
       let auditPage = 1;
       let costPage = 1;
 
@@ -479,6 +523,14 @@ console.log(result.content);</pre>
           if (!res.ok) throw new Error(data?.error || 'Failed to load config');
           providers = data.providers || {};
           prompts = data.prompts || {};
+          defaults = data.defaults || { providerKey: '', model: '' };
+          systemDefaults = data.systemDefaults || {};
+          providerModels = data.providerModels || {};
+
+          document.getElementById('defaultsProviderKey').value = defaults.providerKey || '';
+          document.getElementById('defaultsModel').value = defaults.model || '';
+          document.getElementById('systemDefaultsJson').value = JSON.stringify(systemDefaults || {}, null, 2);
+          document.getElementById('providerModelsJson').value = JSON.stringify(providerModels || {}, null, 2);
           renderProviders();
           renderPrompts();
         } catch (e) {
@@ -488,14 +540,57 @@ console.log(result.content);</pre>
 
       async function saveConfig() {
         try {
+          defaults = {
+            providerKey: document.getElementById('defaultsProviderKey').value.trim(),
+            model: document.getElementById('defaultsModel').value.trim(),
+          };
+
+          try {
+            const rawSystemDefaults = document.getElementById('systemDefaultsJson').value;
+            systemDefaults = rawSystemDefaults && rawSystemDefaults.trim() ? JSON.parse(rawSystemDefaults) : {};
+          } catch (e) {
+            showToast('Invalid systemDefaults JSON: ' + e.message, 'error');
+            return;
+          }
+
+          try {
+            const rawProviderModels = document.getElementById('providerModelsJson').value;
+            providerModels = rawProviderModels && rawProviderModels.trim() ? JSON.parse(rawProviderModels) : {};
+          } catch (e) {
+            showToast('Invalid providerModels JSON: ' + e.message, 'error');
+            return;
+          }
+
           const res = await fetch(`${API_BASE}/api/admin/llm/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ providers, prompts }),
+            body: JSON.stringify({ providers, prompts, defaults, systemDefaults, providerModels }),
           });
           const data = await res.json();
           if (!res.ok) throw new Error(data?.error || 'Failed to save config');
           showToast('Config saved');
+        } catch (e) {
+          showToast(e.message, 'error');
+        }
+      }
+
+      async function fetchOpenRouterModels() {
+        try {
+          const res = await fetch(`${API_BASE}/api/admin/llm/openrouter/models`);
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || 'Failed to fetch OpenRouter models');
+          const models = Array.isArray(data?.models) ? data.models : [];
+
+          const rawProviderModels = document.getElementById('providerModelsJson').value;
+          let map = {};
+          try {
+            map = rawProviderModels && rawProviderModels.trim() ? JSON.parse(rawProviderModels) : {};
+          } catch (_) {
+            map = {};
+          }
+          map.openrouter = models;
+          document.getElementById('providerModelsJson').value = JSON.stringify(map, null, 2);
+          showToast('OpenRouter models loaded');
         } catch (e) {
           showToast(e.message, 'error');
         }
@@ -847,6 +942,9 @@ console.log(result.content);</pre>
       document.getElementById('btnCancelProvider').addEventListener('click', closeProviderEditor);
       document.getElementById('btnSaveProvider').addEventListener('click', createOrUpdateProviderFromForm);
       document.getElementById('providerPreset').addEventListener('change', applyProviderPresetDefaults);
+
+      document.getElementById('btnFetchOpenRouterModels').addEventListener('click', fetchOpenRouterModels);
+      document.getElementById('btnSaveCentralDefaults').addEventListener('click', saveConfig);
 
       document.getElementById('btnAddPrompt').addEventListener('click', () => openPromptEditor(null));
       document.getElementById('btnCancelPrompt').addEventListener('click', closePromptEditor);

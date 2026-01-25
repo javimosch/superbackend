@@ -113,6 +113,17 @@
               <div class="text-xs text-gray-600 mb-1">To</div>
               <input id="entryAiTo" class="border rounded px-3 py-2" readonly />
             </div>
+            <div class="flex-1">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <%- include('partials/llm-provider-model-picker', {
+                  providerInputId: 'entryAiProviderKey',
+                  modelInputId: 'entryAiModel',
+                  providerLabel: 'Provider',
+                  modelLabel: 'Model',
+                  showOpenRouterFetch: true,
+                }) %>
+              </div>
+            </div>
             <div class="flex gap-2">
               <button type="button" onclick="aiTranslateEntry()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">AI translate</button>
             </div>
@@ -147,8 +158,15 @@
           <input id="aiFilter" class="w-full border rounded px-3 py-2" placeholder="Filter keys..." oninput="renderAiCandidates()" />
         </div>
         <div>
-          <label class="block text-sm font-medium mb-2">Model</label>
-          <input id="aiModel" class="w-full border rounded px-3 py-2" placeholder="(optional)" />
+          <div class="grid grid-cols-1 gap-2">
+            <%- include('partials/llm-provider-model-picker', {
+              providerInputId: 'aiProviderKey',
+              modelInputId: 'aiModel',
+              providerLabel: 'Provider',
+              modelLabel: 'Model',
+              showOpenRouterFetch: true,
+            }) %>
+          </div>
         </div>
         <div class="flex items-center gap-2 pt-8">
           <input id="aiMissing" type="checkbox" onchange="renderAiCandidates()" />
@@ -204,7 +222,7 @@
   </div>
 
   <script>
-    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+    const API_BASE = window.location.origin + "<%= baseUrl || '' %>";
     let allLocales = [];
     let aiResults = [];
     let aiCandidates = [];
@@ -212,6 +230,22 @@
     let aiSelectedKeys = new Set();
     let aiToLocaleKeySet = null;
     let aiToLocaleKeySetFor = null;
+
+    function initLlmPickers() {
+      if (!window.__llmProviderModelPicker || !window.__llmProviderModelPicker.init) return;
+
+      window.__llmProviderModelPicker.init({
+        apiBase: API_BASE,
+        providerInputId: 'aiProviderKey',
+        modelInputId: 'aiModel',
+      });
+
+      window.__llmProviderModelPicker.init({
+        apiBase: API_BASE,
+        providerInputId: 'entryAiProviderKey',
+        modelInputId: 'entryAiModel',
+      });
+    }
 
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
@@ -323,6 +357,7 @@
       document.getElementById('entryLocale').disabled = false;
 
       document.getElementById('modal').classList.remove('hidden');
+      initLlmPickers();
     }
 
     function createMissing(key) {
@@ -341,6 +376,7 @@
       document.getElementById('entryLocale').disabled = true;
 
       document.getElementById('modal').classList.remove('hidden');
+      initLlmPickers();
     }
 
     async function aiTranslateEntry() {
@@ -348,11 +384,19 @@
         const fromLocale = document.getElementById('entryAiFrom').value;
         const toLocale = document.getElementById('entryAiTo').value || document.getElementById('entryLocale').value;
         const text = document.getElementById('entryValue').value;
+        const providerKey = document.getElementById('entryAiProviderKey')?.value;
+        const model = document.getElementById('entryAiModel')?.value;
 
         const res = await fetch(`${API_BASE}/api/admin/i18n/ai/translate-text`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fromLocale, toLocale, text })
+          body: JSON.stringify({
+            fromLocale,
+            toLocale,
+            text,
+            providerKey: providerKey ? String(providerKey).trim() : undefined,
+            model: model ? String(model).trim() : undefined,
+          })
         });
 
         if (!res.ok) {
@@ -390,6 +434,7 @@
         document.getElementById('entryLocale').disabled = true;
 
         document.getElementById('modal').classList.remove('hidden');
+        initLlmPickers();
       } catch (e) {
         showToast(e.message, 'error');
       }
@@ -489,6 +534,7 @@
       document.getElementById('aiCandidateSummary').textContent = '0 selected';
 
       document.getElementById('aiModal').classList.remove('hidden');
+      initLlmPickers();
       loadAiCandidates();
     }
 
@@ -634,6 +680,7 @@
       try {
         const fromLocale = document.getElementById('aiFrom').value;
         const toLocale = document.getElementById('aiTo').value;
+        const providerKey = document.getElementById('aiProviderKey')?.value;
         const model = document.getElementById('aiModel').value;
         const keys = Array.from(aiSelectedKeys);
 
@@ -645,7 +692,14 @@
         const res = await fetch(`${API_BASE}/api/admin/i18n/ai/preview`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fromLocale, toLocale, keys, missingOnly: false, model: model || undefined })
+          body: JSON.stringify({
+            fromLocale,
+            toLocale,
+            keys,
+            missingOnly: false,
+            providerKey: providerKey ? String(providerKey).trim() : undefined,
+            model: model ? String(model).trim() : undefined,
+          })
         });
 
         if (!res.ok) {

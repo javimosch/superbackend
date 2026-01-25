@@ -221,14 +221,14 @@
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <%- include('partials/llm-provider-model-picker', {
+              providerInputId: 'blocks-ai-provider',
+              modelInputId: 'blocks-ai-model',
+              providerLabel: 'Provider (required)',
+              modelLabel: 'Model (optional)',
+              showOpenRouterFetch: true,
+            }) %>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Provider (required)</label>
-              <select id="blocks-ai-provider" class="w-full border rounded px-3 py-2 text-sm"></select>
-              <div class="text-xs text-gray-500 mt-1">Populated from <span class="font-mono">/api/admin/llm/config</span> (enabled providers only).</div>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">Model (optional)</label>
-              <input id="blocks-ai-model" type="text" class="w-full border rounded px-3 py-2 text-sm" placeholder="e.g. gpt-4.1-mini" />
               <div id="blocks-ai-model-hint" class="text-xs text-gray-500 mt-1"></div>
             </div>
           </div>
@@ -239,7 +239,7 @@
           </div>
 
           <div class="text-xs text-gray-500 mt-3">
-            Resolution order: request override → Global settings (<span class="font-mono">pageBuilder.blocks.ai.providerKey</span>, <span class="font-mono">pageBuilder.blocks.ai.model</span>) → env (<span class="font-mono">DEFAULT_LLM_PROVIDER_KEY</span>, <span class="font-mono">DEFAULT_LLM_MODEL</span>).
+            Resolution order: request override → System defaults (<span class="font-mono">llm.systemDefaults.pageBuilder.blocks.generate</span>) → Global defaults (<span class="font-mono">llm.defaults.*</span>) → legacy settings (<span class="font-mono">pageBuilder.blocks.ai.*</span>) → env.
           </div>
         </div>
       </div>
@@ -485,7 +485,7 @@
   <div id="toast" class="fixed bottom-4 right-4 px-4 py-2 rounded shadow-lg text-white hidden z-50"></div>
 
   <script>
-    const API_BASE = '<%= baseUrl %>';
+    const API_BASE = window.location.origin + "<%= baseUrl || '' %>";
     const ADMIN_PATH = '<%= adminPath %>';
 
     const state = {
@@ -538,6 +538,8 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
+        state.llmConfig = data && typeof data === 'object' ? data : {};
+
         const providersObj = data.providers && typeof data.providers === 'object' ? data.providers : {};
         const providers = Object.entries(providersObj)
           .map(([key, val]) => ({
@@ -552,6 +554,7 @@
         return providers;
       } catch (_) {
         state.llmProviders = [];
+        state.llmConfig = {};
         return [];
       }
     }
@@ -565,8 +568,14 @@
     }
 
     async function upsertStringSetting({ key, value, description }) {
-      const getRes = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, { credentials: 'same-origin' });
-      if (getRes.status === 404) {
+      const putRes = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ value: String(value || '') }),
+      });
+
+      if (putRes.status === 404) {
         const createRes = await fetch(`${API_BASE}/api/admin/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -584,14 +593,8 @@
         return;
       }
 
-      const putRes = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ value: String(value || '') }),
-      });
-      const putData = await putRes.json();
-      if (!putRes.ok) throw new Error(putData.error);
+      const putData = await putRes.json().catch(() => ({}));
+      if (!putRes.ok) throw new Error(putData.error || 'Failed to save setting');
     }
 
     async function loadBlocksAiSettings() {
@@ -602,13 +605,22 @@
         const hintEl = document.getElementById('blocks-ai-model-hint');
         if (!providerEl || !modelEl || !hintEl) return;
 
-        providerEl.innerHTML = '<option value="">Select provider...</option>';
-        providers.forEach((p) => {
-          providerEl.innerHTML += `<option value="${escapeHtml(p.key)}">${escapeHtml(p.label)} (${escapeHtml(p.key)})</option>`;
-        });
+        if (window.__llmProviderModelPicker && window.__llmProviderModelPicker.init) {
+          await window.__llmProviderModelPicker.init({
+            apiBase: API_BASE,
+            providerInputId: 'blocks-ai-provider',
+            modelInputId: 'blocks-ai-model',
+          });
+        }
 
-        const providerKey = await getSettingValueOrEmpty('pageBuilder.blocks.ai.providerKey');
-        const model = await getSettingValueOrEmpty('pageBuilder.blocks.ai.model');
+        const systemDefaults = state.llmConfig && typeof state.llmConfig === 'object' ? state.llmConfig.systemDefaults : null;
+        const blockDefaults = systemDefaults && typeof systemDefaults === 'object' ? systemDefaults['pageBuilder.blocks.generate'] : null;
+
+        const legacyProviderKey = await getSettingValueOrEmpty('pageBuilder.blocks.ai.providerKey');
+        const legacyModel = await getSettingValueOrEmpty('pageBuilder.blocks.ai.model');
+
+        const providerKey = String((blockDefaults && blockDefaults.providerKey) || legacyProviderKey || '').trim();
+        const model = String((blockDefaults && blockDefaults.model) || legacyModel || '').trim();
 
         providerEl.value = providerKey;
         modelEl.value = model;
@@ -642,6 +654,22 @@
           showToast('Provider must be one of the enabled LLM providers', 'error');
           return;
         }
+
+        let systemDefaults = (state.llmConfig && typeof state.llmConfig === 'object' && state.llmConfig.systemDefaults)
+          ? state.llmConfig.systemDefaults
+          : {};
+
+        systemDefaults = systemDefaults && typeof systemDefaults === 'object' ? systemDefaults : {};
+        systemDefaults['pageBuilder.blocks.generate'] = {
+          providerKey,
+          model: model || '',
+        };
+
+        await upsertStringSetting({
+          key: 'llm.systemDefaults',
+          value: JSON.stringify(systemDefaults, null, 2),
+          description: 'System-specific default LLM provider/model overrides (map of systemKey => {providerKey, model})',
+        });
 
         await upsertStringSetting({
           key: 'pageBuilder.blocks.ai.providerKey',
