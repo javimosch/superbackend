@@ -1,3 +1,5 @@
+const { S3Client, HeadBucketCommand, CreateBucketCommand, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+
 async function createS3Endpoint({ endpoint, region, bucket, accessKeyId, secretAccessKey, forcePathStyle } = {}) {
   const safeEndpoint = String(endpoint || '').trim();
   const safeBucket = String(bucket || '').trim();
@@ -9,8 +11,6 @@ async function createS3Endpoint({ endpoint, region, bucket, accessKeyId, secretA
     err.code = 'INVALID_S3_CONFIG';
     throw err;
   }
-
-  const { S3Client, HeadBucketCommand, CreateBucketCommand, PutObjectCommand, GetObjectCommand } = await import('@aws-sdk/client-s3');
 
   const client = new S3Client({
     endpoint: safeEndpoint,
