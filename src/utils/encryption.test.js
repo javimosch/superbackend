@@ -44,9 +44,25 @@ describe('encryption.js', () => {
       expect(decrypted).toBe(plaintext);
     });
 
+    test('should correctly handle different at-rest formats (base64 vs string)', () => {
+      const plaintext = 'format test';
+      const encrypted = encryptString(plaintext);
+      // The current implementation returns an object with ciphertext, iv, tag, alg, keyId
+      expect(encrypted.alg).toBe('aes-256-gcm');
+      
+      const decrypted = decryptString(encrypted);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    test('should throw error for invalid key length', () => {
+      process.env.SUPERBACKEND_ENCRYPTION_KEY = 'too-short';
+      expect(() => encryptString('test')).toThrow();
+    });
+
     test('throws error for invalid payload in decryptString', () => {
       expect(() => decryptString(null)).toThrow('Invalid encrypted payload');
       expect(() => decryptString({})).toThrow('Unsupported encryption algorithm');
+      expect(() => decryptString({ alg: 'aes-256-gcm' })).toThrow();
     });
   });
 });
