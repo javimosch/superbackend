@@ -186,5 +186,48 @@ describe('rbac.service', () => {
       expect(result.allowed).toBe(true);
       expect(result.decisionLayer).toBe('role');
     });
+
+    test('handles org-level grants', async () => {
+      OrganizationMember.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue({ status: 'active' }) });
+      RbacUserRole.find.mockReturnValue({ select: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue([]) });
+      RbacGroupMember.find.mockReturnValue({ select: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue([]) });
+
+      RbacGrant.find.mockImplementation((query) => {
+        if (query.subjectType === 'org' && String(query.subjectId) === String(mockOrgId)) {
+          return { lean: jest.fn().mockResolvedValue([{ _id: 'grant-org', effect: 'allow', right: 'org.admin', subjectType: 'org', subjectId: mockOrgId, scopeType: 'global' }]) };
+        }
+        return { lean: jest.fn().mockResolvedValue([]) };
+      });
+
+      const result = await rbacService.checkRight({
+        userId: mockUserId,
+        orgId: mockOrgId,
+        right: 'org.admin'
+      });
+
+      expect(result.allowed).toBe(true);
+      expect(result.decisionLayer).toBe('org');
+    });
+
+    test('returns false for invalid right input', async () => {
+      const result = await rbacService.checkRight({
+        userId: mockUserId,
+        orgId: mockOrgId,
+        right: ''
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBe('invalid_right');
+    });
+
+    test('returns false if user has no active membership in org', async () => {
+      OrganizationMember.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      const result = await rbacService.checkRight({
+        userId: mockUserId,
+        orgId: mockOrgId,
+        right: 'some.right'
+      });
+      expect(result.allowed).toBe(false);
+      expect(result.reason).toBe('not_org_member');
+    });
   });
 });
