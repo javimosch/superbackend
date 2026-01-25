@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog Automation - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+    .json-editor { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Blog Automation</h1>
+            <p class="text-sm text-gray-600 mt-1">Configure automated blog post generation</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <button id="btn-run-now" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              <i class="ti ti-player-play mr-2"></i>Run Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <!-- Configuration Tabs -->
+      <div class="bg-white rounded-lg shadow">
+        <div class="border-b border-gray-200">
+          <nav class="flex -mb-px">
+            <button class="tab-btn px-6 py-3 border-b-2 border-blue-500 text-blue-600 font-medium text-sm" data-tab="config">
+              Configuration
+            </button>
+            <button class="tab-btn px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="style">
+              Style Guide
+            </button>
+            <button class="tab-btn px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium text-sm" data-tab="runs">
+              Run History
+            </button>
+          </nav>
+        </div>
+
+        <!-- Configuration Tab -->
+        <div id="tab-config" class="tab-content p-6">
+          <div class="mb-4">
+            <button id="btn-load-config" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">
+              <i class="ti ti-refresh mr-2"></i>Reload
+            </button>
+            <button id="btn-save-config" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 ml-2">
+              <i class="ti ti-device-floppy mr-2"></i>Save
+            </button>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Configuration (JSON)</label>
+            <textarea id="config-json" class="json-editor w-full h-96 border rounded p-3 text-sm" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <!-- Style Guide Tab -->
+        <div id="tab-style" class="tab-content p-6 hidden">
+          <div class="mb-4">
+            <button id="btn-load-style" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">
+              <i class="ti ti-refresh mr-2"></i>Reload
+            </button>
+            <button id="btn-save-style" class="bg-green-500 text-white px-3 py-2 rounded hover:bg-green-600 ml-2">
+              <i class="ti ti-device-floppy mr-2"></i>Save
+            </button>
+          </div>
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Style Guide</label>
+            <textarea id="style-guide" class="w-full h-96 border rounded p-3 text-sm" placeholder="Enter writing style guide..."></textarea>
+          </div>
+        </div>
+
+        <!-- Run History Tab -->
+        <div id="tab-runs" class="tab-content p-6 hidden">
+          <div class="mb-4 flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">Recent Runs</h3>
+            <button id="btn-refresh-runs" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">
+              <i class="ti ti-refresh mr-2"></i>Refresh
+            </button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trigger</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                </tr>
+              </thead>
+              <tbody id="runs-tbody" class="bg-white divide-y divide-gray-200">
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <script>
+    const API_BASE = '<%= baseUrl %>/api/admin/blog-automation';
+
+    // Utility functions
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast p-4 rounded shadow-lg ${
+        type === 'success' ? 'bg-green-500 text-white' : 
+        type === 'error' ? 'bg-red-500 text-white' : 
+        'bg-blue-500 text-white'
+      }`;
+      toast.innerHTML = `
+        <div class="flex items-center">
+          <i class="ti ti-${type === 'success' ? 'check' : type === 'error' ? 'alert-triangle' : 'info'} mr-2"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return '-';
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDuration(started, finished) {
+      if (!started || !finished) return '-';
+      const duration = new Date(finished) - new Date(started);
+      const seconds = Math.floor(duration / 1000);
+      if (seconds < 60) return `${seconds}s`;
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = seconds % 60;
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        queued: '<span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Queued</span>',
+        running: '<span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Running</span>',
+        succeeded: '<span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Succeeded</span>',
+        failed: '<span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Failed</span>',
+        partial: '<span class="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full">Partial</span>',
+        skipped: '<span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Skipped</span>'
+      };
+      return badges[status] || status;
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.dataset.tab;
+        
+        // Update button styles
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('border-blue-500', 'text-blue-600');
+          b.classList.add('border-transparent', 'text-gray-500');
+        });
+        btn.classList.remove('border-transparent', 'text-gray-500');
+        btn.classList.add('border-blue-500', 'text-blue-600');
+        
+        // Show/hide content
+        document.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.add('hidden');
+        });
+        document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+        
+        // Load data if needed
+        if (tabName === 'runs') {
+          loadRuns();
+        }
+      });
+    });
+
+    // Configuration
+    async function loadConfig() {
+      try {
+        const response = await fetch(`${API_BASE}/config`);
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to load config');
+        
+        document.getElementById('config-json').value = JSON.stringify(data.config, null, 2);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function saveConfig() {
+      try {
+        const configText = document.getElementById('config-json').value;
+        const config = JSON.parse(configText);
+        
+        const response = await fetch(`${API_BASE}/config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ config })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to save config');
+        
+        showToast('Configuration saved successfully');
+      } catch (error) {
+        if (error instanceof SyntaxError) {
+          showToast('Invalid JSON format', 'error');
+        } else {
+          showToast(error.message, 'error');
+        }
+      }
+    }
+
+    // Style Guide
+    async function loadStyleGuide() {
+      try {
+        const response = await fetch(`${API_BASE}/style-guide`);
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to load style guide');
+        
+        document.getElementById('style-guide').value = data.styleGuide || '';
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function saveStyleGuide() {
+      try {
+        const styleGuide = document.getElementById('style-guide').value;
+        
+        const response = await fetch(`${API_BASE}/style-guide`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ styleGuide })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to save style guide');
+        
+        showToast('Style guide saved successfully');
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    // Run History
+    async function loadRuns() {
+      try {
+        const response = await fetch(`${API_BASE}/runs?limit=50`);
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to load runs');
+        
+        renderRuns(data.runs || []);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function renderRuns(runs) {
+      const tbody = document.getElementById('runs-tbody');
+      
+      if (!runs || runs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No runs found</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = runs.map(run => `
+        <tr>
+          <td class="px-6 py-4 text-sm text-gray-900">${run.trigger || '-'}</td>
+          <td class="px-6 py-4">${getStatusBadge(run.status)}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${formatDate(run.startedAt)}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${formatDuration(run.startedAt, run.finishedAt)}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">
+            ${run.results?.postId ? `Post ID: ${run.results.postId}` : '-'}
+            ${run.error ? `<br><span class="text-red-600">${run.error}</span>` : ''}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Run Now
+    async function runNow() {
+      if (!confirm('Are you sure you want to run blog automation now?')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/run-now`, { method: 'POST' });
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to run automation');
+        
+        showToast('Automation started successfully');
+        
+        // Switch to runs tab and refresh
+        document.querySelector('[data-tab="runs"]').click();
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('btn-load-config').addEventListener('click', loadConfig);
+    document.getElementById('btn-save-config').addEventListener('click', saveConfig);
+    document.getElementById('btn-load-style').addEventListener('click', loadStyleGuide);
+    document.getElementById('btn-save-style').addEventListener('click', saveStyleGuide);
+    document.getElementById('btn-refresh-runs').addEventListener('click', loadRuns);
+    document.getElementById('btn-run-now').addEventListener('click', runNow);
+
+    // Initial load
+    loadConfig();
+    loadStyleGuide();
+  </script>
+</body>
+</html>

@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog Posts - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Blog system</h1>
+            <p class="text-sm text-gray-600 mt-1">Posts and automation</p>
+          </div>
+          <div class="flex items-center gap-4">
+            <button id="btn-new-post" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+              <i class="ti ti-plus mr-2"></i>New Post
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 border-b border-gray-200">
+          <nav class="flex -mb-px">
+            <a id="tab-btn-posts" href="<%= adminPath %>/blog?tab=posts" class="px-6 py-3 border-b-2 font-medium text-sm">
+              Posts
+            </a>
+            <a id="tab-btn-automation" href="<%= adminPath %>/blog?tab=automation" class="px-6 py-3 border-b-2 font-medium text-sm">
+              Automation
+            </a>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="tab-posts">
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Total Posts</p>
+          <p id="stat-total" class="text-2xl font-bold text-gray-900">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Published</p>
+          <p id="stat-published" class="text-2xl font-bold text-green-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Drafts</p>
+          <p id="stat-draft" class="text-2xl font-bold text-gray-600">-</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4">
+          <p class="text-sm text-gray-500">Scheduled</p>
+          <p id="stat-scheduled" class="text-2xl font-bold text-blue-600">-</p>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <input id="filter-q" type="text" class="w-full border rounded px-3 py-2" placeholder="title or excerpt">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select id="filter-status" class="w-full border rounded px-3 py-2">
+              <option value="">All</option>
+              <option value="draft">Draft</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="published">Published</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <input id="filter-category" type="text" class="w-full border rounded px-3 py-2" placeholder="category">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tag</label>
+            <input id="filter-tag" type="text" class="w-full border rounded px-3 py-2" placeholder="tag">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Limit</label>
+            <input id="filter-limit" type="number" min="1" max="200" class="w-full border rounded px-3 py-2" value="50">
+          </div>
+        </div>
+        <div class="flex gap-2 mt-4">
+          <button id="btn-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
+          <button id="btn-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
+        </div>
+      </div>
+
+      <!-- Posts List -->
+      <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+          <h2 class="text-lg font-semibold text-gray-900">Posts</h2>
+          <p id="posts-subtitle" class="text-sm text-gray-600">-</p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Published</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>
+                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="posts-tbody" class="bg-white divide-y divide-gray-200">
+            </tbody>
+          </table>
+        </div>
+        <div id="pagination" class="px-6 py-4 border-t border-gray-200">
+        </div>
+      </div>
+      </div>
+
+      <div id="tab-automation" class="hidden">
+        <div class="bg-white rounded-lg shadow border overflow-hidden" style="height: calc(100vh - 260px); min-height: 560px;">
+          <iframe id="automation-iframe" class="w-full h-full border-none" title="Blog automation"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <script>
+    const API_BASE = '<%= baseUrl %>/api/admin/blog-posts';
+    let currentPage = 1;
+    let totalPages = 1;
+
+    function getQueryParam(name) {
+      try {
+        return new URLSearchParams(window.location.search).get(name);
+      } catch {
+        return null;
+      }
+    }
+
+    function activateTab(tabName) {
+      const postsBtn = document.getElementById('tab-btn-posts');
+      const automationBtn = document.getElementById('tab-btn-automation');
+      const postsTab = document.getElementById('tab-posts');
+      const automationTab = document.getElementById('tab-automation');
+
+      const activeBtnClasses = ['border-blue-500', 'text-blue-600'];
+      const inactiveBtnClasses = ['border-transparent', 'text-gray-500', 'hover:text-gray-700'];
+
+      const setBtn = (btn, active) => {
+        if (!btn) return;
+        btn.classList.remove(...activeBtnClasses, ...inactiveBtnClasses);
+        if (active) {
+          btn.classList.add(...activeBtnClasses);
+        } else {
+          btn.classList.add(...inactiveBtnClasses);
+        }
+      };
+
+      const isAutomation = tabName === 'automation';
+      setBtn(postsBtn, !isAutomation);
+      setBtn(automationBtn, isAutomation);
+
+      if (isAutomation) {
+        postsTab.classList.add('hidden');
+        automationTab.classList.remove('hidden');
+        const iframe = document.getElementById('automation-iframe');
+        if (iframe && !iframe.src) {
+          iframe.src = '<%= adminPath %>/blog-automation';
+        }
+      } else {
+        automationTab.classList.add('hidden');
+        postsTab.classList.remove('hidden');
+      }
+    }
+
+    // Utility functions
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast p-4 rounded shadow-lg ${
+        type === 'success' ? 'bg-green-500 text-white' : 
+        type === 'error' ? 'bg-red-500 text-white' : 
+        'bg-blue-500 text-white'
+      }`;
+      toast.innerHTML = `
+        <div class="flex items-center">
+          <i class="ti ti-${type === 'success' ? 'check' : type === 'error' ? 'alert-triangle' : 'info'} mr-2"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return '-';
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        draft: '<span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Draft</span>',
+        scheduled: '<span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Scheduled</span>',
+        published: '<span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Published</span>',
+        archived: '<span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Archived</span>'
+      };
+      return badges[status] || status;
+    }
+
+    // Load posts
+    async function loadPosts(page = 1) {
+      try {
+        const params = new URLSearchParams({
+          page,
+          limit: document.getElementById('filter-limit').value,
+          q: document.getElementById('filter-q').value,
+          status: document.getElementById('filter-status').value,
+          category: document.getElementById('filter-category').value,
+          tag: document.getElementById('filter-tag').value
+        });
+
+        const response = await fetch(`${API_BASE}?${params}`);
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Failed to load posts');
+
+        renderPosts(data.items);
+        renderPagination(data.pagination);
+        updateStats(data.stats || {});
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    function renderPosts(posts) {
+      const tbody = document.getElementById('posts-tbody');
+      if (!posts || posts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No posts found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = posts.map(post => `
+        <tr>
+          <td class="px-6 py-4">
+            <div class="text-sm font-medium text-gray-900">${post.title || 'Untitled'}</div>
+            <div class="text-sm text-gray-500">${post.slug || ''}</div>
+          </td>
+          <td class="px-6 py-4">${getStatusBadge(post.status)}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${post.category || '-'}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${post.authorName || '-'}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${formatDate(post.publishedAt)}</td>
+          <td class="px-6 py-4 text-sm text-gray-900">${formatDate(post.updatedAt)}</td>
+          <td class="px-6 py-4 text-right text-sm font-medium">
+            <button onclick="editPost('${post._id}')" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
+            ${post.status === 'draft' ? `<button onclick="publishPost('${post._id}')" class="text-green-600 hover:text-green-900 mr-3">Publish</button>` : ''}
+            ${post.status === 'published' ? `<button onclick="unpublishPost('${post._id}')" class="text-orange-600 hover:text-orange-900 mr-3">Unpublish</button>` : ''}
+            ${post.status === 'draft' || post.status === 'published' ? `<button onclick="archivePost('${post._id}')" class="text-red-600 hover:text-red-900">Archive</button>` : ''}
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function renderPagination(pagination) {
+      const container = document.getElementById('pagination');
+      if (!pagination || pagination.pages <= 1) {
+        container.innerHTML = '';
+        return;
+      }
+
+      currentPage = pagination.page;
+      totalPages = pagination.pages;
+
+      let html = '<div class="flex items-center justify-between">';
+      html += `<div class="text-sm text-gray-700">Showing ${pagination.page} of ${pagination.pages} pages</div>`;
+      html += '<div class="flex gap-2">';
+      
+      if (pagination.page > 1) {
+        html += `<button onclick="loadPosts(${pagination.page - 1})" class="px-3 py-1 border rounded hover:bg-gray-50">Previous</button>`;
+      }
+      
+      for (let i = 1; i <= Math.min(5, pagination.pages); i++) {
+        const active = i === pagination.page ? 'bg-blue-500 text-white' : 'border hover:bg-gray-50';
+        html += `<button onclick="loadPosts(${i})" class="px-3 py-1 ${active} rounded">${i}</button>`;
+      }
+      
+      if (pagination.page < pagination.pages) {
+        html += `<button onclick="loadPosts(${pagination.page + 1})" class="px-3 py-1 border rounded hover:bg-gray-50">Next</button>`;
+      }
+      
+      html += '</div></div>';
+      container.innerHTML = html;
+    }
+
+    function updateStats(stats) {
+      document.getElementById('stat-total').textContent = stats.total || 0;
+      document.getElementById('stat-published').textContent = stats.published || 0;
+      document.getElementById('stat-draft').textContent = stats.draft || 0;
+      document.getElementById('stat-scheduled').textContent = stats.scheduled || 0;
+    }
+
+    // Actions
+    function editPost(id) {
+      window.location.href = `<%= adminPath %>/blog/edit/${id}`;
+    }
+
+    async function publishPost(id) {
+      if (!confirm('Are you sure you want to publish this post?')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/${id}/publish`, { method: 'PUT' });
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to publish');
+        
+        showToast('Post published successfully');
+        loadPosts(currentPage);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function unpublishPost(id) {
+      if (!confirm('Are you sure you want to unpublish this post?')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/${id}/unpublish`, { method: 'PUT' });
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to unpublish');
+        
+        showToast('Post unpublished successfully');
+        loadPosts(currentPage);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    async function archivePost(id) {
+      if (!confirm('Are you sure you want to archive this post?')) return;
+      
+      try {
+        const response = await fetch(`${API_BASE}/${id}/archive`, { method: 'PUT' });
+        const data = await response.json();
+        
+        if (!response.ok) throw new Error(data.error || 'Failed to archive');
+        
+        showToast('Post archived successfully');
+        loadPosts(currentPage);
+      } catch (error) {
+        showToast(error.message, 'error');
+      }
+    }
+
+    // Event listeners
+    document.getElementById('btn-new-post').addEventListener('click', () => {
+      window.location.href = `<%= adminPath %>/blog/new`;
+    });
+
+    document.getElementById('btn-apply').addEventListener('click', () => {
+      loadPosts(1);
+    });
+
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      document.getElementById('filter-q').value = '';
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-category').value = '';
+      document.getElementById('filter-tag').value = '';
+      document.getElementById('filter-limit').value = '50';
+      loadPosts(1);
+    });
+
+    // Initial load
+    const tab = (getQueryParam('tab') || 'posts').toLowerCase();
+    activateTab(tab === 'automation' ? 'automation' : 'posts');
+    if (tab !== 'automation') {
+      loadPosts(1);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog Post - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 id="page-title" class="text-2xl font-bold text-gray-900">Blog Post</h1>
+            <p id="page-subtitle" class="text-sm text-gray-600 mt-1">-</p>
+          </div>
+          <div class="flex items-center gap-2 flex-wrap">
+            <a href="<%= adminPath %>/blog?tab=posts" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">
+              <i class="ti ti-arrow-left mr-1"></i>Back
+            </a>
+            <button id="btn-save" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+              <i class="ti ti-device-floppy mr-2"></i>Save
+            </button>
+            <button id="btn-publish" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 hidden">
+              <i class="ti ti-world mr-2"></i>Publish
+            </button>
+            <button id="btn-unpublish" class="bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600 hidden">
+              <i class="ti ti-eye-off mr-2"></i>Unpublish
+            </button>
+            <button id="btn-archive" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 hidden">
+              <i class="ti ti-archive mr-2"></i>Archive
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-6">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input id="field-title" type="text" class="w-full border rounded px-3 py-2" placeholder="Post title" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Slug</label>
+                <input id="field-slug" type="text" class="w-full border rounded px-3 py-2" placeholder="post-slug" />
+              </div>
+              <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+                <textarea id="field-excerpt" class="w-full border rounded px-3 py-2" rows="3" placeholder="Short excerpt..."></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-sm font-medium text-gray-700">Markdown</label>
+              <div class="flex gap-2">
+                <button id="btn-ai-format" class="bg-gray-100 text-gray-800 px-3 py-1.5 rounded hover:bg-gray-200 text-sm">
+                  Format
+                </button>
+                <button id="btn-ai-refine" class="bg-gray-100 text-gray-800 px-3 py-1.5 rounded hover:bg-gray-200 text-sm">
+                  Refine
+                </button>
+              </div>
+            </div>
+            <textarea id="field-markdown" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="18" placeholder="# Hello world"></textarea>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <label class="block text-sm font-medium text-gray-700 mb-1">HTML (optional)</label>
+            <textarea id="field-html" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="10" placeholder="<p>Rendered html...</p>"></textarea>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="grid grid-cols-1 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <div id="status-badge" class="text-sm text-gray-600">-</div>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Scheduled At</label>
+                <input id="field-scheduledAt" type="datetime-local" class="w-full border rounded px-3 py-2" />
+                <button id="btn-schedule" class="mt-2 bg-blue-500 text-white px-3 py-2 rounded hover:bg-blue-600 w-full">
+                  Schedule
+                </button>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <input id="field-category" type="text" class="w-full border rounded px-3 py-2" placeholder="category" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
+                <input id="field-tags" type="text" class="w-full border rounded px-3 py-2" placeholder="tag1, tag2" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Author</label>
+                <input id="field-authorName" type="text" class="w-full border rounded px-3 py-2" placeholder="Author Name" />
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Cover Image URL</label>
+                <div class="flex gap-2">
+                  <input id="field-coverImageUrl" type="text" class="flex-1 border rounded px-3 py-2" placeholder="/public/assets/..." />
+                  <button id="btn-upload-cover" class="bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">
+                    Upload
+                  </button>
+                </div>
+                <div id="cover-preview" class="mt-3 hidden">
+                  <img id="cover-preview-img" class="w-full rounded border" alt="Cover preview" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-semibold text-gray-900">SEO</h3>
+              <button id="btn-ai-generate-all" class="bg-gray-100 text-gray-800 px-3 py-1.5 rounded hover:bg-gray-200 text-sm">
+                Generate all
+              </button>
+            </div>
+            <div class="grid grid-cols-1 gap-3">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">SEO Title</label>
+                <div class="flex gap-2">
+                  <input id="field-seoTitle" type="text" class="flex-1 border rounded px-3 py-2" />
+                  <button data-ai-field="seoTitle" class="btn-ai-field bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">AI</button>
+                </div>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">SEO Description</label>
+                <div class="flex gap-2">
+                  <textarea id="field-seoDescription" class="flex-1 border rounded px-3 py-2" rows="3"></textarea>
+                  <button data-ai-field="seoDescription" class="btn-ai-field bg-gray-100 text-gray-800 px-3 py-2 rounded hover:bg-gray-200">AI</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+  <%- include('partials/admin-image-upload-modal', { baseUrl: baseUrl }) %>
+
+  <script>
+    const MODE = '<%= mode %>';
+    const POST_ID = '<%= postId %>';
+    const API_BASE = '<%= baseUrl %>/api/admin/blog-posts';
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast p-4 rounded shadow-lg ${
+        type === 'success' ? 'bg-green-500 text-white' :
+        type === 'error' ? 'bg-red-500 text-white' :
+        'bg-blue-500 text-white'
+      }`;
+      toast.innerHTML = `
+        <div class="flex items-center">
+          <i class="ti ti-${type === 'success' ? 'check' : type === 'error' ? 'alert-triangle' : 'info'} mr-2"></i>
+          <span>${message}</span>
+        </div>
+      `;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function setStatusBadge(status) {
+      const el = document.getElementById('status-badge');
+      const map = {
+        draft: 'bg-gray-100 text-gray-800',
+        scheduled: 'bg-blue-100 text-blue-800',
+        published: 'bg-green-100 text-green-800',
+        archived: 'bg-red-100 text-red-800',
+      };
+      const cls = map[status] || 'bg-gray-100 text-gray-800';
+      el.innerHTML = `<span class="px-2 py-1 text-xs font-medium rounded-full ${cls}">${status || '-'}</span>`;
+    }
+
+    function getValue(id) {
+      const el = document.getElementById(id);
+      return el ? el.value : '';
+    }
+
+    function setValue(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.value = value == null ? '' : String(value);
+    }
+
+    function toDateTimeLocalValue(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      if (Number.isNaN(d.getTime())) return '';
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function updateCoverPreview(url) {
+      const wrap = document.getElementById('cover-preview');
+      const img = document.getElementById('cover-preview-img');
+      if (!wrap || !img) return;
+      const u = String(url || '').trim();
+      if (!u) {
+        wrap.classList.add('hidden');
+        img.src = '';
+        return;
+      }
+      wrap.classList.remove('hidden');
+      img.src = u;
+    }
+
+    function payloadFromForm() {
+      return {
+        title: getValue('field-title'),
+        slug: getValue('field-slug'),
+        excerpt: getValue('field-excerpt'),
+        markdown: getValue('field-markdown'),
+        html: getValue('field-html'),
+        coverImageUrl: getValue('field-coverImageUrl'),
+        category: getValue('field-category'),
+        tags: getValue('field-tags'),
+        authorName: getValue('field-authorName'),
+        seoTitle: getValue('field-seoTitle'),
+        seoDescription: getValue('field-seoDescription'),
+      };
+    }
+
+    async function loadPost() {
+      if (!POST_ID) return;
+      const res = await fetch(`${API_BASE}/${POST_ID}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to load post');
+      const item = data?.item || {};
+
+      setValue('field-title', item.title);
+      setValue('field-slug', item.slug);
+      setValue('field-excerpt', item.excerpt);
+      setValue('field-markdown', item.markdown);
+      setValue('field-html', item.html);
+      setValue('field-coverImageUrl', item.coverImageUrl);
+      setValue('field-category', item.category);
+      setValue('field-tags', Array.isArray(item.tags) ? item.tags.join(', ') : item.tags);
+      setValue('field-authorName', item.authorName);
+      setValue('field-seoTitle', item.seoTitle);
+      setValue('field-seoDescription', item.seoDescription);
+      setValue('field-scheduledAt', toDateTimeLocalValue(item.scheduledAt));
+
+      setStatusBadge(item.status);
+      updateCoverPreview(item.coverImageUrl);
+
+      const subtitle = document.getElementById('page-subtitle');
+      if (subtitle) subtitle.textContent = item.slug ? item.slug : `ID: ${item._id}`;
+
+      updateActionButtons(item.status);
+    }
+
+    function updateActionButtons(status) {
+      const publishBtn = document.getElementById('btn-publish');
+      const unpublishBtn = document.getElementById('btn-unpublish');
+      const archiveBtn = document.getElementById('btn-archive');
+
+      const show = (btn, yes) => {
+        if (!btn) return;
+        if (yes) btn.classList.remove('hidden');
+        else btn.classList.add('hidden');
+      };
+
+      const hasId = Boolean(POST_ID);
+      show(publishBtn, hasId && (status === 'draft' || status === 'scheduled'));
+      show(unpublishBtn, hasId && status === 'published');
+      show(archiveBtn, hasId && status !== 'archived');
+    }
+
+    async function savePost() {
+      const payload = payloadFromForm();
+      if (!payload.title || !String(payload.title).trim()) {
+        showToast('Title is required', 'error');
+        return;
+      }
+      if (!payload.markdown || !String(payload.markdown).trim()) {
+        showToast('Markdown is required', 'error');
+        return;
+      }
+
+      const isNew = MODE === 'new' || !POST_ID;
+      const url = isNew ? API_BASE : `${API_BASE}/${POST_ID}`;
+      const method = isNew ? 'POST' : 'PUT';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to save');
+
+      const item = data?.item;
+      showToast('Saved');
+
+      if (isNew && item?._id) {
+        window.location.href = `<%= adminPath %>/blog/edit/${item._id}`;
+      } else {
+        setStatusBadge(item?.status);
+        updateActionButtons(item?.status);
+      }
+    }
+
+    async function publishPost() {
+      if (!POST_ID) return;
+      const res = await fetch(`${API_BASE}/${POST_ID}/publish`, { method: 'PUT' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to publish');
+      showToast('Published');
+      setStatusBadge(data?.item?.status);
+      updateActionButtons(data?.item?.status);
+    }
+
+    async function unpublishPost() {
+      if (!POST_ID) return;
+      const res = await fetch(`${API_BASE}/${POST_ID}/unpublish`, { method: 'PUT' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to unpublish');
+      showToast('Unpublished');
+      setStatusBadge(data?.item?.status);
+      updateActionButtons(data?.item?.status);
+    }
+
+    async function archivePost() {
+      if (!POST_ID) return;
+      if (!confirm('Archive this post?')) return;
+      const res = await fetch(`${API_BASE}/${POST_ID}/archive`, { method: 'PUT' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to archive');
+      showToast('Archived');
+      setStatusBadge(data?.item?.status);
+      updateActionButtons(data?.item?.status);
+    }
+
+    async function schedulePost() {
+      if (!POST_ID) {
+        showToast('Save the post first', 'error');
+        return;
+      }
+      const raw = getValue('field-scheduledAt');
+      if (!raw) {
+        showToast('Scheduled At is required', 'error');
+        return;
+      }
+      const scheduledAt = new Date(raw);
+      if (Number.isNaN(scheduledAt.getTime())) {
+        showToast('Scheduled At must be a valid date', 'error');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/${POST_ID}/schedule`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scheduledAt: scheduledAt.toISOString() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to schedule');
+      showToast('Scheduled');
+      setStatusBadge(data?.item?.status);
+      updateActionButtons(data?.item?.status);
+    }
+
+    async function aiGenerateField(field) {
+      if (!field) return;
+      const payload = {
+        field,
+        title: getValue('field-title'),
+        excerpt: getValue('field-excerpt'),
+        category: getValue('field-category'),
+        tags: getValue('field-tags'),
+        authorName: getValue('field-authorName'),
+        markdown: getValue('field-markdown'),
+      };
+
+      const res = await fetch('<%= baseUrl %>/api/admin/blog-ai/generate-field', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'AI generate failed');
+
+      if (field === 'seoTitle') setValue('field-seoTitle', data?.value || '');
+      if (field === 'seoDescription') setValue('field-seoDescription', data?.value || '');
+      showToast('AI generated');
+    }
+
+    async function aiGenerateAll() {
+      const payload = {
+        title: getValue('field-title'),
+        excerpt: getValue('field-excerpt'),
+        category: getValue('field-category'),
+        tags: getValue('field-tags'),
+        authorName: getValue('field-authorName'),
+        markdown: getValue('field-markdown'),
+      };
+
+      const res = await fetch('<%= baseUrl %>/api/admin/blog-ai/generate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'AI generate-all failed');
+
+      if (data?.seoTitle !== undefined) setValue('field-seoTitle', data.seoTitle);
+      if (data?.seoDescription !== undefined) setValue('field-seoDescription', data.seoDescription);
+      if (data?.excerpt !== undefined) setValue('field-excerpt', data.excerpt);
+      if (data?.category !== undefined) setValue('field-category', data.category);
+      if (data?.tags !== undefined) setValue('field-tags', Array.isArray(data.tags) ? data.tags.join(', ') : data.tags);
+      if (data?.authorName !== undefined) setValue('field-authorName', data.authorName);
+      showToast('AI generated all');
+    }
+
+    async function aiFormatMarkdown() {
+      const res = await fetch('<%= baseUrl %>/api/admin/blog-ai/format-markdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: getValue('field-markdown') }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'AI format failed');
+      setValue('field-markdown', data?.markdown || '');
+      showToast('Formatted');
+    }
+
+    async function aiRefineMarkdown() {
+      const selectionStart = document.getElementById('field-markdown')?.selectionStart ?? null;
+      const selectionEnd = document.getElementById('field-markdown')?.selectionEnd ?? null;
+      const markdown = getValue('field-markdown');
+
+      const res = await fetch('<%= baseUrl %>/api/admin/blog-ai/refine-markdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown, selectionStart, selectionEnd }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'AI refine failed');
+      setValue('field-markdown', data?.markdown || '');
+      showToast('Refined');
+    }
+
+    document.getElementById('btn-save').addEventListener('click', () => {
+      savePost().catch((e) => showToast(e?.message ? String(e.message) : 'Save failed', 'error'));
+    });
+
+    document.getElementById('btn-publish').addEventListener('click', () => {
+      publishPost().catch((e) => showToast(e?.message ? String(e.message) : 'Publish failed', 'error'));
+    });
+
+    document.getElementById('btn-unpublish').addEventListener('click', () => {
+      unpublishPost().catch((e) => showToast(e?.message ? String(e.message) : 'Unpublish failed', 'error'));
+    });
+
+    document.getElementById('btn-archive').addEventListener('click', () => {
+      archivePost().catch((e) => showToast(e?.message ? String(e.message) : 'Archive failed', 'error'));
+    });
+
+    document.getElementById('btn-schedule').addEventListener('click', () => {
+      schedulePost().catch((e) => showToast(e?.message ? String(e.message) : 'Schedule failed', 'error'));
+    });
+
+    document.getElementById('field-coverImageUrl').addEventListener('input', (e) => {
+      updateCoverPreview(e.target.value);
+    });
+
+    document.getElementById('btn-upload-cover').addEventListener('click', () => {
+      if (typeof window.openImageUploadModal === 'function') {
+        window.openImageUploadModal({
+          namespace: 'blog-images',
+          visibility: 'public',
+          onSelect: (url) => {
+            setValue('field-coverImageUrl', url);
+            updateCoverPreview(url);
+          },
+        });
+      }
+    });
+
+    document.querySelectorAll('.btn-ai-field').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const field = btn.getAttribute('data-ai-field');
+        aiGenerateField(field).catch((e) => showToast(e?.message ? String(e.message) : 'AI failed', 'error'));
+      });
+    });
+
+    document.getElementById('btn-ai-generate-all').addEventListener('click', () => {
+      aiGenerateAll().catch((e) => showToast(e?.message ? String(e.message) : 'AI failed', 'error'));
+    });
+
+    document.getElementById('btn-ai-format').addEventListener('click', () => {
+      aiFormatMarkdown().catch((e) => showToast(e?.message ? String(e.message) : 'AI failed', 'error'));
+    });
+
+    document.getElementById('btn-ai-refine').addEventListener('click', () => {
+      aiRefineMarkdown().catch((e) => showToast(e?.message ? String(e.message) : 'AI failed', 'error'));
+    });
+
+    (function init() {
+      const title = document.getElementById('page-title');
+      const subtitle = document.getElementById('page-subtitle');
+      if (MODE === 'new') {
+        if (title) title.textContent = 'New Blog Post';
+        if (subtitle) subtitle.textContent = 'Draft';
+        setStatusBadge('draft');
+      } else {
+        if (title) title.textContent = 'Edit Blog Post';
+      }
+
+      loadPost().catch((e) => showToast(e?.message ? String(e.message) : 'Failed to load', 'error'));
+    })();
+  </script>
+</body>
+</html>
