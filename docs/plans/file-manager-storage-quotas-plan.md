@@ -284,3 +284,88 @@ Data source:
 3. Add enforcement for max upload + max storage in upload path
 4. Build Admin UI Storage section (global/org/group)
 5. Update public SPA: persistence + storage display
+
+---
+
+## Follow-ups (Bugs/Improvements)
+
+### 1) Admin page layout + tabs (General / Storage)
+
+Problem:
+
+- Storage configuration currently renders above the “Public File Manager” section and is not using the same container/layout.
+
+Plan:
+
+- Make the admin page use a single consistent outer container (same max width + padding for all sections).
+- Introduce a lightweight tab UI with two tabs:
+  - **General**: current “Public File Manager” settings
+  - **Storage**: current “Storage configuration” editor
+- Persist selected tab in `localStorage` (optional).
+
+Final implementation:
+
+- Admin UI now uses a single `max-w-6xl` container.
+- Tabs are implemented as two buttons and content sections:
+  - `#sectionGeneral`
+  - `#sectionStorage`
+- Tab selection is persisted to `localStorage` key `sb_fm_admin_file_manager_tab`.
+
+### 2) Groups table refresh
+
+Problem:
+
+- If a new RBAC group is created, the groups list on this page won’t update unless the whole page is refreshed.
+
+Plan:
+
+- Add a **Refresh groups** button inside the “Group overrides” section.
+- Refresh behavior should re-fetch:
+  - `/api/admin/rbac/groups`
+  - then re-render the groups table for the currently selected org.
+
+Final implementation:
+
+- Added `Refresh groups` button (`#policyRefreshGroups`) that re-fetches groups and re-renders the table.
+
+### 3) Friendly inputs for group overrides
+
+Problem:
+
+- Group rows currently only allow raw bytes, which is not ergonomic.
+
+Plan:
+
+- Provide a human-friendly input per field (e.g. `50mb`, `5gb`).
+- Keep bytes as the authoritative stored value.
+- Show computed bytes as muted text.
+
+Final implementation:
+
+- Group rows now use a single text input (human units) and display computed bytes as muted text.
+- On blur, the policy object is updated for that group.
+
+### 4) User overrides not persisting
+
+Symptoms:
+
+- After saving and doing a full refresh, user overrides appear as empty objects.
+
+Likely causes:
+
+- “Human to bytes” helpers update the input value but do not update the underlying `storagePolicy` object.
+- The “Save storage config” handler updates global/org fields but does not explicitly re-apply the currently edited user fields before persisting.
+
+Plan:
+
+- On every user editor change (bytes or human blur conversion), update `storagePolicy.orgs[orgId].users[userId]`.
+- On “Save storage config”, before persisting:
+  - if a user is selected, copy the current user editor byte inputs into `storagePolicy`.
+  - ensure empty user objects are removed (if both max values are unset).
+
+Final implementation:
+
+- User human inputs now convert to bytes and immediately update the underlying policy (via dispatching `input`).
+- Save also parses current human inputs (global/org/user) to bytes to avoid relying on blur.
+- Empty user overrides are removed instead of persisting empty `{}`.
+
