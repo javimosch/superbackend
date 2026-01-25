@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>File Manager - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">File Manager</h1>
+            <p class="text-sm text-gray-600 mt-1">Configure public File Manager route and UI</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="bg-white rounded-lg shadow p-6">
+        <div class="space-y-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <h2 class="text-lg font-semibold text-gray-900">Public File Manager</h2>
+              <p class="text-sm text-gray-600 mt-1">Serve the user-facing File Manager SPA at a configurable base path.</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6">
+            <div class="flex items-center justify-between">
+              <div>
+                <label class="text-sm font-medium text-gray-900">Enabled</label>
+                <p class="text-xs text-gray-500">Requires restart to affect public routing.</p>
+              </div>
+              <input id="enabled" type="checkbox" class="h-5 w-5" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Base Path</label>
+              <input id="basePath" type="text" class="w-full border rounded px-3 py-2" placeholder="/files" />
+              <p class="text-xs text-gray-500 mt-1">Requires restart. Must start with <code>/</code>.</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Max upload size (bytes)</label>
+              <input id="maxUploadBytes" type="number" min="1" step="1" class="w-full border rounded px-3 py-2" placeholder="1073741824" />
+              <p class="text-xs text-gray-500 mt-1">Applies immediately to uploads. Default: 1073741824 (1GB).</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Computed URL</label>
+              <div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-800" id="computedUrl"></div>
+            </div>
+
+            <div class="flex justify-end space-x-2">
+              <button id="refresh" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Refresh</button>
+              <button id="save" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Save</button>
+            </div>
+
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+              <p class="text-sm text-yellow-900 font-medium">Restart required</p>
+              <p class="text-sm text-yellow-800 mt-1">Changes to the File Manager public route are applied when the server restarts.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="toast" class="hidden fixed bottom-4 right-4 px-4 py-3 rounded shadow text-white"></div>
+    </div>
+  </div>
+
+  <script>
+    const BASE_PATH = "<%= (typeof baseUrl !== 'undefined' && baseUrl) ? baseUrl : '' %>";
+    const API_BASE = window.location.origin + (BASE_PATH || '');
+
+    const KEY_ENABLED = 'FILE_MANAGER_ENABLED';
+    const KEY_BASE_PATH = 'FILE_MANAGER_BASE_PATH';
+    const KEY_MAX_UPLOAD_BYTES = 'FILE_MANAGER_MAX_UPLOAD_BYTES';
+
+    const elEnabled = document.getElementById('enabled');
+    const elBasePath = document.getElementById('basePath');
+    const elMaxUploadBytes = document.getElementById('maxUploadBytes');
+    const elComputedUrl = document.getElementById('computedUrl');
+    const elToast = document.getElementById('toast');
+
+    const showToast = (message, type = 'success') => {
+      elToast.classList.remove('hidden');
+      elToast.className = 'fixed bottom-4 right-4 px-4 py-3 rounded shadow text-white ' + (type === 'success' ? 'bg-green-600' : 'bg-red-600');
+      elToast.textContent = message;
+      setTimeout(() => elToast.classList.add('hidden'), 3000);
+    };
+
+    const normalizeBasePath = (value) => {
+      const v = String(value || '').trim();
+      if (!v) return '/files';
+      return v.startsWith('/') ? v : `/${v}`;
+    };
+
+    const updateComputedUrl = () => {
+      const basePath = normalizeBasePath(elBasePath.value);
+      elComputedUrl.textContent = `${window.location.origin}${BASE_PATH || ''}${basePath}`;
+    };
+
+    async function fetchSetting(key) {
+      const res = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`Failed to fetch setting ${key}`);
+      return await res.json();
+    }
+
+    async function upsertSetting({ key, value, type, description }) {
+      const existing = await fetchSetting(key);
+      if (!existing) {
+        const res = await fetch(`${API_BASE}/api/admin/settings`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, value, type, description, public: false })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Failed to create setting ${key}`);
+        }
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/api/admin/settings/${encodeURIComponent(key)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to update setting ${key}`);
+      }
+    }
+
+    async function load() {
+      try {
+        const enabledSetting = await fetchSetting(KEY_ENABLED);
+        const basePathSetting = await fetchSetting(KEY_BASE_PATH);
+        const maxUploadBytesSetting = await fetchSetting(KEY_MAX_UPLOAD_BYTES);
+
+        elEnabled.checked = enabledSetting ? enabledSetting.value === 'true' : false;
+        elBasePath.value = basePathSetting ? String(basePathSetting.value || '') : '/files';
+        elMaxUploadBytes.value = maxUploadBytesSetting ? String(maxUploadBytesSetting.value || '') : '1073741824';
+        updateComputedUrl();
+      } catch (e) {
+        showToast(e.message || 'Failed to load settings', 'error');
+      }
+    }
+
+    async function save() {
+      try {
+        const enabledValue = elEnabled.checked ? 'true' : 'false';
+        const basePathValue = normalizeBasePath(elBasePath.value);
+        const maxUploadBytesValue = String(parseInt(String(elMaxUploadBytes.value || '1073741824'), 10) || 1073741824);
+
+        await upsertSetting({
+          key: KEY_ENABLED,
+          value: enabledValue,
+          type: 'boolean',
+          description: 'Enable public File Manager UI route (restart required)'
+        });
+
+        await upsertSetting({
+          key: KEY_BASE_PATH,
+          value: basePathValue,
+          type: 'string',
+          description: 'Public File Manager UI base path (restart required)'
+        });
+
+        await upsertSetting({
+          key: KEY_MAX_UPLOAD_BYTES,
+          value: maxUploadBytesValue,
+          type: 'number',
+          description: 'File Manager max upload size in bytes'
+        });
+
+        elBasePath.value = basePathValue;
+        elMaxUploadBytes.value = maxUploadBytesValue;
+        updateComputedUrl();
+        showToast('Saved. Restart required to apply route changes.');
+      } catch (e) {
+        showToast(e.message || 'Failed to save settings', 'error');
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', load);
+    document.getElementById('save').addEventListener('click', save);
+    elBasePath.addEventListener('input', updateComputedUrl);
+
+    load();
+  </script>
+</body>
+</html>
