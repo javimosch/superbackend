@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Database Browser</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <style>[v-cloak]{display:none}</style>
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Database Browser</h1>
+        <div class="text-sm text-gray-500">Manage external DB connections (Mongo/MySQL) and browse records (read-only).</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="refreshAll" class="px-3 py-2 rounded bg-gray-700 text-white text-sm hover:bg-gray-800">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+      </div>
+    </div>
+
+    <div v-if="error" class="mb-4 p-3 rounded border border-red-200 bg-red-50 text-red-700 text-sm">
+      {{ error }}
+    </div>
+
+    <div class="grid grid-cols-12 gap-6">
+      <!-- Left: Connections -->
+      <div class="col-span-5 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Connections</div>
+            <div class="text-xs text-gray-400">URIs stored encrypted; only masked version is shown.</div>
+          </div>
+          <div class="p-4 space-y-3">
+            <div v-if="connections.length === 0" class="text-sm text-gray-500">No connections yet.</div>
+            <div v-for="c in connections" :key="c.id" class="p-3 border rounded flex items-start justify-between" :class="selectedConnectionId===c.id ? 'border-gray-800 bg-gray-50' : 'border-gray-200'">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <div class="font-semibold text-gray-900 truncate">{{ c.name }}</div>
+                  <span class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">{{ c.type }}</span>
+                  <span v-if="c.enabled" class="text-xs px-2 py-0.5 rounded bg-green-100 text-green-700">enabled</span>
+                  <span v-else class="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-500">disabled</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1 break-all">{{ c.uriMasked || '—' }}</div>
+              </div>
+              <div class="flex flex-col gap-2 pl-3">
+                <button @click="selectConnection(c)" class="px-2 py-1 rounded text-xs bg-gray-800 text-white hover:bg-gray-900">
+                  Browse
+                </button>
+                <button @click="testConnection(c.id)" class="px-2 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700">
+                  Test
+                </button>
+                <button @click="startEdit(c)" class="px-2 py-1 rounded text-xs bg-gray-200 hover:bg-gray-300">
+                  Edit
+                </button>
+                <button @click="toggleEnabled(c)" class="px-2 py-1 rounded text-xs bg-gray-200 hover:bg-gray-300">
+                  {{ c.enabled ? 'Disable' : 'Enable' }}
+                </button>
+                <button @click="deleteConnection(c.id)" class="px-2 py-1 rounded text-xs bg-red-600 text-white hover:bg-red-700">
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">{{ editing ? 'Edit connection' : 'Create connection' }}</div>
+            <button v-if="editing" @click="cancelEdit" class="text-xs text-gray-600 hover:text-gray-900">Cancel</button>
+          </div>
+          <div class="p-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Name</label>
+                <input v-model="form.name" class="mt-1 w-full border rounded px-3 py-2" placeholder="prod-mongo" />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Type</label>
+                <select v-model="form.type" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="mongo">mongo</option>
+                  <option value="mysql">mysql</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">URI {{ editing ? '(leave empty to keep existing)' : '' }}</label>
+              <input v-model="form.uri" class="mt-1 w-full border rounded px-3 py-2 font-mono text-sm" placeholder="mongodb://user:pass@host:27017/db" />
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input id="enabled" type="checkbox" v-model="form.enabled" class="h-4 w-4" />
+              <label for="enabled" class="text-sm text-gray-700">Enabled</label>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button v-if="!editing" @click="createConnection" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700">
+                <i class="ti ti-plus mr-1"></i> Create
+              </button>
+              <button v-else @click="saveEdit" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+                <i class="ti ti-device-floppy mr-1"></i> Save
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Browser -->
+      <div class="col-span-7 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Browse</div>
+            <div class="text-xs text-gray-400">Connection → Database → Namespace</div>
+          </div>
+
+          <div class="p-4 space-y-4">
+            <div v-if="!selectedConnection" class="text-sm text-gray-500">Select a connection and click “Browse”.</div>
+            <div v-else class="space-y-4">
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Database</label>
+                  <select v-model="selectedDatabase" @change="onDatabaseChange" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="">—</option>
+                    <option v-for="d in databases" :key="d" :value="d">{{ d }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Namespace</label>
+                  <select v-model="selectedNamespace" @change="onNamespaceChange" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="">—</option>
+                    <option v-for="n in namespaces" :key="n" :value="n">{{ n }}</option>
+                  </select>
+                </div>
+                <div class="flex items-end">
+                  <button @click="loadRecords" :disabled="!canBrowse" class="w-full px-3 py-2 rounded bg-gray-800 text-white text-sm hover:bg-gray-900 disabled:opacity-50">
+                    Load records
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-5 gap-3">
+                <div class="col-span-2">
+                  <label class="text-xs font-semibold text-gray-600">Filter field</label>
+                  <select v-if="schemaFields.length" v-model="query.filterField" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="">—</option>
+                    <option v-for="f in schemaFields" :key="f" :value="f">{{ f }}</option>
+                  </select>
+                  <input v-else v-model="query.filterField" class="mt-1 w-full border rounded px-3 py-2" placeholder="field" />
+                </div>
+                <div class="col-span-3">
+                  <label class="text-xs font-semibold text-gray-600">Filter value (contains)</label>
+                  <input v-model="query.filterValue" class="mt-1 w-full border rounded px-3 py-2" placeholder="search" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-5 gap-3">
+                <div class="col-span-2">
+                  <label class="text-xs font-semibold text-gray-600">Sort field</label>
+                  <select v-if="schemaFields.length" v-model="query.sortField" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="">—</option>
+                    <option v-for="f in schemaFields" :key="f" :value="f">{{ f }}</option>
+                  </select>
+                  <input v-else v-model="query.sortField" class="mt-1 w-full border rounded px-3 py-2" placeholder="field" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Order</label>
+                  <select v-model="query.sortOrder" class="mt-1 w-full border rounded px-3 py-2">
+                    <option value="desc">desc</option>
+                    <option value="asc">asc</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Page</label>
+                  <input v-model.number="query.page" type="number" min="1" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Page size</label>
+                  <input v-model.number="query.pageSize" type="number" min="1" max="100" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+
+              <div v-if="records.items.length" class="border rounded overflow-hidden">
+                <div class="p-3 border-b bg-gray-50 flex items-center justify-between">
+                  <div class="text-sm text-gray-700">Total: <span class="font-semibold">{{ records.total }}</span> • Page {{ records.page }} / {{ records.totalPages || 1 }}</div>
+                  <div class="flex items-center gap-2">
+                    <button @click="prevPage" :disabled="records.page<=1" class="px-2 py-1 rounded text-xs bg-gray-200 hover:bg-gray-300 disabled:opacity-50">Prev</button>
+                    <button @click="nextPage" :disabled="records.page>=records.totalPages" class="px-2 py-1 rounded text-xs bg-gray-200 hover:bg-gray-300 disabled:opacity-50">Next</button>
+                  </div>
+                </div>
+                <div class="overflow-auto" style="max-height: 520px;">
+                  <table class="min-w-full text-sm">
+                    <thead class="bg-white sticky top-0">
+                      <tr>
+                        <th v-for="h in tableHeaders" :key="h" class="text-left px-3 py-2 border-b text-xs font-semibold text-gray-600">{{ h }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, idx) in records.items" :key="idx" @click="openRow(row)" class="cursor-pointer hover:bg-gray-50">
+                        <td v-for="h in tableHeaders" :key="h" class="px-3 py-2 border-b whitespace-nowrap">
+                          {{ formatCell(row[h]) }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div v-else class="text-sm text-gray-500">No records loaded yet (or empty result).</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row modal -->
+        <div v-if="rowModal.open" class="fixed inset-0 bg-black/40 flex items-center justify-center p-6" @click.self="rowModal.open=false">
+          <div class="bg-white w-full max-w-3xl rounded-lg shadow">
+            <div class="p-4 border-b flex items-center justify-between">
+              <div class="font-semibold text-gray-900">Row / Document</div>
+              <button @click="rowModal.open=false" class="text-gray-500 hover:text-gray-900"><i class="ti ti-x"></i></button>
+            </div>
+            <pre class="p-4 text-xs overflow-auto" style="max-height: 70vh;">{{ JSON.stringify(rowModal.row, null, 2) }}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, computed, reactive, ref } = Vue;
+
+    createApp({
+      setup() {
+        const baseUrl = '<%= baseUrl %>';
+        const apiBase = baseUrl + '/api/admin/db-browser';
+
+        const error = ref('');
+        const connections = ref([]);
+        const selectedConnectionId = ref('');
+        const selectedConnection = computed(() => connections.value.find(c => c.id === selectedConnectionId.value) || null);
+
+        const editing = ref(false);
+        const editingId = ref('');
+        const form = reactive({ name: '', type: 'mongo', uri: '', enabled: true });
+
+        const databases = ref([]);
+        const namespaces = ref([]);
+        const selectedDatabase = ref('');
+        const selectedNamespace = ref('');
+        const schema = ref(null);
+        const query = reactive({ page: 1, pageSize: 20, filterField: '', filterValue: '', sortField: '', sortOrder: 'desc' });
+        const records = reactive({ items: [], total: 0, page: 1, pageSize: 20, totalPages: 1 });
+
+        const rowModal = reactive({ open: false, row: null });
+
+        const schemaFields = computed(() => (Array.isArray(schema.value) ? schema.value.map(c => c.field).filter(Boolean) : []));
+        const canBrowse = computed(() => Boolean(selectedConnection.value && selectedDatabase.value && selectedNamespace.value));
+
+        const tableHeaders = computed(() => {
+          const first = records.items?.[0];
+          if (!first || typeof first !== 'object') return [];
+          return Object.keys(first);
+        });
+
+        function clearError() { error.value = ''; }
+
+        async function api(path, opts = {}) {
+          clearError();
+          const res = await fetch(apiBase + path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || 'Request failed');
+          return json;
+        }
+
+        async function loadConnections() {
+          const data = await api('/connections', { method: 'GET' });
+          connections.value = data.items || [];
+        }
+
+        async function createConnection() {
+          const payload = { name: form.name, type: form.type, enabled: !!form.enabled, uri: form.uri };
+          const data = await api('/connections', { method: 'POST', body: JSON.stringify(payload) });
+          connections.value.unshift(data.item);
+          form.name = ''; form.uri = ''; form.type = 'mongo'; form.enabled = true;
+        }
+
+        function startEdit(c) {
+          editing.value = true;
+          editingId.value = c.id;
+          form.name = c.name;
+          form.type = c.type;
+          form.enabled = !!c.enabled;
+          form.uri = '';
+        }
+
+        function cancelEdit() {
+          editing.value = false;
+          editingId.value = '';
+          form.name = ''; form.uri = ''; form.type = 'mongo'; form.enabled = true;
+        }
+
+        async function saveEdit() {
+          const payload = { name: form.name, type: form.type, enabled: !!form.enabled };
+          if (String(form.uri || '').trim()) payload.uri = form.uri;
+          const data = await api('/connections/' + editingId.value, { method: 'PATCH', body: JSON.stringify(payload) });
+          const idx = connections.value.findIndex(x => x.id === editingId.value);
+          if (idx >= 0) connections.value[idx] = data.item;
+          cancelEdit();
+        }
+
+        async function deleteConnection(id) {
+          if (!confirm('Delete this connection?')) return;
+          await api('/connections/' + id, { method: 'DELETE' });
+          connections.value = connections.value.filter(c => c.id !== id);
+          if (selectedConnectionId.value === id) {
+            selectedConnectionId.value = '';
+            databases.value = []; namespaces.value = []; selectedDatabase.value = ''; selectedNamespace.value = ''; schema.value = null;
+            records.items = []; records.total = 0; records.page = 1; records.pageSize = 20; records.totalPages = 1;
+          }
+        }
+
+        async function testConnection(id) {
+          const out = await api('/connections/' + id + '/test', { method: 'POST' });
+          alert(out.ok ? 'OK' : 'Failed');
+        }
+
+        async function toggleEnabled(c) {
+          const data = await api('/connections/' + c.id, { method: 'PATCH', body: JSON.stringify({ enabled: !c.enabled }) });
+          const idx = connections.value.findIndex(x => x.id === c.id);
+          if (idx >= 0) connections.value[idx] = data.item;
+        }
+
+        async function selectConnection(c) {
+          selectedConnectionId.value = c.id;
+          databases.value = []; namespaces.value = []; selectedDatabase.value = ''; selectedNamespace.value = ''; schema.value = null;
+          records.items = []; records.total = 0; records.page = 1; records.pageSize = query.pageSize; records.totalPages = 1;
+          const data = await api('/connections/' + c.id + '/databases', { method: 'GET' });
+          databases.value = (data.items || []);
+        }
+
+        async function onDatabaseChange() {
+          if (!selectedConnection.value || !selectedDatabase.value) return;
+          namespaces.value = []; selectedNamespace.value = ''; schema.value = null;
+          const data = await api(`/connections/${selectedConnectionId.value}/databases/${encodeURIComponent(selectedDatabase.value)}/namespaces`, { method: 'GET' });
+          namespaces.value = (data.items || []);
+        }
+
+        async function onNamespaceChange() {
+          schema.value = null;
+          records.items = []; records.total = 0; records.totalPages = 1;
+          if (!canBrowse.value) return;
+          const data = await api(`/connections/${selectedConnectionId.value}/databases/${encodeURIComponent(selectedDatabase.value)}/namespaces/${encodeURIComponent(selectedNamespace.value)}/schema`, { method: 'GET' });
+          schema.value = data.schema;
+        }
+
+        async function loadRecords() {
+          if (!canBrowse.value) return;
+          const qs = new URLSearchParams();
+          qs.set('page', String(query.page || 1));
+          qs.set('pageSize', String(query.pageSize || 20));
+          if (String(query.filterField || '').trim()) qs.set('filterField', query.filterField);
+          if (String(query.filterValue || '').trim()) qs.set('filterValue', query.filterValue);
+          if (String(query.sortField || '').trim()) qs.set('sortField', query.sortField);
+          if (String(query.sortOrder || '').trim()) qs.set('sortOrder', query.sortOrder);
+
+          const data = await api(`/connections/${selectedConnectionId.value}/databases/${encodeURIComponent(selectedDatabase.value)}/namespaces/${encodeURIComponent(selectedNamespace.value)}/records?` + qs.toString(), { method: 'GET' });
+          records.items = data.items || [];
+          records.total = data.total || 0;
+          records.page = data.page || 1;
+          records.pageSize = data.pageSize || 20;
+          records.totalPages = data.totalPages || 1;
+        }
+
+        function prevPage() { if (records.page > 1) { query.page = records.page - 1; loadRecords(); } }
+        function nextPage() { if (records.page < records.totalPages) { query.page = records.page + 1; loadRecords(); } }
+
+        function openRow(row) { rowModal.row = row; rowModal.open = true; }
+
+        function formatCell(v) {
+          if (v === null || v === undefined) return '';
+          if (typeof v === 'object') return JSON.stringify(v);
+          return String(v);
+        }
+
+        async function refreshAll() {
+          try {
+            await loadConnections();
+            if (selectedConnection.value) {
+              await selectConnection(selectedConnection.value);
+            }
+          } catch (e) {
+            error.value = e.message || String(e);
+          }
+        }
+
+        // bootstrap
+        loadConnections().catch((e) => (error.value = e.message || String(e)));
+
+        return {
+          error,
+          connections,
+          selectedConnectionId,
+          selectedConnection,
+          databases,
+          namespaces,
+          selectedDatabase,
+          selectedNamespace,
+          schemaFields,
+          schema,
+          canBrowse,
+          query,
+          records,
+          tableHeaders,
+          rowModal,
+          editing,
+          form,
+          refreshAll,
+          selectConnection,
+          createConnection,
+          deleteConnection,
+          testConnection,
+          toggleEnabled,
+          startEdit,
+          cancelEdit,
+          saveEdit,
+          onDatabaseChange,
+          onNamespaceChange,
+          loadRecords,
+          prevPage,
+          nextPage,
+          openRow,
+          formatCell,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
