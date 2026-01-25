@@ -29,6 +29,16 @@ Sharing is implemented by toggling `Asset.visibility` between `private` and `pub
   - Default: `1073741824`.
   - Intended to apply immediately to uploads.
 
+- **`FILE_MANAGER_STORAGE_POLICY_JSON`** (json)
+  - Storage policy configuration for File Manager.
+  - Supports per-drive limits with overrides at: global, org, group, and user.
+
+Environment defaults:
+
+- **`FILE_MANAGER_DEFAULT_MAX_STORAGE_BYTES`** (env)
+  - Default max storage bytes used when no matching policy is configured.
+  - Fallback: `104857600`.
+
 These settings are managed via the admin page and stored in Global Settings.
 
 ## Public UI
@@ -58,7 +68,12 @@ These settings are managed via the admin page and stored in Global Settings.
 Upload behavior:
 
 - Upload accepts any content type.
-- Maximum upload size is enforced by `FILE_MANAGER_MAX_UPLOAD_BYTES`.
+- Maximum upload size is resolved per-drive and enforced via the effective storage policy.
+
+Storage behavior:
+
+- Storage limits are evaluated per drive.
+- Storage limits are informational (uploads are not rejected when over the max).
 
 ## Backend Models
 
@@ -100,7 +115,7 @@ Where `folderPathSlug` encodes the path segments and joins with `--`, using `roo
 For File Manager uploads, the effective namespace policy is derived from the resolved `default` upload namespace, but:
 
 - `allowedContentTypes` is treated as empty (no content type restrictions)
-- `maxFileSizeBytes` is set from `FILE_MANAGER_MAX_UPLOAD_BYTES`
+- `maxFileSizeBytes` is set from the effective per-drive storage policy (with `FILE_MANAGER_MAX_UPLOAD_BYTES` as a default fallback)
 
 ## RBAC
 
@@ -145,6 +160,22 @@ Query:
 Response:
 
 - `files: [{ id, name, parentPath, visibility, assetId, assetKey, publicUrl, contentType, size, createdAt, updatedAt }]`
+
+### `GET /storage-policy`
+
+Query:
+
+- `orgId`
+- `driveType`
+- `driveId`
+
+Response:
+
+- `effective.maxUploadBytes`
+- `effective.maxStorageBytes`
+- `effective.source.{maxUpload,maxStorage}`
+- `usage.usedBytes`
+- `usage.overageBytes`
 
 ### `POST /files/upload`
 
