@@ -3,15 +3,25 @@ const controller = require('./adminRbac.controller');
 const mongoose = require('mongoose');
 
 const User = require('../models/User');
+const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
+const RbacRole = require('../models/RbacRole');
 const RbacGroup = require('../models/RbacGroup');
 const RbacGroupMember = require('../models/RbacGroupMember');
+const RbacGroupRole = require('../models/RbacGroupRole');
+const RbacGrant = require('../models/RbacGrant');
+const rbacService = require('../services/rbac.service');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
 
 jest.mock('../models/User');
+jest.mock('../models/Organization');
 jest.mock('../models/OrganizationMember');
+jest.mock('../models/RbacRole');
 jest.mock('../models/RbacGroup');
 jest.mock('../models/RbacGroupMember');
+jest.mock('../models/RbacGroupRole');
+jest.mock('../models/RbacGrant');
+jest.mock('../services/rbac.service');
 jest.mock('../services/audit.service', () => ({
   createAuditEvent: jest.fn(),
   getBasicAuthActor: jest.fn(() => ({ actorType: 'basic', actorId: 'test' })),
@@ -72,6 +82,49 @@ describe('adminRbac.controller', () => {
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid orgId' });
+    });
+  });
+
+  describe('roles management', () => {
+    test('listRoles returns all roles', async () => {
+      const mockRoles = [{ _id: 'r1', key: 'admin', isGlobal: true }];
+      RbacRole.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockRoles)
+      });
+
+      await controller.listRoles(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        roles: expect.arrayContaining([expect.objectContaining({ key: 'admin' })])
+      });
+    });
+
+    test('createRole creates a global role', async () => {
+      mockReq.body = { key: 'editor', name: 'Editor', isGlobal: true };
+      const mockDoc = { _id: 'r2', ...mockReq.body, toObject: () => ({ _id: 'r2', ...mockReq.body }) };
+      RbacRole.create.mockResolvedValue(mockDoc);
+
+      await controller.createRole(mockReq, mockRes);
+
+      expect(RbacRole.create).toHaveBeenCalledWith(expect.objectContaining({ isGlobal: true }));
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+    });
+  });
+
+  describe('groups management', () => {
+    test('listGroups returns all groups', async () => {
+      const mockGroups = [{ _id: 'g1', name: 'Team A' }];
+      RbacGroup.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockGroups)
+      });
+
+      await controller.listGroups(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        groups: expect.arrayContaining([expect.objectContaining({ name: 'Team A' })])
+      });
     });
   });
 
@@ -196,6 +249,34 @@ describe('adminRbac.controller', () => {
       });
       expect(createAuditEvent).toHaveBeenCalled();
       expect(mockRes.json).toHaveBeenCalledWith({ success: true, deletedCount: 2 });
+    });
+  });
+
+  describe('grants management', () => {
+    test('listGrants returns grants with filters', async () => {
+      const mockGrants = [{ _id: 'g1', subjectType: 'role', subjectId: 'r1' }];
+      RbacGrant.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockGrants)
+      });
+
+      await controller.listGrants(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({
+        grants: expect.arrayContaining([expect.objectContaining({ subjectType: 'role' })])
+      });
+    });
+
+    test('createGrant creates a new grant', async () => {
+      const subjectId = new mongoose.Types.ObjectId();
+      mockReq.body = { subjectType: 'user', subjectId: String(subjectId), scopeType: 'global', right: 'users.read' };
+      const mockDoc = { _id: 'grant1', ...mockReq.body, toObject: () => ({ _id: 'grant1', ...mockReq.body }) };
+      RbacGrant.create.mockResolvedValue(mockDoc);
+
+      await controller.createGrant(mockReq, mockRes);
+
+      expect(RbacGrant.create).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
     });
   });
 });
