@@ -142,6 +142,18 @@ async function getOrgRoleLevel(role) {
   return hierarchy[r] || 0;
 }
 
+async function isRoleAtLeast(role, requiredRole) {
+  const level = await getOrgRoleLevel(role);
+  const requiredLevel = await getOrgRoleLevel(requiredRole);
+  return level >= requiredLevel;
+}
+
+async function isRoleHigherThan(role, otherRole) {
+  const level = await getOrgRoleLevel(role);
+  const otherLevel = await getOrgRoleLevel(otherRole);
+  return level > otherLevel;
+}
+
 function clearOrgRolesCache() {
   cached = null;
 }
@@ -152,5 +164,7 @@ module.exports = {
   getDefaultOrgRole,
   isValidOrgRole,
   getOrgRoleLevel,
+  isRoleAtLeast,
+  isRoleHigherThan,
   clearOrgRolesCache,
 };
