@@ -179,6 +179,46 @@ describe('Email Service', () => {
         })
       );
     }, 10000);
+
+    test('should log successful email send in database', async () => {
+      const EmailLog = require('../models/EmailLog');
+      const emailService = require('./email.service');
+      
+      mockResend.emails.send.mockResolvedValue({
+        data: { id: 'resend_123' }
+      });
+
+      await emailService.sendEmail({
+        to: 'log@test.com',
+        subject: 'Log Test',
+        userId: 'u123'
+      });
+
+      expect(EmailLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        userId: 'u123',
+        status: 'sent',
+        providerId: 'resend_123'
+      }));
+    });
+
+    test('should log failed email send in database', async () => {
+      const EmailLog = require('../models/EmailLog');
+      const emailService = require('./email.service');
+      
+      mockResend.emails.send.mockResolvedValue({
+        error: { message: 'Api Error' }
+      });
+
+      await expect(emailService.sendEmail({
+        to: 'fail@test.com',
+        subject: 'Fail Test'
+      })).rejects.toThrow('Api Error');
+
+      expect(EmailLog.create).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'failed',
+        error: 'Api Error'
+      }));
+    });
   });
 
   describe('sendWelcomeEmail', () => {
