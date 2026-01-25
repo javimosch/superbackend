@@ -1,7 +1,8 @@
 const Workflow = require('../models/Workflow');
 const WorkflowExecution = require('../models/WorkflowExecution');
-const llmService = require('./llm.service');
 const { NodeVM } = require('vm2');
+const llmService = require('./llm.service');
+const { resolveLlmProviderModel } = require('./llmDefaults.service');
 
 /**
  * Workflow Service
@@ -163,13 +164,27 @@ class WorkflowService {
 
   async handleLLM(node) {
     const prompt = this.interpolate(node.prompt);
-    const response = await llmService.callAdhoc({
-      providerKey: node.provider || 'openrouter',
-      messages: [{ role: 'user', content: prompt }]
-    }, { 
-      model: node.model || 'minimax/minimax-m2.1',
-      temperature: node.temperature !== undefined ? parseFloat(node.temperature) : 0.7
-    });
+    const providerKeyRaw = node.provider;
+    const modelRaw = node.model;
+
+    const resolved = (!providerKeyRaw || !String(providerKeyRaw).trim() || !modelRaw || !String(modelRaw).trim())
+      ? await resolveLlmProviderModel({
+        systemKey: 'workflow.node.llm',
+        providerKey: providerKeyRaw,
+        model: modelRaw,
+      })
+      : { providerKey: String(providerKeyRaw).trim(), model: String(modelRaw || '').trim() };
+
+    const response = await llmService.callAdhoc(
+      {
+        providerKey: resolved.providerKey,
+        messages: [{ role: 'user', content: prompt }],
+      },
+      {
+        model: resolved.model || undefined,
+        temperature: node.temperature !== undefined ? parseFloat(node.temperature) : 0.7,
+      },
+    );
     return response.content;
   }
 
