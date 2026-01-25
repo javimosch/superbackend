@@ -3,6 +3,7 @@ const HealthCheckRun = require('../models/HealthCheckRun');
 const HealthIncident = require('../models/HealthIncident');
 const { runHealthCheckOnce, calculateNextRun, cleanupRunsOlderThanDays } = require('./healthChecks.service');
 const notificationService = require('./notification.service');
+const globalSettingsService = require('./globalSettings.service');
 
 jest.mock('../models/HealthCheck');
 jest.mock('../models/HealthCheckRun');
@@ -41,7 +42,6 @@ describe('healthChecks.service', () => {
       HealthCheckRun.updateOne.mockResolvedValue({});
       HealthIncident.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
 
-      // Mock global fetch for the HTTP check
       global.fetch = jest.fn().mockResolvedValue({
         status: 200,
         headers: new Map(),
@@ -54,6 +54,115 @@ describe('healthChecks.service', () => {
       expect(result.status).toBe('healthy');
       expect(HealthCheckRun.create).toHaveBeenCalled();
       expect(HealthCheckRun.updateOne).toHaveBeenCalled();
+    });
+
+    test('handles HTTP check with bearer auth', async () => {
+      const mockCheck = {
+        _id: 'check-auth',
+        checkType: 'http',
+        httpUrl: 'https://api.test',
+        httpAuth: { type: 'bearer', tokenSettingKey: 'API_TOKEN' },
+        enabled: true,
+        save: jest.fn().mockResolvedValue(true)
+      };
+      
+      HealthCheck.findById.mockResolvedValue(mockCheck);
+      HealthCheckRun.create.mockResolvedValue({ _id: 'run-auth' });
+      globalSettingsService.getSettingValue.mockResolvedValue('secret-token');
+      
+      global.fetch = jest.fn().mockResolvedValue({
+        status: 200,
+        headers: new Map(),
+        text: () => Promise.resolve('OK'),
+        ok: true
+      });
+
+      await runHealthCheckOnce('check-auth');
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer secret-token' })
+        })
+      );
+    });
+
+    test('marks as unhealthy if status code unexpected', async () => {
+      const mockCheck = {
+        _id: 'check-fail',
+        checkType: 'http',
+        httpUrl: 'https://example.com',
+        expectedStatusCodes: [200, 201],
+        enabled: true,
+        save: jest.fn().mockResolvedValue(true)
+      };
+      
+      HealthCheck.findById.mockResolvedValue(mockCheck);
+      HealthCheckRun.create.mockResolvedValue({ _id: 'run-fail' });
+      
+      global.fetch = jest.fn().mockResolvedValue({
+        status: 500,
+        headers: new Map(),
+        text: () => Promise.resolve('Error'),
+        ok: false
+      });
+
+      const result = await runHealthCheckOnce('check-fail');
+      expect(result.status).toBe('unhealthy');
+    });
+
+    test('marks as unhealthy if body must match but doesn\'t', async () => {
+      const mockCheck = {
+        _id: 'check-body',
+        checkType: 'http',
+        httpUrl: 'https://example.com',
+        bodyMustMatch: 'SUCCESS',
+        enabled: true,
+        save: jest.fn().mockResolvedValue(true)
+      };
+      
+      HealthCheck.findById.mockResolvedValue(mockCheck);
+      HealthCheckRun.create.mockResolvedValue({ _id: 'run-body' });
+      
+      global.fetch = jest.fn().mockResolvedValue({
+        status: 200,
+        headers: new Map(),
+        text: () => Promise.resolve('FAILURE'),
+        ok: true
+      });
+
+      const result = await runHealthCheckOnce('check-body');
+      expect(result.status).toBe('unhealthy');
+    });
+
+    test('triggers notification on incident open', async () => {
+      const mockCheck = {
+        _id: 'check-notify',
+        name: 'Test Check',
+        checkType: 'http',
+        httpUrl: 'https://example.com',
+        enabled: true,
+        notifyOnOpen: true,
+        notifyUserIds: ['u1'],
+        consecutiveFailuresToOpen: 1,
+        save: jest.fn().mockResolvedValue(true)
+      };
+      
+      HealthCheck.findById.mockResolvedValue(mockCheck);
+      HealthCheckRun.create.mockResolvedValue({ _id: 'run-notify' });
+      HealthIncident.findOne.mockReturnValue({ sort: jest.fn().mockResolvedValue(null) });
+      HealthIncident.create.mockResolvedValue({ _id: 'inc1' });
+      
+      global.fetch = jest.fn().mockResolvedValue({
+        status: 500,
+        headers: new Map(),
+        text: () => Promise.resolve('Error'),
+        ok: false
+      });
+
+      await runHealthCheckOnce('check-notify');
+
+      expect(notificationService.sendToUsers).toHaveBeenCalled();
     });
 
     test('throws error if HealthCheck not found', async () => {
