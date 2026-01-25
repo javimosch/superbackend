@@ -75,6 +75,7 @@ const saasbackend = {
     webhooks: require("./src/services/webhook.service"),
     workflow: require("./src/services/workflow.service"),
     healthChecks: require("./src/services/healthChecks.service"),
+    dbBrowser: require("./src/services/dbBrowser.service"),
   },
   models: {
     ActionEvent: require("./src/models/ActionEvent"),
@@ -114,6 +115,8 @@ const saasbackend = {
     HealthCheckRun: require("./src/models/HealthCheckRun"),
     HealthIncident: require("./src/models/HealthIncident"),
     HealthAutoHealAttempt: require("./src/models/HealthAutoHealAttempt"),
+
+    ExternalDbConnection: require("./src/models/ExternalDbConnection"),
   },
   helpers: {
     auth: require("./src/middleware/auth"),
