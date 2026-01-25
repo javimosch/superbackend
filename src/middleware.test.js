@@ -1,4 +1,4 @@
-const createMiddleware = require('./middleware');
+let createMiddleware;
 const express = require('express');
 const request = require('supertest');
 
@@ -70,7 +70,14 @@ jest.mock('ejs', () => ({
     if (template.includes('<% invalid syntax %>')) {
       throw new Error('Invalid EJS syntax');
     }
-    return `<html><body>${data.baseUrl ? 'Test Page: ' + data.baseUrl : 'Settings Page: ' + data.baseUrl}</body></html>`;
+    const baseUrl = (data && data.baseUrl) ? data.baseUrl : '';
+    if (template.includes('Database Browser')) {
+      return `<html><body>Database Browser: ${baseUrl}</body></html>`;
+    }
+    if (template.includes('Settings Page')) {
+      return `<html><body>Settings Page: ${baseUrl}</body></html>`;
+    }
+    return `<html><body>Test Page: ${baseUrl}</body></html>`;
   })
 }));
 
@@ -107,6 +114,8 @@ jest.mock('fs', () => ({
       return '<html><body>Test Page: <%= baseUrl %></body></html>';
     } else if (path.includes('admin-global-settings.ejs')) {
       return '<html><body>Settings Page: <%= baseUrl %></body></html>';
+    } else if (path.includes('admin-db-browser.ejs')) {
+      return '<html><body>Database Browser: <%= baseUrl %></body></html>';
     } else {
       throw new Error('File not found');
     }
@@ -116,9 +125,25 @@ jest.mock('fs', () => ({
       callback(null, '<html><body>Test Page: <%= baseUrl %></body></html>');
     } else if (path.includes('admin-global-settings.ejs')) {
       callback(null, '<html><body>Settings Page: <%= baseUrl %></body></html>');
+    } else if (path.includes('admin-db-browser.ejs')) {
+      callback(null, '<html><body>Database Browser: <%= baseUrl %></body></html>');
     } else {
       callback(new Error('File not found'));
     }
+  }),
+  stat: jest.fn((filePath, callback) => {
+    const err = new Error(`ENOENT: no such file or directory, stat '${filePath}'`);
+    err.code = 'ENOENT';
+    err.errno = -2;
+    err.path = filePath;
+    callback(err);
+  }),
+  statSync: jest.fn((filePath) => {
+    const err = new Error(`ENOENT: no such file or directory, stat '${filePath}'`);
+    err.code = 'ENOENT';
+    err.errno = -2;
+    err.path = filePath;
+    throw err;
   }),
   existsSync: jest.fn(() => false),
   createWriteStream: jest.fn(() => ({
@@ -251,6 +276,8 @@ jest.mock('./middleware/errorCapture', () => ({
     const statusCode = err.status || err.statusCode || 500;
     res.status(statusCode).json({
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
+      // Include stack in tests to make route failures debuggable.
+      stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
     });
   }),
   requestIdMiddleware: jest.fn((req, res, next) => next())
@@ -439,6 +466,9 @@ jest.mock('./controllers/assets.controller', () => ({
   download: jest.fn((req, res) => res.download('test.pdf'))
 }));
 
+// Important: require the middleware *after* mocks are registered.
+createMiddleware = require('./middleware');
+
 describe('Middleware', () => {
   let app;
 
@@ -563,13 +593,30 @@ describe('Middleware', () => {
       expect(typeof middleware).toBe('function');
     });
 
-    test('should handle template read error for admin test page', async () => {
+	    test('should serve admin db browser page', async () => {
+	      const credentials = Buffer.from('admin:admin', 'utf8').toString('base64');
+	      const response = await request(app)
+	        .get('/admin/db-browser')
+	        .set('Authorization', `Basic ${credentials}`);
+	      if (response.status !== 200) {
+	        throw new Error(
+	          `Expected 200 but got ${response.status}. Body: ${String(response.text || response.body)}`,
+	        );
+	      }
+	      expect(response.status).toBe(200);
+	      expect(response.text).toContain('Database Browser');
+	    });
+
+    test('should handle template read error for admin db browser page', async () => {
       const fs = require('fs');
       fs.readFile.mockImplementationOnce((path, encoding, callback) => {
         callback(new Error('File not found'));
       });
 
-      const response = await request(app).get('/admin/test');
+      const credentials = Buffer.from('admin:admin', 'utf8').toString('base64');
+      const response = await request(app)
+        .get('/admin/db-browser')
+        .set('Authorization', `Basic ${credentials}`);
       
       expect(response.status).toBe(500);
       // The response should be HTML, check that it's not empty and contains some error indication
@@ -577,13 +624,16 @@ describe('Middleware', () => {
       expect(response.text.length).toBeGreaterThan(0);
     });
 
-    test('should handle template render error for admin test page', async () => {
+    test('should handle template render error for admin db browser page', async () => {
       const fs = require('fs');
       fs.readFile.mockImplementationOnce((path, encoding, callback) => {
         callback(null, '<% invalid syntax %>');
       });
 
-      const response = await request(app).get('/admin/test');
+      const credentials = Buffer.from('admin:admin', 'utf8').toString('base64');
+      const response = await request(app)
+        .get('/admin/db-browser')
+        .set('Authorization', `Basic ${credentials}`);
       
       expect(response.status).toBe(500);
       // The response should be HTML, check that it's not empty and contains some error indication
