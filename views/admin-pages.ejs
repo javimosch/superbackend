@@ -191,6 +191,7 @@
 
       <div class="flex gap-2 mb-4 border-b border-gray-200">
         <button id="blocks-subtab-definitions" class="px-4 py-2 text-sm font-medium tab-active" onclick="switchBlocksSubTab('definitions')">Definitions</button>
+        <button id="blocks-subtab-context" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchBlocksSubTab('context')">Context Blocks</button>
         <button id="blocks-subtab-settings" class="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900" onclick="switchBlocksSubTab('settings')">Settings</button>
       </div>
 
@@ -240,6 +241,65 @@
 
           <div class="text-xs text-gray-500 mt-3">
             Resolution order: request override → System defaults (<span class="font-mono">llm.systemDefaults.pageBuilder.blocks.generate</span>) → Global defaults (<span class="font-mono">llm.defaults.*</span>) → legacy settings (<span class="font-mono">pageBuilder.blocks.ai.*</span>) → env.
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-blocks-context" class="hidden">
+        <div class="bg-white rounded-lg shadow-sm border p-4">
+          <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <div class="font-semibold text-gray-900">AI Assist: Context Blocks</div>
+              <div class="text-xs text-gray-500">Generate/propose a single <span class="font-mono">context.*</span> block. You manually Apply and Test.</div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <%- include('partials/llm-provider-model-picker', {
+              providerInputId: 'ctxblocks-ai-provider',
+              modelInputId: 'ctxblocks-ai-model',
+              providerLabel: 'Provider (optional)',
+              modelLabel: 'Model (optional)',
+              showOpenRouterFetch: true,
+            }) %>
+
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Block type</label>
+              <select id="ctxblocks-ai-type" class="w-full border rounded px-2 py-2 text-sm">
+                <option value="context.db_query">context.db_query</option>
+                <option value="context.service_invoke">context.service_invoke</option>
+              </select>
+              <div class="text-[11px] text-gray-500 mt-1">Uses $ctx interpolation: <span class="font-mono">{"$ctx":"params.slug"}</span></div>
+            </div>
+          </div>
+
+          <div class="mt-3">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Prompt</label>
+            <textarea id="ctxblocks-ai-prompt" class="w-full border rounded px-2 py-2 text-sm" rows="4" placeholder="Example: Load the published BlogPost for params.slug into vars.post. Add cache 30s."></textarea>
+          </div>
+
+          <div class="flex gap-2 mt-3">
+            <button type="button" onclick="aiGenerateContextBlock()" class="px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white">Generate</button>
+            <button type="button" onclick="aiProposeContextBlock()" class="px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white">Propose (selected block)</button>
+            <button type="button" onclick="applyContextBlockProposal()" class="px-3 py-2 rounded text-sm bg-gray-800 hover:bg-gray-900 text-white">Apply</button>
+            <button type="button" onclick="testContextBlockProposal()" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-800">Test</button>
+          </div>
+
+          <div id="ctxblocks-ai-warnings" class="hidden mt-3 text-xs bg-amber-50 border border-amber-200 rounded p-2"></div>
+
+          <div class="mt-3">
+            <div class="text-xs font-semibold text-gray-700 mb-1">Proposal preview</div>
+            <pre id="ctxblocks-ai-preview" class="text-[11px] whitespace-pre-wrap break-words bg-gray-50 border border-gray-200 rounded p-2 min-h-[80px]"></pre>
+          </div>
+
+          <div class="mt-3">
+            <div class="text-xs font-semibold text-gray-700 mb-1">Mock context (optional JSON)</div>
+            <textarea id="ctxblocks-ai-mock-context" class="w-full border rounded px-2 py-2 font-mono text-xs" rows="4" placeholder='{"params":{"slug":"hello"},"query":{}}'></textarea>
+            <div class="text-[11px] text-gray-500 mt-1">Merged into pageContext for tests only.</div>
+          </div>
+
+          <div class="mt-3 text-[11px] text-gray-500">
+            Invokable helpers: <span class="font-mono">helpers.services.*</span>, <span class="font-mono">helpers.models.*</span>, <span class="font-mono">helpers.mongoose.*</span>
           </div>
         </div>
       </div>
@@ -332,8 +392,15 @@
           <label class="block text-sm font-medium text-gray-700 mb-1">Custom JS</label>
           <textarea id="page-js" rows="3" class="w-full border rounded px-3 py-2 font-mono text-sm"></textarea>
         </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Repeat (JSON)</label>
+          <textarea id="page-repeat" rows="3" class="w-full border rounded px-3 py-2 font-mono text-sm" placeholder='{"paramKey":"slug"}'></textarea>
+          <p class="text-xs text-gray-500 mt-1">Optional. For dynamic pages via a single Page definition. Convention: use slug <span class="font-mono">_</span> for repeat pages.</p>
+        </div>
         <div class="flex justify-end gap-2 pt-4 border-t">
           <button type="button" onclick="closePageModal()" class="px-4 py-2 border rounded hover:bg-gray-50">Cancel</button>
+          <button type="button" onclick="testContextPhaseForCurrentPage()" class="px-4 py-2 border rounded hover:bg-gray-50">Test Context</button>
           <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save Page</button>
         </div>
       </form>
@@ -491,6 +558,8 @@
     const state = {
       pages: { items: [], offset: 0, limit: 25, total: 0 },
       collections: { items: [], offset: 0, limit: 25, total: 0 },
+      selectedBlockId: null,
+      ctxBlocksAiProposal: null,
     };
 
     function showToast(message, type = 'success') {
@@ -515,7 +584,7 @@
     }
 
     function switchBlocksSubTab(subTab) {
-      const tabs = ['definitions', 'settings'];
+      const tabs = ['definitions', 'context', 'settings'];
       const normalized = tabs.includes(subTab) ? subTab : 'definitions';
       state.blocksSubTab = normalized;
 
@@ -525,10 +594,166 @@
       });
 
       document.getElementById('panel-blocks-definitions')?.classList.toggle('hidden', normalized !== 'definitions');
+      document.getElementById('panel-blocks-context')?.classList.toggle('hidden', normalized !== 'context');
       document.getElementById('panel-blocks-settings')?.classList.toggle('hidden', normalized !== 'settings');
 
       if (normalized === 'settings') {
         loadBlocksAiSettings();
+      }
+    }
+
+    function safeJsonParse(raw, fallback) {
+      try {
+        return JSON.parse(String(raw || ''));
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function setContextBlocksWarnings(warnings) {
+      const el = document.getElementById('ctxblocks-ai-warnings');
+      if (!el) return;
+      const arr = Array.isArray(warnings) ? warnings : [];
+      if (!arr.length) {
+        el.classList.add('hidden');
+        el.textContent = '';
+        return;
+      }
+      el.classList.remove('hidden');
+      el.innerHTML = '<div class="font-semibold text-amber-900 mb-1">Warnings</div>' + arr.map((w) => `<div class="text-amber-900">- ${escapeHtml(String(w || ''))}</div>`).join('');
+    }
+
+    function setContextBlocksProposal(proposal) {
+      state.ctxBlocksAiProposal = proposal && typeof proposal === 'object' ? proposal : null;
+      const preview = document.getElementById('ctxblocks-ai-preview');
+      if (preview) {
+        preview.textContent = state.ctxBlocksAiProposal ? JSON.stringify(state.ctxBlocksAiProposal, null, 2) : '';
+      }
+    }
+
+    function getSelectedBlock() {
+      const id = state.selectedBlockId;
+      if (!id) return null;
+      const blocks = state.currentBlocks || [];
+      return blocks.find((b) => b && String(b.id) === String(id)) || null;
+    }
+
+    function setSelectedBlock(blockId) {
+      state.selectedBlockId = blockId ? String(blockId) : null;
+      renderBlocksEditor();
+    }
+
+    async function aiGenerateContextBlock() {
+      const prompt = String(document.getElementById('ctxblocks-ai-prompt')?.value || '').trim();
+      const blockType = String(document.getElementById('ctxblocks-ai-type')?.value || '').trim();
+      const providerKey = String(document.getElementById('ctxblocks-ai-provider')?.value || '').trim();
+      const model = String(document.getElementById('ctxblocks-ai-model')?.value || '').trim();
+      if (!prompt) return;
+      if (!blockType) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/ai/context-blocks/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt, blockType, providerKey, model }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setContextBlocksProposal(data.proposal);
+        setContextBlocksWarnings(data.warnings);
+        showToast('AI proposal loaded');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    async function aiProposeContextBlock() {
+      const prompt = String(document.getElementById('ctxblocks-ai-prompt')?.value || '').trim();
+      const providerKey = String(document.getElementById('ctxblocks-ai-provider')?.value || '').trim();
+      const model = String(document.getElementById('ctxblocks-ai-model')?.value || '').trim();
+      if (!prompt) return;
+
+      const current = getSelectedBlock();
+      if (!current) {
+        showToast('Select a block first', 'error');
+        return;
+      }
+      if (!String(current.type || '').startsWith('context.')) {
+        showToast('Selected block is not a context.* block', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/ai/context-blocks/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt, currentBlock: { type: current.type, props: current.props || {} }, providerKey, model }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setContextBlocksProposal(data.proposal);
+        setContextBlocksWarnings(data.warnings);
+        showToast('AI proposal loaded');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    function applyContextBlockProposal() {
+      const proposal = state.ctxBlocksAiProposal;
+      if (!proposal) return;
+
+      const type = String(proposal.type || '').trim();
+      if (!type.startsWith('context.')) {
+        showToast('Proposal must be context.*', 'error');
+        return;
+      }
+
+      const blocks = state.currentBlocks || [];
+      const selected = getSelectedBlock();
+      if (selected && String(selected.type || '').startsWith('context.')) {
+        const idx = blocks.findIndex((b) => b && String(b.id) === String(selected.id));
+        if (idx !== -1) {
+          blocks[idx] = { ...blocks[idx], type: proposal.type, props: proposal.props || {} };
+          state.currentBlocks = blocks;
+          renderBlocksEditor();
+          showToast('Applied to selected block');
+          return;
+        }
+      }
+
+      state.currentBlocks = [...blocks, { id: uuid(), type: proposal.type, props: proposal.props || {} }];
+      renderBlocksEditor();
+      showToast('Added new context block');
+    }
+
+    async function testContextBlockProposal() {
+      const proposal = state.ctxBlocksAiProposal;
+      if (!proposal) return;
+
+      const pageId = String(document.getElementById('page-id')?.value || '').trim();
+      const url = pageId
+        ? `${API_BASE}/api/admin/pages/pages/${encodeURIComponent(pageId)}/test-block`
+        : `${API_BASE}/api/admin/pages/test-block`;
+
+      const mockContextRaw = String(document.getElementById('ctxblocks-ai-mock-context')?.value || '').trim();
+      const mockContext = mockContextRaw ? safeJsonParse(mockContextRaw, null) : null;
+
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ block: proposal, routePath: '/_test', mockContext }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const varsStr = JSON.stringify(data.vars || {}, null, 2);
+        showToast(`Test OK (${data.elapsedMs}ms). Vars: ${varsStr.substring(0, 200)}${varsStr.length > 200 ? '...' : ''}`);
+      } catch (err) {
+        showToast(err.message, 'error');
       }
     }
 
@@ -874,6 +1099,7 @@
         document.getElementById('page-seo-description').value = p.seoMeta?.description || '';
         document.getElementById('page-css').value = p.customCss || '';
         document.getElementById('page-js').value = p.customJs || '';
+        document.getElementById('page-repeat').value = p.repeat ? JSON.stringify(p.repeat, null, 2) : '';
 
         renderBlocksEditor();
 
@@ -968,31 +1194,38 @@
       }
     }
 
-    document.getElementById('page-form').addEventListener('submit', async (e) => {
+    document.getElementById('page-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const id = document.getElementById('page-id').value;
-      const body = {
-        title: document.getElementById('page-title').value,
-        slug: document.getElementById('page-slug').value,
-        collectionId: document.getElementById('page-collection').value || null,
-        status: document.getElementById('page-status').value,
-        templateKey: document.getElementById('page-template').value,
-        layoutKey: document.getElementById('page-layout').value,
-        blocks: state.currentBlocks || [],
-        seoMeta: {
-          title: document.getElementById('page-seo-title').value,
-          description: document.getElementById('page-seo-description').value,
-        },
-        customCss: document.getElementById('page-css').value,
-        customJs: document.getElementById('page-js').value,
-      };
-
       try {
+        const id = document.getElementById('page-id').value;
+        let repeat = null;
+        const repeatRaw = document.getElementById('page-repeat')?.value || '';
+        if (repeatRaw.trim()) {
+          repeat = JSON.parse(repeatRaw);
+        }
+
+        const payload = {
+          slug: document.getElementById('page-slug').value,
+          collectionId: document.getElementById('page-collection').value || null,
+          title: document.getElementById('page-title').value,
+          templateKey: document.getElementById('page-template').value,
+          layoutKey: document.getElementById('page-layout').value,
+          blocks: state.currentBlocks || [],
+          repeat,
+          customCss: document.getElementById('page-css').value,
+          customJs: document.getElementById('page-js').value,
+          seoMeta: {
+            title: document.getElementById('page-seo-title').value,
+            description: document.getElementById('page-seo-description').value,
+            keywords: document.getElementById('page-seo-keywords').value,
+          },
+        };
+
         const res = await fetch(`${API_BASE}/api/admin/pages/pages${id ? `/${id}` : ''}`, {
           method: id ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
-          body: JSON.stringify(body),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -1003,6 +1236,31 @@
         showToast(e.message, 'error');
       }
     });
+
+    async function testContextPhaseForCurrentPage() {
+      const id = document.getElementById('page-id')?.value;
+      if (!id) {
+        showToast('Save the page first to test context phase', 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/pages/${id}/test-context`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ routePath: '/_test' }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const varsStr = JSON.stringify(data.vars || {}, null, 2);
+        showToast(`Context OK (${data.elapsedMs}ms). Vars: ${varsStr.substring(0, 200)}${varsStr.length > 200 ? '...' : ''}`);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
 
     document.getElementById('collection-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -1735,6 +1993,8 @@
         const def = defs[b.type] || {};
         const label = def.label || b.type;
         const fields = def.fields || {};
+        const isSelected = state.selectedBlockId && String(state.selectedBlockId) === String(b.id);
+        const borderClass = isSelected ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200';
         const fieldsHtml = Object.keys(fields).map((key) => {
           const field = fields[key] || {};
           const ft = String(field.type || '').toLowerCase();
@@ -1795,7 +2055,7 @@
         }).join('');
 
         return `
-          <div class="border rounded-lg bg-white p-3" draggable="true" data-idx="${idx}" ondragstart="onBlockDragStart(event)" ondragover="onBlockDragOver(event)" ondrop="onBlockDrop(event)">
+          <div class="border rounded-lg bg-white p-3 ${borderClass}" draggable="true" data-idx="${idx}" ondragstart="onBlockDragStart(event)" ondragover="onBlockDragOver(event)" ondrop="onBlockDrop(event)" onclick="setSelectedBlock('${b.id}')">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
                 <span class="text-gray-400"><i class="ti ti-grip-vertical"></i></span>
