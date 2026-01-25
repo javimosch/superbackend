@@ -1,4 +1,12 @@
-jest.mock('crypto');
+jest.mock('crypto', () => ({
+  createHash: jest.fn().mockReturnValue({
+    update: jest.fn().mockReturnThis(),
+    digest: jest.fn().mockReturnValue('abcd1234')
+  }),
+  randomBytes: jest.fn().mockReturnValue({
+    toString: jest.fn().mockReturnValue('random-hex')
+  })
+}));
 jest.mock('../models/GlobalSetting', () => ({
   find: jest.fn()
 }));
@@ -82,6 +90,61 @@ describe('featureFlags.service', () => {
       expect(results).toHaveLength(2);
       expect(results[0]).toMatchObject({ key: 'test1', enabled: true });
       expect(results[1]).toMatchObject({ key: 'test2', enabled: false });
+    });
+
+    test('evaluates multiple flags correctly', async () => {
+      const mockSettings = [
+        {
+          key: 'FEATURE_FLAG.test1',
+          type: 'json',
+          value: JSON.stringify({ enabled: true, payload: { color: 'blue' } })
+        },
+        {
+          key: 'FEATURE_FLAG.test2',
+          type: 'json',
+          value: JSON.stringify({ enabled: false, rolloutPercentage: 100 })
+        }
+      ];
+      GlobalSetting.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockSettings)
+      });
+
+      const result = await featureFlagsService.evaluateAllForRequest({ userId: 'u1' });
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ key: 'test1', enabled: true, payload: { color: 'blue' } });
+      expect(result[1].enabled).toBe(true); // 100% rollout
+    });
+
+    test('respects deny lists', async () => {
+      const mockSettings = [{
+        key: 'FEATURE_FLAG.denied',
+        type: 'json',
+        value: JSON.stringify({ enabled: true, denyListUserIds: ['u1'] })
+      }];
+      GlobalSetting.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockSettings)
+      });
+
+      const result = await featureFlagsService.evaluateAllForRequest({ userId: 'u1' });
+      expect(result[0].enabled).toBe(false);
+    });
+
+    test('respects allow lists over global enabled state', async () => {
+      const mockSettings = [{
+        key: 'FEATURE_FLAG.allowed',
+        type: 'json',
+        value: JSON.stringify({ enabled: false, allowListUserIds: ['u1'] })
+      }];
+      GlobalSetting.find.mockReturnValue({
+        sort: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(mockSettings)
+      });
+
+      const result = await featureFlagsService.evaluateAllForRequest({ userId: 'u1' });
+      expect(result[0].enabled).toBe(true);
     });
   });
 
