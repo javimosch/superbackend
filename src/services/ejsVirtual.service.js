@@ -677,6 +677,7 @@ module.exports = {
   readFsView,
   invalidateCacheForPath,
   clearCache,
+  recordIntegratedUsage,
   vibeEdit,
   renderToString,
   render,

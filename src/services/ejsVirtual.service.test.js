@@ -2,7 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const ejs = require('ejs');
 const VirtualEjsFile = require('../models/VirtualEjsFile');
+const VirtualEjsGroupChange = require('../models/VirtualEjsGroupChange');
+const VirtualEjsFileVersion = require('../models/VirtualEjsFileVersion');
 const ejsVirtualService = require('./ejsVirtual.service');
+const llmService = require('./llm.service');
+const llmDefaults = require('./llmDefaults.service');
 
 jest.mock('fs', () => ({
   promises: {
@@ -15,6 +19,7 @@ jest.mock('fs', () => ({
 
 jest.mock('../models/VirtualEjsFile', () => ({
   findOne: jest.fn(),
+  findOneAndUpdate: jest.fn(),
   updateOne: jest.fn(),
   find: jest.fn()
 }));
@@ -29,6 +34,9 @@ jest.mock('../models/VirtualEjsGroupChange', () => ({
   findById: jest.fn(),
   updateOne: jest.fn()
 }));
+
+jest.mock('./llm.service');
+jest.mock('./llmDefaults.service');
 
 jest.mock('ejs', () => ({
   render: jest.fn()
@@ -82,10 +90,69 @@ describe('ejsVirtual.service', () => {
     });
   });
 
+  describe('vibeEdit', () => {
+    test('calls LLM and applies patches', async () => {
+      const paths = ['test.ejs'];
+      const prompt = 'Change text';
+      
+      llmDefaults.resolveLlmProviderModel.mockResolvedValue({ providerKey: 'p1', model: 'm1' });
+      
+      // Mock findOne to handle both .lean() and direct document access
+      VirtualEjsFile.findOne.mockImplementation((query) => {
+        const mockDoc = { 
+          path: query.path, 
+          toObject: jest.fn().mockReturnValue({ path: query.path }) 
+        };
+        return {
+          ...mockDoc,
+          lean: jest.fn().mockResolvedValue(null)
+        };
+      });
+
+      VirtualEjsFile.findOneAndUpdate.mockResolvedValue({ 
+        _id: 'file1', 
+        path: 'test.ejs',
+        toObject: () => ({ path: 'test.ejs' }) 
+      });
+      VirtualEjsGroupChange.countDocuments.mockResolvedValue(0);
+      VirtualEjsGroupChange.create.mockResolvedValue({ _id: 'group1' });
+      VirtualEjsGroupChange.findById.mockReturnValue({ lean: jest.fn().mockResolvedValue({ _id: 'group1' }) });
+      VirtualEjsFileVersion.create.mockResolvedValue({ _id: 'v1' });
+
+      fs.promises.stat.mockResolvedValue({ isFile: () => true, size: 100 });
+      fs.promises.readFile.mockResolvedValue('original content');
+
+      llmService.callAdhoc.mockResolvedValue({
+        content: 'FILE: test.ejs\n<<<<<<< SEARCH\noriginal content\n=======\nnew content\n>>>>>>> REPLACE'
+      });
+
+      const result = await ejsVirtualService.vibeEdit({ prompt, paths });
+
+      expect(result.updates[0].path).toBe('test.ejs');
+      expect(VirtualEjsFile.findOneAndUpdate).toHaveBeenCalledWith(
+        { path: 'test.ejs' },
+        expect.objectContaining({ '$set': expect.objectContaining({ content: 'new content' }) }),
+        expect.any(Object)
+      );
+    });
+  });
+
+  describe('recordIntegratedUsage', () => {
+    test('updates usage stats in DB', async () => {
+      await ejsVirtualService.recordIntegratedUsage('test.ejs');
+      expect(VirtualEjsFile.updateOne).toHaveBeenCalledWith(
+        { path: 'test.ejs' },
+        expect.any(Object),
+        { upsert: true }
+      );
+    });
+  });
+
   describe('renderToString', () => {
     test('renders simple template', async () => {
       VirtualEjsFile.find.mockReturnValue({ lean: jest.fn().mockResolvedValue([]) });
       VirtualEjsFile.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(null) });
+      VirtualEjsFile.updateOne.mockResolvedValue({});
       fs.promises.stat.mockResolvedValue({ isFile: () => true, size: 100 });
       fs.promises.readFile.mockResolvedValue('Hello <%= name %>');
       ejs.render.mockReturnValue('Hello World');
