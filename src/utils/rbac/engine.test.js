@@ -14,6 +14,30 @@ describe('rbac engine', () => {
     expect(matches('users:manage', 'backoffice:*')).toBe(false);
   });
 
+  describe('evaluateEffects', () => {
+    test('returns no_match if no entries', () => {
+      expect(evaluateEffects([], 'read')).toEqual({ allowed: false, reason: 'no_match' });
+    });
+
+    test('returns invalid_required_right for empty right', () => {
+      expect(evaluateEffects([{ right: '*' }], '')).toEqual({ allowed: false, reason: 'invalid_required_right' });
+    });
+
+    test('skips null or invalid entries', () => {
+      const entries = [null, { right: '' }, { right: 'other' }];
+      expect(evaluateEffects(entries, 'test')).toEqual({ allowed: false, reason: 'no_match' });
+    });
+
+    test('prefers deny over allow', () => {
+      const entries = [
+        { right: '*', effect: 'allow' },
+        { right: 'secret', effect: 'deny' }
+      ];
+      expect(evaluateEffects(entries, 'secret')).toMatchObject({ allowed: false, reason: 'denied' });
+      expect(evaluateEffects(entries, 'public')).toMatchObject({ allowed: true, reason: 'allowed' });
+    });
+  });
+
   test('deny overrides allow', () => {
     const entries = [
       { right: 'backoffice:*', effect: 'allow' },
