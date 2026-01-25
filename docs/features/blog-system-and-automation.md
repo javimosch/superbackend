@@ -40,6 +40,7 @@ MongoDB collection: `blog_automation_runs`
 Fields:
 - `status`: `queued | running | succeeded | failed | partial | skipped`
 - `trigger`: `scheduled | manual`
+- `configId`: string
 - `startedAt`, `finishedAt`
 - `configSnapshot`, `topic`, `results`, `steps`
 - `error`
@@ -118,12 +119,16 @@ The editor integrates:
 - `POST /api/admin/blog-ai/refine-markdown`
 
 ### Blog automation admin endpoints
-- `GET /api/admin/blog-automation/config`
-- `PUT /api/admin/blog-automation/config`
+- `GET /api/admin/blog-automation/configs`
+- `POST /api/admin/blog-automation/configs`
+- `GET /api/admin/blog-automation/configs/:id`
+- `PUT /api/admin/blog-automation/configs/:id`
+- `DELETE /api/admin/blog-automation/configs/:id`
+- `POST /api/admin/blog-automation/configs/:id/preview-prompts`
 - `GET /api/admin/blog-automation/style-guide`
 - `PUT /api/admin/blog-automation/style-guide`
-- `GET /api/admin/blog-automation/runs`
-- `POST /api/admin/blog-automation/run-now`
+- `GET /api/admin/blog-automation/runs?configId=...`
+- `POST /api/admin/blog-automation/run-now` (body includes `configId`)
 
 ## Image uploads
 ### Upload endpoint
@@ -140,15 +145,25 @@ Returned URL:
 
 ## Automation and cron
 ### Settings
-- `blog.automation.config`
+- `blog.automation.configs`
 - `blog.automation.styleGuide`
 - `blog.internalCronToken`
+
+### Blog automation configuration shape (high level)
+- `research`: `{ providerKey, model, temperature, maxTokens }`
+- `textGeneration`: `{ providerKey, model, temperature, maxTokens }`
+- `imageGeneration`: `{ providerKey, model }`
+- `images.promptExtraInstruction`: string
 
 ### HTTP CronJobs
 Two HTTP cron tasks are bootstrapped:
 - Blog draft generation (automation pipeline)
 - Publish scheduled posts
 
+Blog draft generation is reconciled as one CronJob per automation configuration.
+
 The cron tasks call internal endpoints protected by bearer auth:
 - `POST /api/internal/blog/automation/run`
 - `POST /api/internal/blog/publish-scheduled/run`
+
+The automation internal endpoint requires `configId`.

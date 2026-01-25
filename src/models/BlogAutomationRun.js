@@ -8,6 +8,11 @@ const blogAutomationRunSchema = new mongoose.Schema(
       default: 'queued',
       index: true,
     },
+    configId: {
+      type: String,
+      default: '',
+      index: true,
+    },
     trigger: {
       type: String,
       enum: ['scheduled', 'manual'],
@@ -27,6 +32,7 @@ const blogAutomationRunSchema = new mongoose.Schema(
 
 blogAutomationRunSchema.index({ createdAt: -1 });
 blogAutomationRunSchema.index({ trigger: 1, createdAt: -1 });
+blogAutomationRunSchema.index({ configId: 1, createdAt: -1 });
 
 module.exports =
   mongoose.models.BlogAutomationRun ||
