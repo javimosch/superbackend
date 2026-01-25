@@ -3,7 +3,7 @@
   
   <% if (blocks && blocks.length > 0) { %>
     <% for (const block of blocks) { %>
-      <%- include('../blocks/' + block.type + '.ejs', { block, page, req }) %>
+      <%- include('../blocks/' + block.type + '.ejs', { block, page, pageContext, req }) %>
     <% } %>
   <% } else { %>
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -11,7 +11,7 @@
   <div class="prose prose-lg max-w-none">
     <% if (blocks && blocks.length > 0) { %>
       <% for (const block of blocks) { %>
-        <%- include('../blocks/' + block.type + '.ejs', { block, page, req }) %>
+        <%- include('../blocks/' + block.type + '.ejs', { block, page, pageContext, req }) %>
       <% } %>
     <% } else { %>
       <p class="text-gray-600">This article has no content yet.</p>

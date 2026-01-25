@@ -2,6 +2,7 @@ const Page = require('../models/Page');
 const PageCollection = require('../models/PageCollection');
 const BlockDefinition = require('../models/BlockDefinition');
 const ejsVirtualService = require('./ejsVirtual.service');
+const pagesContextService = require('./pagesContext.service');
 const { getJsonConfigValueBySlug } = require('./jsonConfigs.service');
 
 const RESERVED_SEGMENTS = new Set(['api', 'public', 'w', 'admin']);
@@ -83,8 +84,54 @@ function getDefaultBlocksSchema() {
           html: { type: 'html', label: 'HTML' },
         },
       },
+      'context.db_query': {
+        label: 'Context: DB Query',
+        fields: {
+          model: { type: 'string', label: 'Model' },
+          op: { type: 'select', label: 'Operation', options: ['find', 'findOne', 'countDocuments'] },
+          filter: { type: 'json', label: 'Filter (JSON)' },
+          sort: { type: 'json', label: 'Sort (JSON)' },
+          select: { type: 'json', label: 'Select (JSON)' },
+          limit: { type: 'number', label: 'Limit' },
+          assignTo: { type: 'string', label: 'Assign to vars key' },
+          cache: { type: 'json', label: 'Cache config (JSON)' },
+          timeout: { type: 'json', label: 'Timeout config (JSON)' },
+        },
+      },
+      'context.service_invoke': {
+        label: 'Context: Service Invoke',
+        fields: {
+          servicePath: { type: 'string', label: 'Service path (helpers.*)' },
+          args: { type: 'json', label: 'Args (JSON)' },
+          assignTo: { type: 'string', label: 'Assign to vars key' },
+          cache: { type: 'json', label: 'Cache config (JSON)' },
+          timeout: { type: 'json', label: 'Timeout config (JSON)' },
+        },
+      },
     },
   };
+}
+
+function inferRepeatParams(page, { routePath, segments, collectionSlug }) {
+  const repeat = page && page.repeat && typeof page.repeat === 'object' ? page.repeat : null;
+  if (!repeat) return null;
+
+  const paramKey = String(repeat.paramKey || 'slug').trim() || 'slug';
+  // Today we support one-segment dynamic routes within a collection: /<collection>/<param>
+  // (collectionSlug may itself include slashes)
+  const value = segments && segments.length > 0 ? segments[segments.length - 1] : null;
+  if (!value) return null;
+
+  return {
+    [paramKey]: value,
+    collectionSlug: collectionSlug || null,
+    routePath: routePath || null,
+  };
+}
+
+function isRepeatEnabledForRoot(page) {
+  const repeat = page && page.repeat && typeof page.repeat === 'object' ? page.repeat : null;
+  return Boolean(repeat && repeat.allowRoot === true);
 }
 
 async function getBlocksSchema({ bypassCache = false } = {}) {
@@ -343,8 +390,27 @@ async function findPageByRoutePath(routePath, options = {}) {
     
     if (page) {
       page._routePath = buildRoutePath(pagesPrefix, null, page.slug);
+      page._params = {};
     }
-    return page;
+
+    if (page) return page;
+
+    // Repeat fallback for root-level pages is disabled by default.
+    // To enable, explicitly set page.repeat.allowRoot=true.
+    const repeatCandidate = await Page.findOne({
+      collectionId: null,
+      slug: '_',
+      status: { $in: statuses },
+      repeat: { $ne: null },
+      $or: tenantQuery,
+    }).sort({ updatedAt: -1 }).lean();
+
+    if (!repeatCandidate || !isRepeatEnabledForRoot(repeatCandidate)) return null;
+
+    repeatCandidate._routePath = buildRoutePath(pagesPrefix, null, segments[0]);
+    repeatCandidate._params = inferRepeatParams(repeatCandidate, { routePath, segments, collectionSlug: null }) || {};
+    repeatCandidate._repeatResolved = true;
+    return repeatCandidate;
   }
 
   const collectionSlug = segments.slice(0, -1).join('/');
@@ -370,9 +436,43 @@ async function findPageByRoutePath(routePath, options = {}) {
   if (page) {
     page._routePath = buildRoutePath(pagesPrefix, collectionSlug, page.slug);
     page._collection = collection;
+    page._params = {};
+    return page;
   }
 
-  return page;
+  // Repeat fallback within the collection.
+  const repeatPage = await Page.findOne({
+    collectionId: collection._id,
+    slug: '_',
+    status: { $in: statuses },
+    repeat: { $ne: null },
+    $or: tenantQuery,
+  }).sort({ updatedAt: -1 }).lean();
+
+  if (!repeatPage) {
+    // Backward-compatible fallback: any repeat page in the collection.
+    const anyRepeat = await Page.findOne({
+      collectionId: collection._id,
+      status: { $in: statuses },
+      repeat: { $ne: null },
+      $or: tenantQuery,
+    }).sort({ updatedAt: -1 }).lean();
+
+    if (!anyRepeat) return null;
+
+    anyRepeat._routePath = buildRoutePath(pagesPrefix, collectionSlug, pageSlug);
+    anyRepeat._collection = collection;
+    anyRepeat._params = inferRepeatParams(anyRepeat, { routePath, segments, collectionSlug }) || {};
+    anyRepeat._repeatResolved = true;
+    return anyRepeat;
+  }
+
+  // Route path should reflect the requested route, not the repeat page slug.
+  repeatPage._routePath = buildRoutePath(pagesPrefix, collectionSlug, pageSlug);
+  repeatPage._collection = collection;
+  repeatPage._params = inferRepeatParams(repeatPage, { routePath, segments, collectionSlug }) || {};
+  repeatPage._repeatResolved = true;
+  return repeatPage;
 }
 
 async function renderPage(page, options = {}) {
@@ -384,9 +484,21 @@ async function renderPage(page, options = {}) {
   const layoutPath = `pages/layouts/${layoutKey}.ejs`;
   const templatePath = `pages/templates/${templateKey}.ejs`;
   
+  const routePath = (req && req.path) ? req.path : (page && page._routePath ? page._routePath : null);
+  const params = (page && page._params && typeof page._params === 'object') ? page._params : {};
+
+  const { pageContext, renderBlocks } = await pagesContextService.resolvePageContext({
+    page,
+    req,
+    res,
+    routePath,
+    params,
+  });
+
   const data = {
     page,
-    blocks: page.blocks || [],
+    blocks: renderBlocks || [],
+    pageContext,
     seoMeta: page.seoMeta || {},
     customCss: page.customCss || '',
     customJs: page.customJs || '',

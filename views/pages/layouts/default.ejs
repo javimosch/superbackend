@@ -28,18 +28,19 @@
   </style>
 </head>
 <body class="min-h-screen bg-white">
-  <%- include('../partials/header.ejs', { page, req }) %>
+  <%- include('../partials/header.ejs', { page, pageContext, req }) %>
   
   <main>
     <%- include('../templates/' + (templatePath ? templatePath.replace('pages/templates/', '') : 'default.ejs'), { 
       page, 
       blocks, 
       seoMeta,
+      pageContext,
       req 
     }) %>
   </main>
   
-  <%- include('../partials/footer.ejs', { page, req }) %>
+  <%- include('../partials/footer.ejs', { page, pageContext, req }) %>
   
   <% if (customJs) { %>
   <script>

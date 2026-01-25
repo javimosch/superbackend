@@ -1,7 +1,7 @@
 <div class="page-content">
   <% if (blocks && blocks.length > 0) { %>
     <% for (const block of blocks) { %>
-      <%- include('../blocks/' + block.type + '.ejs', { block, page, req }) %>
+      <%- include('../blocks/' + block.type + '.ejs', { block, page, pageContext, req }) %>
     <% } %>
   <% } else { %>
     <div class="container mx-auto px-4 py-16">

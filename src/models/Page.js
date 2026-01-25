@@ -40,6 +40,10 @@ const pageSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: [],
     },
+    repeat: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     customCss: {
       type: String,
       default: '',
