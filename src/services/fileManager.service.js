@@ -7,9 +7,7 @@ const RbacGroupMember = require('../models/RbacGroupMember');
 
 const objectStorage = require('./objectStorage.service');
 const uploadNamespacesService = require('./uploadNamespaces.service');
-const globalSettingsService = require('./globalSettings.service');
-
-const DEFAULT_FILE_MANAGER_MAX_UPLOAD_BYTES = 1073741824;
+const fileManagerStoragePolicyService = require('./fileManagerStoragePolicy.service');
 
 function normalizeObjectId(id, name) {
   const str = String(id || '');
@@ -209,15 +207,12 @@ async function uploadFile({ userId, orgId, driveType, driveId, parentPath, name,
   const policyConfig = await uploadNamespacesService.resolveNamespace('default');
   const baseNamespaceConfig = buildNamespaceConfigForFolder(policyConfig, computedNamespace);
 
-  const rawMaxUploadBytes = await globalSettingsService.getSettingValue(
-    'FILE_MANAGER_MAX_UPLOAD_BYTES',
-    String(DEFAULT_FILE_MANAGER_MAX_UPLOAD_BYTES)
-  );
-  const parsedMaxUploadBytes = Number(rawMaxUploadBytes);
-  const maxUploadBytes =
-    Number.isFinite(parsedMaxUploadBytes) && parsedMaxUploadBytes > 0
-      ? parsedMaxUploadBytes
-      : DEFAULT_FILE_MANAGER_MAX_UPLOAD_BYTES;
+  const { maxUploadBytes } = await fileManagerStoragePolicyService.resolveEffectiveLimits({
+    userId: uid,
+    orgId: oid,
+    driveType: dt,
+    driveId: did,
+  });
 
   // File Manager should accept any file type. `validateUpload()` only enforces
   // allowed content types if the array is non-empty.

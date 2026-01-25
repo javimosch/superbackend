@@ -12,19 +12,23 @@ const { authenticate } = require('../middleware/auth');
 const { requireRight } = require('../middleware/rbac');
 const controller = require('../controllers/fileManager.controller');
 
-const globalSettingsService = require('../services/globalSettings.service');
-
-const DEFAULT_MAX_UPLOAD_BYTES = 1073741824;
+const fileManagerStoragePolicyService = require('../services/fileManagerStoragePolicy.service');
+const storagePolicyRoutes = require('./fileManagerStoragePolicy.routes');
 
 const dynamicUploadSingle = (fieldName) => async (req, res, next) => {
   try {
-    const raw = await globalSettingsService.getSettingValue(
-      'FILE_MANAGER_MAX_UPLOAD_BYTES',
-      String(DEFAULT_MAX_UPLOAD_BYTES)
-    );
+    const orgId = req.query.orgId || req.body?.orgId || req.headers['x-org-id'] || null;
+    const driveType = req.query.driveType || req.body?.driveType;
+    const driveId = req.query.driveId || req.body?.driveId;
 
-    const maxBytes = parseInt(String(raw || DEFAULT_MAX_UPLOAD_BYTES), 10);
-    const fileSize = Number.isFinite(maxBytes) && maxBytes > 0 ? maxBytes : DEFAULT_MAX_UPLOAD_BYTES;
+    const { maxUploadBytes } = await fileManagerStoragePolicyService.resolveEffectiveLimits({
+      userId: req.user._id,
+      orgId,
+      driveType,
+      driveId,
+    });
+
+    const fileSize = Number.isFinite(maxUploadBytes) && maxUploadBytes > 0 ? maxUploadBytes : 1073741824;
 
     const upload = multerFactory({
       storage: memoryStorage(),
@@ -38,6 +42,8 @@ const dynamicUploadSingle = (fieldName) => async (req, res, next) => {
 };
 
 router.use(authenticate);
+
+router.use(storagePolicyRoutes);
 
 router.get('/drives', requireRight('file_manager:drives:read'), controller.listDrives);
 router.get('/folders', requireRight('file_manager:files:read'), controller.listFolder);
