@@ -2,11 +2,15 @@ const {
   createCheckoutSession,
   createPortalSession,
   reconcileSubscription,
+  handleWebhook,
 } = require('./billing.controller');
 const stripe = require('stripe');
+const StripeWebhookEvent = require('../models/StripeWebhookEvent');
+const stripeService = require('../services/stripe.service');
 
 jest.mock('../utils/asyncHandler', () => (fn) => fn);
-
+jest.mock('../models/StripeWebhookEvent');
+jest.mock('../services/stripe.service');
 
 // Mock the stripe library
 jest.mock('stripe', () => {
@@ -28,6 +32,9 @@ jest.mock('stripe', () => {
     subscriptions: {
         list: jest.fn(),
     },
+    webhooks: {
+      constructEvent: jest.fn(),
+    },
   };
   return jest.fn(() => mStripe);
 });
@@ -46,13 +53,84 @@ describe('Billing Controller', () => {
         save: jest.fn().mockResolvedValue(true),
       },
       body: {},
+      headers: {},
     };
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
+      send: jest.fn(),
     };
     next = jest.fn();
     jest.clearAllMocks();
+  });
+
+  describe('handleWebhook', () => {
+    const webhookSecret = 'whsec_test';
+    const sig = 't=123,v1=abc';
+
+    beforeEach(() => {
+      process.env.STRIPE_WEBHOOK_SECRET = webhookSecret;
+      mockReq.headers['stripe-signature'] = sig;
+      mockReq.body = Buffer.from('{"id":"evt_123"}');
+    });
+
+    test('should return 400 if signature verification fails', async () => {
+      mStripe.webhooks.constructEvent.mockImplementation(() => {
+        throw new Error('Invalid signature');
+      });
+
+      await handleWebhook(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.send).toHaveBeenCalledWith(expect.stringContaining('Invalid signature'));
+    });
+
+    test('should return duplicate status if event already processed', async () => {
+      const mockEvent = { id: 'evt_123', type: 'test' };
+      mStripe.webhooks.constructEvent.mockReturnValue(mockEvent);
+      StripeWebhookEvent.findOne.mockResolvedValue({ status: 'processed' });
+
+      await handleWebhook(mockReq, mockRes);
+
+      expect(mockRes.json).toHaveBeenCalledWith({ received: true, status: 'duplicate' });
+    });
+
+    test('should process checkout.session.completed event', async () => {
+      const mockEvent = { 
+        id: 'evt_123', 
+        type: 'checkout.session.completed',
+        data: { object: { id: 'cs_123' } }
+      };
+      mStripe.webhooks.constructEvent.mockReturnValue(mockEvent);
+      StripeWebhookEvent.findOne.mockResolvedValue(null);
+      
+      const mockDoc = { save: jest.fn().mockResolvedValue(true), status: 'received', processingErrors: [] };
+      StripeWebhookEvent.mockImplementation(() => mockDoc);
+
+      await handleWebhook(mockReq, mockRes);
+
+      expect(stripeService.handleCheckoutSessionCompleted).toHaveBeenCalledWith(mockEvent.data.object);
+      expect(mockDoc.status).toBe('processed');
+      expect(mockRes.json).toHaveBeenCalledWith({ received: true });
+    });
+
+    test('should handle subscription created event', async () => {
+      const mockEvent = { 
+        id: 'evt_123', 
+        type: 'customer.subscription.created',
+        data: { object: { id: 'sub_123' } }
+      };
+      mStripe.webhooks.constructEvent.mockReturnValue(mockEvent);
+      StripeWebhookEvent.findOne.mockResolvedValue(null);
+      
+      const mockDoc = { save: jest.fn().mockResolvedValue(true), status: 'received', processingErrors: [] };
+      StripeWebhookEvent.mockImplementation(() => mockDoc);
+
+      await handleWebhook(mockReq, mockRes);
+
+      expect(stripeService.handleSubscriptionCreated).toHaveBeenCalledWith(mockEvent.data.object);
+      expect(mockRes.json).toHaveBeenCalledWith({ received: true });
+    });
   });
 
   describe('createCheckoutSession', () => {
