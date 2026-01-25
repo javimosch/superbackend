@@ -98,7 +98,20 @@
           <div class="mt-auto pt-8">
             <div class="px-3 py-2 text-sm font-medium text-gray-500 uppercase tracking-wide">Storage</div>
             <div class="mt-2 px-3 py-2 bg-gray-50 rounded-lg text-sm text-gray-600">
-              Unlimited storage
+              <div v-if="storagePolicy" class="space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-gray-500">Used</span>
+                  <span class="font-medium text-gray-800">{{ formatBytes(storagePolicy.usage.usedBytes) }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-gray-500">Max</span>
+                  <span class="font-medium text-gray-800">{{ formatBytes(storagePolicy.effective.maxStorageBytes) }}</span>
+                </div>
+                <div v-if="storagePolicy.usage.overageBytes > 0" class="text-xs text-red-700">
+                  Over by {{ formatBytes(storagePolicy.usage.overageBytes) }}
+                </div>
+              </div>
+              <div v-else class="text-gray-500">Select org + drive</div>
             </div>
           </div>
 
@@ -330,6 +343,8 @@
         const files = ref([]);
         const folders = ref([]);
 
+        const storagePolicy = ref(null);
+
         const editOpen = ref(false);
         const editFileId = ref('');
         const editName = ref('');
@@ -355,6 +370,9 @@
         const authHeaders = () => ({
           Authorization: `Bearer ${token.value}`,
         });
+
+        const STORAGE_LAST_ORG_KEY = 'sb_fm_last_org_id';
+        const STORAGE_LAST_DRIVE_KEY = 'sb_fm_last_drive_key';
 
         const search = ref('');
         const viewMode = ref('list');
@@ -543,6 +561,11 @@
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || 'Failed to load orgs');
           orgs.value = data.orgs || [];
+
+          const lastOrg = String(localStorage.getItem(STORAGE_LAST_ORG_KEY) || '').trim();
+          if (!orgId.value && lastOrg && (orgs.value || []).some((o) => String(o?._id) === lastOrg)) {
+            orgId.value = lastOrg;
+          }
         };
 
         const loadDrives = async () => {
@@ -563,6 +586,29 @@
             ...d,
             key: `${d.driveType}:${d.driveId}`,
           }));
+
+          const lastDrive = String(localStorage.getItem(STORAGE_LAST_DRIVE_KEY) || '').trim();
+          if (lastDrive && (drives.value || []).some((d) => d.key === lastDrive)) {
+            selectedDriveKey.value = lastDrive;
+          }
+        };
+
+        const loadStoragePolicy = async () => {
+          storagePolicy.value = null;
+          if (!orgId.value || !selectedDrive.value) return;
+
+          const params = new URLSearchParams({
+            orgId: orgId.value,
+            driveType: selectedDrive.value.driveType,
+            driveId: selectedDrive.value.driveId,
+          });
+
+          const res = await fetch(`${apiBase.value}/api/file-manager/storage-policy?${params.toString()}`, {
+            headers: { ...authHeaders() },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Failed to load storage policy');
+          storagePolicy.value = data;
         };
 
         const refreshFolder = async () => {
@@ -742,7 +788,10 @@
         watch(orgId, async () => {
           if (!token.value) return;
           try {
+            folderPath.value = '/';
             await loadDrives();
+            localStorage.setItem(STORAGE_LAST_ORG_KEY, String(orgId.value || ''));
+            await loadStoragePolicy();
           } catch (e) {
             error.value = e.message || 'Failed to load drives';
           }
@@ -751,7 +800,9 @@
         watch(selectedDriveKey, async () => {
           if (!token.value) return;
           try {
+            localStorage.setItem(STORAGE_LAST_DRIVE_KEY, String(selectedDriveKey.value || ''));
             await refreshFolder();
+            await loadStoragePolicy();
           } catch (e) {
             error.value = e.message || 'Failed to list folder';
           }
@@ -778,6 +829,7 @@
           filteredFolders,
           breadcrumbCrumbs,
           formatBytes,
+          storagePolicy,
           editOpen,
           editName,
           editFolderPath,

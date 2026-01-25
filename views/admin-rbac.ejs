@@ -253,9 +253,109 @@
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="col-span-7">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200">
+            <div class="text-sm font-semibold text-gray-800">Group members</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Group</label>
+              <select v-model="selectedGroupId" @change="onSelectedGroupChange" class="mt-1 w-full border rounded px-3 py-2">
+                <option value="">Select group</option>
+                <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }} ({{ g.isGlobal ? 'global' : 'org' }})</option>
+              </select>
+              <div v-if="selectedGroup && !selectedGroup.isGlobal" class="text-xs text-gray-500 mt-2">
+                Org-scoped group: user search is limited to members of <span class="font-mono">{{ selectedGroup.orgId }}</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Add users (search)</label>
+              <input
+                v-model="memberAdd.userQuery"
+                @input="debouncedSearchMemberUsers"
+                class="mt-1 w-full border rounded px-3 py-2"
+                :disabled="!selectedGroupId"
+                placeholder="type email or name"
+              />
+              <div v-if="memberAdd.userResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                <button
+                  v-for="u in memberAdd.userResults"
+                  :key="u.id"
+                  @click="addMemberCandidate(u)"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                >
+                  <div class="font-mono text-xs">{{ u.email }}</div>
+                  <div class="text-xs text-gray-500">{{ u.name || '-' }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="memberAdd.selectedUsers.length" class="border rounded p-3 bg-gray-50">
+              <div class="text-xs font-semibold text-gray-700 mb-2">Selected users to add ({{ memberAdd.selectedUsers.length }})</div>
+              <div class="space-y-1 max-h-40 overflow-auto">
+                <div v-for="u in memberAdd.selectedUsers" :key="u.id" class="flex items-center justify-between bg-white border rounded px-2 py-1">
+                  <div>
+                    <div class="font-mono text-xs">{{ u.email }}</div>
+                    <div class="text-xs text-gray-500">{{ u.id }}</div>
+                  </div>
+                  <button @click="removeMemberCandidate(u.id)" class="text-xs text-red-600 hover:underline">Remove</button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-3">
+                <button
+                  @click="bulkAddMembers"
+                  :disabled="!selectedGroupId || memberAdd.selectedUsers.length === 0"
+                  class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Add to group
+                </button>
+                <div v-if="memberAdd.status" class="text-sm text-gray-600">{{ memberAdd.status }}</div>
+              </div>
+            </div>
+
+            <div class="border-t pt-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs font-semibold text-gray-700">Current members</div>
+                <button @click="loadSelectedGroupMembers" :disabled="!selectedGroupId" class="text-xs text-gray-700 hover:underline">Reload</button>
+              </div>
+
+              <div v-if="selectedGroupMembers.length" class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs text-gray-600">
+                    <input type="checkbox" v-model="memberRemove.selectAll" @change="toggleSelectAllMembers" class="mr-2" />
+                    Select all
+                  </label>
+                  <button
+                    @click="bulkRemoveMembers"
+                    :disabled="memberRemove.selectedMemberIds.length === 0"
+                    class="text-xs text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Remove selected ({{ memberRemove.selectedMemberIds.length }})
+                  </button>
+                </div>
+
+                <div v-for="m in selectedGroupMembers" :key="m.id" class="border rounded p-3">
+                  <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" :value="m.id" v-model="memberRemove.selectedMemberIds" @change="syncSelectAllMembers" />
+                      <div>
+                        <div class="font-mono text-xs">{{ m.email || '-' }}</div>
+                        <div class="text-xs text-gray-500">{{ m.userId }}</div>
+                      </div>
+                    </label>
+                    <button @click="removeSingleMember(m.id)" class="text-xs text-red-600 hover:underline">Remove</button>
+                  </div>
+                </div>
+
+                <div v-if="memberRemove.status" class="text-sm text-gray-600">{{ memberRemove.status }}</div>
+              </div>
+              <div v-else class="text-sm text-gray-500">No members.</div>
+            </div>
+          </div>
+        </div>
+
         <div class="bg-white border border-gray-200 rounded-lg">
           <div class="p-4 border-b border-gray-200 flex items-center justify-between">
             <div class="text-sm font-semibold text-gray-800">Grants</div>
@@ -326,7 +426,7 @@
           <div class="p-4 space-y-4">
             <div>
               <label class="text-xs font-semibold text-gray-600">Group</label>
-              <select v-model="selectedGroupId" @change="loadSelectedGroupRoles" class="mt-1 w-full border rounded px-3 py-2">
+              <select v-model="selectedGroupId" @change="onSelectedGroupChange" class="mt-1 w-full border rounded px-3 py-2">
                 <option value="">Select group</option>
                 <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }} ({{ g.isGlobal ? 'global' : 'org' }})</option>
               </select>
@@ -355,6 +455,103 @@
               </div>
             </div>
             <div v-else class="text-sm text-gray-500">No roles assigned.</div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200">
+            <div class="text-sm font-semibold text-gray-800">Group members</div>
+          </div>
+          <div class="p-4 space-y-4">
+            <div>
+              <div v-if="selectedGroup && !selectedGroup.isGlobal" class="text-xs text-gray-500">
+                Org-scoped group: user search is limited to members of <span class="font-mono">{{ selectedGroup.orgId }}</span>
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Add users (search)</label>
+              <input
+                v-model="memberAdd.userQuery"
+                @input="debouncedSearchMemberUsers"
+                class="mt-1 w-full border rounded px-3 py-2"
+                :disabled="!selectedGroupId"
+                placeholder="type email or name"
+              />
+              <div v-if="memberAdd.userResults.length" class="border rounded mt-2 max-h-48 overflow-auto">
+                <button
+                  v-for="u in memberAdd.userResults"
+                  :key="u.id"
+                  @click="addMemberCandidate(u)"
+                  class="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                >
+                  <div class="font-mono text-xs">{{ u.email }}</div>
+                  <div class="text-xs text-gray-500">{{ u.name || '-' }}</div>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="memberAdd.selectedUsers.length" class="border rounded p-3 bg-gray-50">
+              <div class="text-xs font-semibold text-gray-700 mb-2">Selected users to add ({{ memberAdd.selectedUsers.length }})</div>
+              <div class="space-y-1 max-h-40 overflow-auto">
+                <div v-for="u in memberAdd.selectedUsers" :key="u.id" class="flex items-center justify-between bg-white border rounded px-2 py-1">
+                  <div>
+                    <div class="font-mono text-xs">{{ u.email }}</div>
+                    <div class="text-xs text-gray-500">{{ u.id }}</div>
+                  </div>
+                  <button @click="removeMemberCandidate(u.id)" class="text-xs text-red-600 hover:underline">Remove</button>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 mt-3">
+                <button
+                  @click="bulkAddMembers"
+                  :disabled="!selectedGroupId || memberAdd.selectedUsers.length === 0"
+                  class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Add to group
+                </button>
+                <div v-if="memberAdd.status" class="text-sm text-gray-600">{{ memberAdd.status }}</div>
+              </div>
+            </div>
+
+            <div class="border-t pt-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs font-semibold text-gray-700">Current members</div>
+                <button @click="loadSelectedGroupMembers" :disabled="!selectedGroupId" class="text-xs text-gray-700 hover:underline">Reload</button>
+              </div>
+
+              <div v-if="selectedGroupMembers.length" class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs text-gray-600">
+                    <input type="checkbox" v-model="memberRemove.selectAll" @change="toggleSelectAllMembers" class="mr-2" />
+                    Select all
+                  </label>
+                  <button
+                    @click="bulkRemoveMembers"
+                    :disabled="memberRemove.selectedMemberIds.length === 0"
+                    class="text-xs text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Remove selected ({{ memberRemove.selectedMemberIds.length }})
+                  </button>
+                </div>
+
+                <div v-for="m in selectedGroupMembers" :key="m.id" class="border rounded p-3">
+                  <div class="flex items-center justify-between">
+                    <label class="flex items-center gap-2">
+                      <input type="checkbox" :value="m.id" v-model="memberRemove.selectedMemberIds" @change="syncSelectAllMembers" />
+                      <div>
+                        <div class="font-mono text-xs">{{ m.email || '-' }}</div>
+                        <div class="text-xs text-gray-500">{{ m.userId }}</div>
+                      </div>
+                    </label>
+                    <button @click="removeSingleMember(m.id)" class="text-xs text-red-600 hover:underline">Remove</button>
+                  </div>
+                </div>
+
+                <div v-if="memberRemove.status" class="text-sm text-gray-600">{{ memberRemove.status }}</div>
+              </div>
+              <div v-else class="text-sm text-gray-500">No members.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -679,6 +876,8 @@ await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
           organizations: [],
           selectedGroupId: '',
           selectedGroupRoles: [],
+          selectedGroupMembers: [],
+          selectedGroup: null,
           userResults: [],
           grantUserResults: [],
           testRightResults: [],
@@ -711,6 +910,17 @@ await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
           groupRoleForm: {
             roleId: '',
           },
+          memberAdd: {
+            userQuery: '',
+            userResults: [],
+            selectedUsers: [],
+            status: '',
+          },
+          memberRemove: {
+            selectAll: false,
+            selectedMemberIds: [],
+            status: '',
+          },
           grant: {
             subjectType: 'user',
             subjectId: '',
@@ -722,6 +932,7 @@ await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
           },
           _userSearchTimer: null,
           _grantUserSearchTimer: null,
+          _memberUserSearchTimer: null,
         };
       },
       methods: {
@@ -870,6 +1081,115 @@ await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
           const data = await this.api('/api/admin/rbac/groups', { method: 'GET' });
           this.groups = data.groups || [];
         },
+        async loadSelectedGroupMembers() {
+          this.selectedGroupMembers = [];
+          this.memberRemove.selectAll = false;
+          this.memberRemove.selectedMemberIds = [];
+          if (!this.selectedGroupId) return;
+          const data = await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/members', { method: 'GET' });
+          this.selectedGroupMembers = data.members || [];
+        },
+        async onSelectedGroupChange() {
+          this.selectedGroup = (this.groups || []).find((g) => String(g.id) === String(this.selectedGroupId)) || null;
+          this.memberAdd.userQuery = '';
+          this.memberAdd.userResults = [];
+          this.memberAdd.selectedUsers = [];
+          this.memberAdd.status = '';
+          this.memberRemove.status = '';
+          await Promise.all([
+            this.loadSelectedGroupRoles(),
+            this.loadSelectedGroupMembers(),
+          ]);
+        },
+        debouncedSearchMemberUsers() {
+          clearTimeout(this._memberUserSearchTimer);
+          this._memberUserSearchTimer = setTimeout(() => this.searchMemberUsers(), 250);
+        },
+        async searchMemberUsers() {
+          const q = (this.memberAdd.userQuery || '').trim();
+          if (!q) {
+            this.memberAdd.userResults = [];
+            return;
+          }
+          if (!this.selectedGroupId) {
+            this.memberAdd.userResults = [];
+            return;
+          }
+
+          const qs = new URLSearchParams();
+          qs.set('q', q);
+          if (this.selectedGroup && this.selectedGroup.isGlobal === false && this.selectedGroup.orgId) {
+            qs.set('orgId', String(this.selectedGroup.orgId));
+          }
+          const data = await this.api('/api/admin/rbac/users?' + qs.toString(), { method: 'GET' });
+          this.memberAdd.userResults = data.users || [];
+        },
+        addMemberCandidate(u) {
+          if (!u || !u.id) return;
+          const exists = (this.memberAdd.selectedUsers || []).some((x) => String(x.id) === String(u.id));
+          if (!exists) this.memberAdd.selectedUsers.push({ id: u.id, email: u.email, name: u.name || '' });
+          this.memberAdd.userResults = [];
+          this.memberAdd.userQuery = '';
+        },
+        removeMemberCandidate(userId) {
+          this.memberAdd.selectedUsers = (this.memberAdd.selectedUsers || []).filter((u) => String(u.id) !== String(userId));
+        },
+        toggleSelectAllMembers() {
+          if (this.memberRemove.selectAll) {
+            this.memberRemove.selectedMemberIds = (this.selectedGroupMembers || []).map((m) => m.id);
+          } else {
+            this.memberRemove.selectedMemberIds = [];
+          }
+        },
+        syncSelectAllMembers() {
+          const total = (this.selectedGroupMembers || []).length;
+          const selected = (this.memberRemove.selectedMemberIds || []).length;
+          this.memberRemove.selectAll = total > 0 && selected === total;
+        },
+        async bulkAddMembers() {
+          this.memberAdd.status = '';
+          try {
+            const userIds = (this.memberAdd.selectedUsers || []).map((u) => u.id);
+            if (!this.selectedGroupId) throw new Error('Select a group');
+            if (!userIds.length) throw new Error('Select users');
+            const data = await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/members/bulk', {
+              method: 'POST',
+              body: JSON.stringify({ userIds }),
+            });
+            this.memberAdd.status = `Added (${data.insertedCount || 0}).`;
+            this.memberAdd.selectedUsers = [];
+            await this.loadSelectedGroupMembers();
+          } catch (e) {
+            this.memberAdd.status = e.message || 'Failed.';
+          }
+        },
+        async removeSingleMember(memberId) {
+          if (!this.selectedGroupId || !memberId) return;
+          try {
+            await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/members/' + memberId, { method: 'DELETE' });
+            await this.loadSelectedGroupMembers();
+          } catch (e) {
+            this.memberRemove.status = e.message || 'Failed.';
+          }
+        },
+        async bulkRemoveMembers() {
+          this.memberRemove.status = '';
+          try {
+            if (!this.selectedGroupId) throw new Error('Select a group');
+            const memberIds = (this.memberRemove.selectedMemberIds || []).slice();
+            if (!memberIds.length) throw new Error('Select members');
+            const data = await this.api('/api/admin/rbac/groups/' + this.selectedGroupId + '/members/bulk-remove', {
+              method: 'POST',
+              body: JSON.stringify({ memberIds }),
+            });
+            this.memberRemove.status = `Removed (${data.deletedCount || 0}).`;
+            this.memberRemove.selectedMemberIds = [];
+            this.memberRemove.selectAll = false;
+            await this.loadSelectedGroupMembers();
+          } catch (e) {
+            this.memberRemove.status = e.message || 'Failed.';
+          }
+        },
         async createRole() {
           this.roleStatus = '';
           try {
@@ -988,11 +1308,14 @@ await rbac.checkRight(userId, orgId, 'org:settings:edit');</code></pre>
           }
         },
         async loadAll() {
-          await this.loadGrants();
-          await this.loadRights();
-          await this.loadOrganizations();
-          await this.loadRoles();
-          await this.loadGroups();
+          await Promise.all([
+            this.loadRights(),
+            this.loadGrants(),
+            this.loadOrganizations(),
+            this.loadRoles(),
+            this.loadGroups(),
+          ]);
+          this.selectedGroup = (this.groups || []).find((g) => String(g.id) === String(this.selectedGroupId)) || null;
         },
       },
       async mounted() {

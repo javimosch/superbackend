@@ -19,8 +19,15 @@
       </div>
     </div>
 
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div class="bg-white rounded-lg shadow p-6">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="mb-6 border-b border-gray-200">
+        <nav class="-mb-px flex gap-6" aria-label="Tabs">
+          <button id="tabGeneral" class="py-2 px-1 border-b-2 font-medium text-sm">General</button>
+          <button id="tabStorage" class="py-2 px-1 border-b-2 font-medium text-sm">Storage</button>
+        </nav>
+      </div>
+
+      <div id="sectionGeneral" class="bg-white rounded-lg shadow p-6">
         <div class="space-y-6">
           <div class="flex items-start justify-between">
             <div>
@@ -68,6 +75,125 @@
         </div>
       </div>
 
+      <div id="sectionStorage" class="bg-white rounded-lg shadow p-6 hidden">
+        <div class="space-y-6">
+          <div>
+            <h2 class="text-lg font-semibold text-gray-900">Storage configuration</h2>
+            <p class="text-sm text-gray-600 mt-1">Configure per-drive max upload and storage limits (user &gt; group &gt; org &gt; global &gt; default).</p>
+            <p class="text-xs text-gray-500 mt-1">Default max storage (if no match): <code>FILE_MANAGER_DEFAULT_MAX_STORAGE_BYTES</code> env, fallback 100mb.</p>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Global max upload size</label>
+              <input id="policyGlobalMaxUploadHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="40mb" />
+              <div id="policyGlobalMaxUploadBytesHint" class="text-xs text-gray-500 mt-1"></div>
+              <input id="policyGlobalMaxUploadBytes" type="number" min="1" step="1" class="hidden" />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-900 mb-2">Global max storage size</label>
+              <input id="policyGlobalMaxStorageHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="1gb" />
+              <div id="policyGlobalMaxStorageBytesHint" class="text-xs text-gray-500 mt-1"></div>
+              <input id="policyGlobalMaxStorageBytes" type="number" min="1" step="1" class="hidden" />
+            </div>
+
+            <div class="border-t pt-6">
+              <label class="block text-sm font-medium text-gray-900 mb-2">Organization</label>
+              <select id="policyOrgSelect" class="w-full border rounded px-3 py-2"></select>
+              <p class="text-xs text-gray-500 mt-1">Select an org to configure org/group/user overrides.</p>
+            </div>
+
+            <div id="policyOrgSection" class="hidden">
+              <div class="grid grid-cols-1 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-900 mb-2">Org max upload size</label>
+                  <input id="policyOrgMaxUploadHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="50mb" />
+                  <div id="policyOrgMaxUploadBytesHint" class="text-xs text-gray-500 mt-1"></div>
+                  <input id="policyOrgMaxUploadBytes" type="number" min="1" step="1" class="hidden" />
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-900 mb-2">Org max storage size</label>
+                  <input id="policyOrgMaxStorageHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="1gb" />
+                  <div id="policyOrgMaxStorageBytesHint" class="text-xs text-gray-500 mt-1"></div>
+                  <input id="policyOrgMaxStorageBytes" type="number" min="1" step="1" class="hidden" />
+                </div>
+
+                <div class="border-t pt-6">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <div class="text-sm font-medium text-gray-900">Group overrides</div>
+                      <div class="text-xs text-gray-500">Applies to Group drives, and to User drives as a fallback (max of matching groups).</div>
+                    </div>
+                    <button id="policyRefreshGroups" class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm">Refresh groups</button>
+                  </div>
+                  <div class="mt-3 overflow-x-auto border rounded">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-gray-50">
+                        <tr>
+                          <th class="text-left px-3 py-2">Group</th>
+                          <th class="text-left px-3 py-2">Max upload</th>
+                          <th class="text-left px-3 py-2">Max storage</th>
+                        </tr>
+                      </thead>
+                      <tbody id="policyGroupsBody" class="divide-y"></tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="border-t pt-6">
+                  <div class="text-sm font-medium text-gray-900">User overrides (user drive)</div>
+                  <div class="text-xs text-gray-500 mt-1">Pick a user from org members to set user-drive limits.</div>
+
+                  <div class="mt-3 overflow-x-auto border rounded">
+                    <table class="min-w-full text-sm">
+                      <thead class="bg-gray-50">
+                        <tr>
+                          <th class="text-left px-3 py-2">User</th>
+                          <th class="text-left px-3 py-2">Max upload</th>
+                          <th class="text-left px-3 py-2">Max storage</th>
+                          <th class="text-right px-3 py-2">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="policyUsersBody" class="divide-y"></tbody>
+                    </table>
+                  </div>
+
+                  <div class="mt-3 flex gap-2">
+                    <select id="policyUserSelect" class="flex-1 border rounded px-3 py-2"></select>
+                    <button id="policyUserApply" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Load</button>
+                  </div>
+
+                  <div id="policyUserEditor" class="hidden mt-4 grid grid-cols-1 gap-4">
+                    <div>
+                      <label class="block text-sm font-medium text-gray-900 mb-2">User max upload size</label>
+                      <input id="policyUserMaxUploadHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="100mb" />
+                      <div id="policyUserMaxUploadBytesHint" class="text-xs text-gray-500 mt-1"></div>
+                      <input id="policyUserMaxUploadBytes" type="number" min="1" step="1" class="hidden" />
+                    </div>
+                    <div>
+                      <label class="block text-sm font-medium text-gray-900 mb-2">User max storage size</label>
+                      <input id="policyUserMaxStorageHuman" type="text" class="w-full border rounded px-3 py-2" placeholder="10gb" />
+                      <div id="policyUserMaxStorageBytesHint" class="text-xs text-gray-500 mt-1"></div>
+                      <input id="policyUserMaxStorageBytes" type="number" min="1" step="1" class="hidden" />
+                    </div>
+                    <div class="flex justify-end">
+                      <button id="policyUserClear" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Clear user override</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex justify-end space-x-2 border-t pt-6">
+              <button id="policyRefresh" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Refresh</button>
+              <button id="policySave" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Save storage config</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div id="toast" class="hidden fixed bottom-4 right-4 px-4 py-3 rounded shadow text-white"></div>
     </div>
   </div>
@@ -79,12 +205,486 @@
     const KEY_ENABLED = 'FILE_MANAGER_ENABLED';
     const KEY_BASE_PATH = 'FILE_MANAGER_BASE_PATH';
     const KEY_MAX_UPLOAD_BYTES = 'FILE_MANAGER_MAX_UPLOAD_BYTES';
+    const KEY_STORAGE_POLICY_JSON = 'FILE_MANAGER_STORAGE_POLICY_JSON';
 
     const elEnabled = document.getElementById('enabled');
     const elBasePath = document.getElementById('basePath');
     const elMaxUploadBytes = document.getElementById('maxUploadBytes');
     const elComputedUrl = document.getElementById('computedUrl');
     const elToast = document.getElementById('toast');
+
+    const elTabGeneral = document.getElementById('tabGeneral');
+    const elTabStorage = document.getElementById('tabStorage');
+    const elSectionGeneral = document.getElementById('sectionGeneral');
+    const elSectionStorage = document.getElementById('sectionStorage');
+
+    const elPolicyGlobalMaxUploadHuman = document.getElementById('policyGlobalMaxUploadHuman');
+    const elPolicyGlobalMaxUploadBytes = document.getElementById('policyGlobalMaxUploadBytes');
+    const elPolicyGlobalMaxUploadBytesHint = document.getElementById('policyGlobalMaxUploadBytesHint');
+    const elPolicyGlobalMaxStorageHuman = document.getElementById('policyGlobalMaxStorageHuman');
+    const elPolicyGlobalMaxStorageBytes = document.getElementById('policyGlobalMaxStorageBytes');
+    const elPolicyGlobalMaxStorageBytesHint = document.getElementById('policyGlobalMaxStorageBytesHint');
+
+    const elPolicyOrgSelect = document.getElementById('policyOrgSelect');
+    const elPolicyOrgSection = document.getElementById('policyOrgSection');
+    const elPolicyOrgMaxUploadHuman = document.getElementById('policyOrgMaxUploadHuman');
+    const elPolicyOrgMaxUploadBytes = document.getElementById('policyOrgMaxUploadBytes');
+    const elPolicyOrgMaxUploadBytesHint = document.getElementById('policyOrgMaxUploadBytesHint');
+    const elPolicyOrgMaxStorageHuman = document.getElementById('policyOrgMaxStorageHuman');
+    const elPolicyOrgMaxStorageBytes = document.getElementById('policyOrgMaxStorageBytes');
+    const elPolicyOrgMaxStorageBytesHint = document.getElementById('policyOrgMaxStorageBytesHint');
+
+    const elPolicyGroupsBody = document.getElementById('policyGroupsBody');
+    const elPolicyRefreshGroups = document.getElementById('policyRefreshGroups');
+    const elPolicyUsersBody = document.getElementById('policyUsersBody');
+    const elPolicyUserSelect = document.getElementById('policyUserSelect');
+    const elPolicyUserApply = document.getElementById('policyUserApply');
+    const elPolicyUserEditor = document.getElementById('policyUserEditor');
+    const elPolicyUserMaxUploadHuman = document.getElementById('policyUserMaxUploadHuman');
+    const elPolicyUserMaxUploadBytes = document.getElementById('policyUserMaxUploadBytes');
+    const elPolicyUserMaxUploadBytesHint = document.getElementById('policyUserMaxUploadBytesHint');
+    const elPolicyUserMaxStorageHuman = document.getElementById('policyUserMaxStorageHuman');
+    const elPolicyUserMaxStorageBytes = document.getElementById('policyUserMaxStorageBytes');
+    const elPolicyUserMaxStorageBytesHint = document.getElementById('policyUserMaxStorageBytesHint');
+    const elPolicyUserClear = document.getElementById('policyUserClear');
+
+    let storagePolicy = { version: 1, global: {}, orgs: {} };
+    let orgsCache = [];
+    let groupsCache = [];
+    let orgMembersCache = [];
+    let selectedOrgId = '';
+    let selectedUserId = '';
+
+    const toPositiveIntOrNull = (value) => {
+      const n = Number(value);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      return Math.floor(n);
+    };
+
+    const parseHumanBytes = (input) => {
+      const raw = String(input || '').trim().toLowerCase();
+      if (!raw) return null;
+
+      const m = raw.match(/^([0-9]+(?:\.[0-9]+)?)\s*(b|kb|mb|gb|tb)$/i);
+      if (!m) return null;
+
+      const num = Number(m[1]);
+      if (!Number.isFinite(num) || num <= 0) return null;
+
+      const unit = m[2].toLowerCase();
+      const mult = unit === 'tb' ? 1024 ** 4 : unit === 'gb' ? 1024 ** 3 : unit === 'mb' ? 1024 ** 2 : unit === 'kb' ? 1024 : 1;
+      const bytes = Math.floor(num * mult);
+      return bytes > 0 ? bytes : null;
+    };
+
+    const formatHumanBytes = (bytes) => {
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) return '';
+      const units = [
+        { u: 'tb', v: 1024 ** 4 },
+        { u: 'gb', v: 1024 ** 3 },
+        { u: 'mb', v: 1024 ** 2 },
+        { u: 'kb', v: 1024 },
+      ];
+      for (const { u, v } of units) {
+        if (n >= v) {
+          const val = n / v;
+          const str = val >= 10 ? String(Math.round(val)) : String(Math.round(val * 10) / 10);
+          return `${str}${u}`;
+        }
+      }
+      return `${Math.round(n)}b`;
+    };
+
+    const ensurePolicyShape = (p) => {
+      const out = p && typeof p === 'object' ? p : {};
+      return {
+        version: toPositiveIntOrNull(out.version) || 1,
+        global: out.global && typeof out.global === 'object' ? out.global : {},
+        orgs: out.orgs && typeof out.orgs === 'object' ? out.orgs : {},
+      };
+    };
+
+    const getOrgPolicy = (orgId) => {
+      const key = String(orgId || '');
+      if (!key) return null;
+      if (!storagePolicy.orgs[key]) storagePolicy.orgs[key] = { groups: {}, users: {} };
+      if (!storagePolicy.orgs[key].groups) storagePolicy.orgs[key].groups = {};
+      if (!storagePolicy.orgs[key].users) storagePolicy.orgs[key].users = {};
+      return storagePolicy.orgs[key];
+    };
+
+    const renderOrgsSelect = () => {
+      elPolicyOrgSelect.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = 'Select organization';
+      elPolicyOrgSelect.appendChild(opt0);
+
+      for (const o of orgsCache) {
+        const opt = document.createElement('option');
+        opt.value = String(o._id || o.id);
+        opt.textContent = o.name || o.slug || String(o._id || o.id);
+        elPolicyOrgSelect.appendChild(opt);
+      }
+      elPolicyOrgSelect.value = selectedOrgId || '';
+    };
+
+    const renderGroupsTable = () => {
+      elPolicyGroupsBody.innerHTML = '';
+      const orgGroups = groupsCache.filter((g) => String(g.orgId || '') === String(selectedOrgId || ''));
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+
+      for (const g of orgGroups) {
+        const gid = String(g.id || g._id);
+        const row = document.createElement('tr');
+
+        const c1 = document.createElement('td');
+        c1.className = 'px-3 py-2';
+        c1.textContent = g.name || gid;
+
+        const c2 = document.createElement('td');
+        c2.className = 'px-3 py-2';
+        const wrap2 = document.createElement('div');
+        const in2 = document.createElement('input');
+        in2.type = 'text';
+        in2.className = 'w-56 border rounded px-2 py-1';
+        const hint2 = document.createElement('div');
+        hint2.className = 'text-xs text-gray-500 mt-1';
+        const existingUpload = orgPolicy?.groups?.[gid]?.maxUploadBytes;
+        in2.value = existingUpload ? formatHumanBytes(existingUpload) : '';
+        hint2.textContent = existingUpload ? `${existingUpload} bytes` : '';
+        in2.addEventListener('blur', () => {
+          const parsed = parseHumanBytes(in2.value);
+          if (!orgPolicy.groups[gid]) orgPolicy.groups[gid] = {};
+          if (parsed === null) {
+            delete orgPolicy.groups[gid].maxUploadBytes;
+            hint2.textContent = '';
+          } else {
+            orgPolicy.groups[gid].maxUploadBytes = parsed;
+            hint2.textContent = `${parsed} bytes`;
+          }
+        });
+        wrap2.appendChild(in2);
+        wrap2.appendChild(hint2);
+        c2.appendChild(wrap2);
+
+        const c3 = document.createElement('td');
+        c3.className = 'px-3 py-2';
+        const wrap3 = document.createElement('div');
+        const in3 = document.createElement('input');
+        in3.type = 'text';
+        in3.className = 'w-56 border rounded px-2 py-1';
+        const hint3 = document.createElement('div');
+        hint3.className = 'text-xs text-gray-500 mt-1';
+        const existingStorage = orgPolicy?.groups?.[gid]?.maxStorageBytes;
+        in3.value = existingStorage ? formatHumanBytes(existingStorage) : '';
+        hint3.textContent = existingStorage ? `${existingStorage} bytes` : '';
+        in3.addEventListener('blur', () => {
+          const parsed = parseHumanBytes(in3.value);
+          if (!orgPolicy.groups[gid]) orgPolicy.groups[gid] = {};
+          if (parsed === null) {
+            delete orgPolicy.groups[gid].maxStorageBytes;
+            hint3.textContent = '';
+          } else {
+            orgPolicy.groups[gid].maxStorageBytes = parsed;
+            hint3.textContent = `${parsed} bytes`;
+          }
+        });
+        wrap3.appendChild(in3);
+        wrap3.appendChild(hint3);
+        c3.appendChild(wrap3);
+
+        row.appendChild(c1);
+        row.appendChild(c2);
+        row.appendChild(c3);
+        elPolicyGroupsBody.appendChild(row);
+      }
+    };
+
+    const renderUsersSelect = () => {
+      elPolicyUserSelect.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = 'Select user';
+      elPolicyUserSelect.appendChild(opt0);
+
+      for (const m of orgMembersCache) {
+        const uid = String(m.user?._id || m.userId || '');
+        if (!uid) continue;
+        const opt = document.createElement('option');
+        opt.value = uid;
+        opt.textContent = m.user?.email || m.user?.name || uid;
+        elPolicyUserSelect.appendChild(opt);
+      }
+      elPolicyUserSelect.value = selectedUserId || '';
+    };
+
+    const renderUserOverridesTable = () => {
+      elPolicyUsersBody.innerHTML = '';
+      if (!selectedOrgId) return;
+
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      const users = orgPolicy?.users && typeof orgPolicy.users === 'object' ? orgPolicy.users : {};
+      const userIds = Object.keys(users);
+
+      const displayNameForUserId = (uid) => {
+        const match = (orgMembersCache || []).find((m) => String(m.user?._id || m.userId || '') === String(uid));
+        return match?.user?.email || match?.user?.name || String(uid);
+      };
+
+      for (const uid of userIds) {
+        const cfg = users[uid] || {};
+        const hasUpload = Number.isFinite(Number(cfg.maxUploadBytes)) && Number(cfg.maxUploadBytes) > 0;
+        const hasStorage = Number.isFinite(Number(cfg.maxStorageBytes)) && Number(cfg.maxStorageBytes) > 0;
+        if (!hasUpload && !hasStorage) continue;
+
+        const row = document.createElement('tr');
+
+        const c1 = document.createElement('td');
+        c1.className = 'px-3 py-2';
+        c1.textContent = displayNameForUserId(uid);
+
+        const c2 = document.createElement('td');
+        c2.className = 'px-3 py-2';
+        const wrap2 = document.createElement('div');
+        const in2 = document.createElement('input');
+        in2.type = 'text';
+        in2.className = 'w-56 border rounded px-2 py-1';
+        const hint2 = document.createElement('div');
+        hint2.className = 'text-xs text-gray-500 mt-1';
+        in2.value = hasUpload ? formatHumanBytes(cfg.maxUploadBytes) : '';
+        hint2.textContent = hasUpload ? `${Number(cfg.maxUploadBytes)} bytes` : '';
+        in2.addEventListener('blur', () => {
+          const parsed = parseHumanBytes(in2.value);
+          if (!orgPolicy.users[uid]) orgPolicy.users[uid] = {};
+          if (parsed === null) {
+            delete orgPolicy.users[uid].maxUploadBytes;
+            hint2.textContent = '';
+          } else {
+            orgPolicy.users[uid].maxUploadBytes = parsed;
+            hint2.textContent = `${parsed} bytes`;
+          }
+
+          const u2 = orgPolicy.users[uid] || {};
+          const stillHas = (Number(u2.maxUploadBytes) > 0) || (Number(u2.maxStorageBytes) > 0);
+          if (!stillHas) {
+            delete orgPolicy.users[uid];
+            renderUserOverridesTable();
+          }
+        });
+        wrap2.appendChild(in2);
+        wrap2.appendChild(hint2);
+        c2.appendChild(wrap2);
+
+        const c3 = document.createElement('td');
+        c3.className = 'px-3 py-2';
+        const wrap3 = document.createElement('div');
+        const in3 = document.createElement('input');
+        in3.type = 'text';
+        in3.className = 'w-56 border rounded px-2 py-1';
+        const hint3 = document.createElement('div');
+        hint3.className = 'text-xs text-gray-500 mt-1';
+        in3.value = hasStorage ? formatHumanBytes(cfg.maxStorageBytes) : '';
+        hint3.textContent = hasStorage ? `${Number(cfg.maxStorageBytes)} bytes` : '';
+        in3.addEventListener('blur', () => {
+          const parsed = parseHumanBytes(in3.value);
+          if (!orgPolicy.users[uid]) orgPolicy.users[uid] = {};
+          if (parsed === null) {
+            delete orgPolicy.users[uid].maxStorageBytes;
+            hint3.textContent = '';
+          } else {
+            orgPolicy.users[uid].maxStorageBytes = parsed;
+            hint3.textContent = `${parsed} bytes`;
+          }
+
+          const u2 = orgPolicy.users[uid] || {};
+          const stillHas = (Number(u2.maxUploadBytes) > 0) || (Number(u2.maxStorageBytes) > 0);
+          if (!stillHas) {
+            delete orgPolicy.users[uid];
+            renderUserOverridesTable();
+          }
+        });
+        wrap3.appendChild(in3);
+        wrap3.appendChild(hint3);
+        c3.appendChild(wrap3);
+
+        const c4 = document.createElement('td');
+        c4.className = 'px-3 py-2 text-right';
+        const btn = document.createElement('button');
+        btn.className = 'px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm';
+        btn.textContent = 'Remove';
+        btn.addEventListener('click', () => {
+          delete orgPolicy.users[uid];
+          if (selectedUserId === String(uid)) {
+            selectedUserId = '';
+            elPolicyUserEditor.classList.add('hidden');
+            elPolicyUserMaxUploadBytes.value = '';
+            elPolicyUserMaxStorageBytes.value = '';
+            elPolicyUserMaxUploadHuman.value = '';
+            elPolicyUserMaxStorageHuman.value = '';
+            updateBytesHint(elPolicyUserMaxUploadBytesHint, null);
+            updateBytesHint(elPolicyUserMaxStorageBytesHint, null);
+          }
+          renderUsersSelect();
+          renderUserOverridesTable();
+        });
+        c4.appendChild(btn);
+
+        row.appendChild(c1);
+        row.appendChild(c2);
+        row.appendChild(c3);
+        row.appendChild(c4);
+        elPolicyUsersBody.appendChild(row);
+      }
+    };
+
+    const applyHumanToBytes = (humanEl, bytesEl, onApplied) => {
+      const parsed = parseHumanBytes(humanEl.value);
+      if (parsed !== null) {
+        bytesEl.value = String(parsed);
+        if (typeof onApplied === 'function') onApplied(parsed);
+      }
+    };
+
+    const updateBytesHint = (hintEl, bytes) => {
+      if (!hintEl) return;
+      const n = Number(bytes);
+      if (!Number.isFinite(n) || n <= 0) {
+        hintEl.textContent = '';
+        return;
+      }
+      hintEl.textContent = `${n} bytes`;
+    };
+
+    const syncPolicyToInputs = () => {
+      const g = storagePolicy.global || {};
+      elPolicyGlobalMaxUploadBytes.value = g.maxUploadBytes ? String(g.maxUploadBytes) : '';
+      elPolicyGlobalMaxStorageBytes.value = g.maxStorageBytes ? String(g.maxStorageBytes) : '';
+      elPolicyGlobalMaxUploadHuman.value = g.maxUploadBytes ? formatHumanBytes(g.maxUploadBytes) : '';
+      elPolicyGlobalMaxStorageHuman.value = g.maxStorageBytes ? formatHumanBytes(g.maxStorageBytes) : '';
+      updateBytesHint(elPolicyGlobalMaxUploadBytesHint, elPolicyGlobalMaxUploadBytes.value);
+      updateBytesHint(elPolicyGlobalMaxStorageBytesHint, elPolicyGlobalMaxStorageBytes.value);
+
+      if (!selectedOrgId) {
+        elPolicyOrgSection.classList.add('hidden');
+        return;
+      }
+
+      elPolicyOrgSection.classList.remove('hidden');
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      elPolicyOrgMaxUploadBytes.value = orgPolicy?.maxUploadBytes ? String(orgPolicy.maxUploadBytes) : '';
+      elPolicyOrgMaxStorageBytes.value = orgPolicy?.maxStorageBytes ? String(orgPolicy.maxStorageBytes) : '';
+      elPolicyOrgMaxUploadHuman.value = orgPolicy?.maxUploadBytes ? formatHumanBytes(orgPolicy.maxUploadBytes) : '';
+      elPolicyOrgMaxStorageHuman.value = orgPolicy?.maxStorageBytes ? formatHumanBytes(orgPolicy.maxStorageBytes) : '';
+      updateBytesHint(elPolicyOrgMaxUploadBytesHint, elPolicyOrgMaxUploadBytes.value);
+      updateBytesHint(elPolicyOrgMaxStorageBytesHint, elPolicyOrgMaxStorageBytes.value);
+
+      renderGroupsTable();
+      renderUsersSelect();
+      renderUserOverridesTable();
+    };
+
+    async function fetchJson(url) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Request failed: ${res.status}`);
+      }
+      return await res.json();
+    }
+
+    async function loadStoragePolicy() {
+      const setting = await fetchSetting(KEY_STORAGE_POLICY_JSON);
+      if (!setting || !setting.value) {
+        storagePolicy = { version: 1, global: {}, orgs: {} };
+        return;
+      }
+      storagePolicy = ensurePolicyShape(typeof setting.value === 'string' ? JSON.parse(setting.value) : setting.value);
+    }
+
+    async function loadAdminOrgs() {
+      const data = await fetchJson(`${API_BASE}/api/admin/orgs?limit=200`);
+      orgsCache = data.orgs || [];
+    }
+
+    async function loadAdminGroups() {
+      const data = await fetchJson(`${API_BASE}/api/admin/rbac/groups`);
+      groupsCache = data.groups || [];
+    }
+
+    async function loadAdminOrgMembers(orgId) {
+      orgMembersCache = [];
+      if (!orgId) return;
+      const data = await fetchJson(`${API_BASE}/api/admin/orgs/${encodeURIComponent(orgId)}/members?limit=200`);
+      orgMembersCache = data.members || [];
+    }
+
+    async function refreshStorageConfigUI() {
+      await Promise.all([loadStoragePolicy(), loadAdminOrgs(), loadAdminGroups()]);
+      renderOrgsSelect();
+      await loadAdminOrgMembers(selectedOrgId);
+      syncPolicyToInputs();
+    }
+
+    async function saveStoragePolicy() {
+      const g = storagePolicy.global || {};
+
+      const parsedGlobalUpload = parseHumanBytes(elPolicyGlobalMaxUploadHuman.value);
+      if (parsedGlobalUpload !== null) elPolicyGlobalMaxUploadBytes.value = String(parsedGlobalUpload);
+      const parsedGlobalStorage = parseHumanBytes(elPolicyGlobalMaxStorageHuman.value);
+      if (parsedGlobalStorage !== null) elPolicyGlobalMaxStorageBytes.value = String(parsedGlobalStorage);
+
+      const gUpload = toPositiveIntOrNull(elPolicyGlobalMaxUploadBytes.value);
+      const gStorage = toPositiveIntOrNull(elPolicyGlobalMaxStorageBytes.value);
+      if (gUpload === null) delete g.maxUploadBytes;
+      else g.maxUploadBytes = gUpload;
+      if (gStorage === null) delete g.maxStorageBytes;
+      else g.maxStorageBytes = gStorage;
+      storagePolicy.global = g;
+
+      if (selectedOrgId) {
+        const orgPolicy = getOrgPolicy(selectedOrgId);
+
+        const parsedOrgUpload = parseHumanBytes(elPolicyOrgMaxUploadHuman.value);
+        if (parsedOrgUpload !== null) elPolicyOrgMaxUploadBytes.value = String(parsedOrgUpload);
+        const parsedOrgStorage = parseHumanBytes(elPolicyOrgMaxStorageHuman.value);
+        if (parsedOrgStorage !== null) elPolicyOrgMaxStorageBytes.value = String(parsedOrgStorage);
+
+        const ou = toPositiveIntOrNull(elPolicyOrgMaxUploadBytes.value);
+        const os = toPositiveIntOrNull(elPolicyOrgMaxStorageBytes.value);
+        if (ou === null) delete orgPolicy.maxUploadBytes;
+        else orgPolicy.maxUploadBytes = ou;
+        if (os === null) delete orgPolicy.maxStorageBytes;
+        else orgPolicy.maxStorageBytes = os;
+
+        if (selectedUserId && !elPolicyUserEditor.classList.contains('hidden')) {
+          const parsedUserUpload = parseHumanBytes(elPolicyUserMaxUploadHuman.value);
+          if (parsedUserUpload !== null) elPolicyUserMaxUploadBytes.value = String(parsedUserUpload);
+          const parsedUserStorage = parseHumanBytes(elPolicyUserMaxStorageHuman.value);
+          if (parsedUserStorage !== null) elPolicyUserMaxStorageBytes.value = String(parsedUserStorage);
+
+          const userUpload = toPositiveIntOrNull(elPolicyUserMaxUploadBytes.value);
+          const userStorage = toPositiveIntOrNull(elPolicyUserMaxStorageBytes.value);
+          if (userUpload === null && userStorage === null) {
+            delete orgPolicy.users[selectedUserId];
+          } else {
+            if (!orgPolicy.users[selectedUserId]) orgPolicy.users[selectedUserId] = {};
+            if (userUpload === null) delete orgPolicy.users[selectedUserId].maxUploadBytes;
+            else orgPolicy.users[selectedUserId].maxUploadBytes = userUpload;
+            if (userStorage === null) delete orgPolicy.users[selectedUserId].maxStorageBytes;
+            else orgPolicy.users[selectedUserId].maxStorageBytes = userStorage;
+          }
+        }
+      }
+
+      await upsertSetting({
+        key: KEY_STORAGE_POLICY_JSON,
+        value: JSON.stringify(ensurePolicyShape(storagePolicy)),
+        type: 'json',
+        description: 'File Manager storage policy (global/org/group/user max upload + max storage)'
+      });
+    }
 
     const showToast = (message, type = 'success') => {
       elToast.classList.remove('hidden');
@@ -147,6 +747,8 @@
         elBasePath.value = basePathSetting ? String(basePathSetting.value || '') : '/files';
         elMaxUploadBytes.value = maxUploadBytesSetting ? String(maxUploadBytesSetting.value || '') : '1073741824';
         updateComputedUrl();
+
+        await refreshStorageConfigUI();
       } catch (e) {
         showToast(e.message || 'Failed to load settings', 'error');
       }
@@ -187,6 +789,133 @@
         showToast(e.message || 'Failed to save settings', 'error');
       }
     }
+
+    const ADMIN_TAB_KEY = 'sb_fm_admin_file_manager_tab';
+
+    const setActiveTab = (tab) => {
+      const t = tab === 'storage' ? 'storage' : 'general';
+      localStorage.setItem(ADMIN_TAB_KEY, t);
+
+      const activeClass = 'border-blue-500 text-blue-600';
+      const inactiveClass = 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300';
+
+      elTabGeneral.className = `py-2 px-1 border-b-2 font-medium text-sm ${t === 'general' ? activeClass : inactiveClass}`;
+      elTabStorage.className = `py-2 px-1 border-b-2 font-medium text-sm ${t === 'storage' ? activeClass : inactiveClass}`;
+
+      if (t === 'general') {
+        elSectionGeneral.classList.remove('hidden');
+        elSectionStorage.classList.add('hidden');
+      } else {
+        elSectionStorage.classList.remove('hidden');
+        elSectionGeneral.classList.add('hidden');
+      }
+    };
+
+    elTabGeneral.addEventListener('click', () => setActiveTab('general'));
+    elTabStorage.addEventListener('click', () => setActiveTab('storage'));
+
+    setActiveTab(localStorage.getItem(ADMIN_TAB_KEY) || 'general');
+
+    elPolicyGlobalMaxUploadHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyGlobalMaxUploadHuman, elPolicyGlobalMaxUploadBytes, (bytes) => updateBytesHint(elPolicyGlobalMaxUploadBytesHint, bytes)));
+    elPolicyGlobalMaxStorageHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyGlobalMaxStorageHuman, elPolicyGlobalMaxStorageBytes, (bytes) => updateBytesHint(elPolicyGlobalMaxStorageBytesHint, bytes)));
+    elPolicyOrgMaxUploadHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyOrgMaxUploadHuman, elPolicyOrgMaxUploadBytes, (bytes) => updateBytesHint(elPolicyOrgMaxUploadBytesHint, bytes)));
+    elPolicyOrgMaxStorageHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyOrgMaxStorageHuman, elPolicyOrgMaxStorageBytes, (bytes) => updateBytesHint(elPolicyOrgMaxStorageBytesHint, bytes)));
+
+    elPolicyOrgSelect.addEventListener('change', async () => {
+      selectedOrgId = String(elPolicyOrgSelect.value || '');
+      selectedUserId = '';
+      await loadAdminOrgMembers(selectedOrgId);
+      syncPolicyToInputs();
+    });
+
+    elPolicyUserApply.addEventListener('click', () => {
+      selectedUserId = String(elPolicyUserSelect.value || '');
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      if (!selectedUserId) {
+        elPolicyUserEditor.classList.add('hidden');
+        return;
+      }
+
+      if (!orgPolicy.users[selectedUserId]) orgPolicy.users[selectedUserId] = {};
+      const u = orgPolicy.users[selectedUserId];
+      elPolicyUserMaxUploadBytes.value = u.maxUploadBytes ? String(u.maxUploadBytes) : '';
+      elPolicyUserMaxStorageBytes.value = u.maxStorageBytes ? String(u.maxStorageBytes) : '';
+      elPolicyUserMaxUploadHuman.value = u.maxUploadBytes ? formatHumanBytes(u.maxUploadBytes) : '';
+      elPolicyUserMaxStorageHuman.value = u.maxStorageBytes ? formatHumanBytes(u.maxStorageBytes) : '';
+      updateBytesHint(elPolicyUserMaxUploadBytesHint, elPolicyUserMaxUploadBytes.value);
+      updateBytesHint(elPolicyUserMaxStorageBytesHint, elPolicyUserMaxStorageBytes.value);
+      elPolicyUserEditor.classList.remove('hidden');
+    });
+
+    elPolicyUserMaxUploadHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyUserMaxUploadHuman, elPolicyUserMaxUploadBytes, (bytes) => {
+      updateBytesHint(elPolicyUserMaxUploadBytesHint, bytes);
+      elPolicyUserMaxUploadBytes.dispatchEvent(new Event('input'));
+    }));
+    elPolicyUserMaxStorageHuman.addEventListener('blur', () => applyHumanToBytes(elPolicyUserMaxStorageHuman, elPolicyUserMaxStorageBytes, (bytes) => {
+      updateBytesHint(elPolicyUserMaxStorageBytesHint, bytes);
+      elPolicyUserMaxStorageBytes.dispatchEvent(new Event('input'));
+    }));
+
+    elPolicyUserMaxUploadBytes.addEventListener('input', () => {
+      if (!selectedOrgId || !selectedUserId) return;
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      if (!orgPolicy.users[selectedUserId]) orgPolicy.users[selectedUserId] = {};
+      const val = toPositiveIntOrNull(elPolicyUserMaxUploadBytes.value);
+      if (val === null) delete orgPolicy.users[selectedUserId].maxUploadBytes;
+      else orgPolicy.users[selectedUserId].maxUploadBytes = val;
+      updateBytesHint(elPolicyUserMaxUploadBytesHint, val);
+    });
+
+    elPolicyUserMaxStorageBytes.addEventListener('input', () => {
+      if (!selectedOrgId || !selectedUserId) return;
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      if (!orgPolicy.users[selectedUserId]) orgPolicy.users[selectedUserId] = {};
+      const val = toPositiveIntOrNull(elPolicyUserMaxStorageBytes.value);
+      if (val === null) delete orgPolicy.users[selectedUserId].maxStorageBytes;
+      else orgPolicy.users[selectedUserId].maxStorageBytes = val;
+      updateBytesHint(elPolicyUserMaxStorageBytesHint, val);
+    });
+
+    elPolicyUserClear.addEventListener('click', () => {
+      if (!selectedOrgId || !selectedUserId) return;
+      const orgPolicy = getOrgPolicy(selectedOrgId);
+      delete orgPolicy.users[selectedUserId];
+      elPolicyUserEditor.classList.add('hidden');
+      elPolicyUserMaxUploadBytes.value = '';
+      elPolicyUserMaxStorageBytes.value = '';
+      elPolicyUserMaxUploadHuman.value = '';
+      elPolicyUserMaxStorageHuman.value = '';
+      updateBytesHint(elPolicyUserMaxUploadBytesHint, null);
+      updateBytesHint(elPolicyUserMaxStorageBytesHint, null);
+    });
+
+    elPolicyRefreshGroups.addEventListener('click', async () => {
+      try {
+        await loadAdminGroups();
+        renderGroupsTable();
+        showToast('Groups refreshed.');
+      } catch (e) {
+        showToast(e.message || 'Failed to refresh groups', 'error');
+      }
+    });
+
+    document.getElementById('policyRefresh').addEventListener('click', async () => {
+      try {
+        await refreshStorageConfigUI();
+        showToast('Storage config refreshed.');
+      } catch (e) {
+        showToast(e.message || 'Failed to refresh storage config', 'error');
+      }
+    });
+
+    document.getElementById('policySave').addEventListener('click', async () => {
+      try {
+        await saveStoragePolicy();
+        showToast('Storage config saved.');
+      } catch (e) {
+        showToast(e.message || 'Failed to save storage config', 'error');
+      }
+    });
 
     document.getElementById('refresh').addEventListener('click', load);
     document.getElementById('save').addEventListener('click', save);
