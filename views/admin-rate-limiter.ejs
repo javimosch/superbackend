@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>Rate Limiter - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    .fade-out { animation: fadeOut 0.3s ease-out forwards; }
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    .tab-active { background: #1d4ed8; color: white; }
+    .tab-inactive { background: #e5e7eb; color: #111827; }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <div class="bg-white shadow">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div class="flex justify-between items-center">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">Rate Limiter</h1>
+            <p class="text-sm text-gray-600 mt-1">Manage limiter rules (advanced) and view metrics.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="flex gap-2 mb-6">
+        <button id="tab-rate-limits" class="px-4 py-2 rounded tab-active">Rate limits</button>
+        <button id="tab-metrics" class="px-4 py-2 rounded tab-inactive">Metrics</button>
+        <button id="tab-usage" class="px-4 py-2 rounded tab-inactive">Usage</button>
+      </div>
+
+      <div id="panel-rate-limits">
+        <div class="flex gap-2 mb-4">
+          <button id="subtab-limiter" class="px-3 py-2 rounded tab-active">Limiter override</button>
+          <button id="subtab-raw" class="px-3 py-2 rounded tab-inactive">Raw config (JSON)</button>
+        </div>
+
+        <div id="subpanel-limiter">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white rounded-lg shadow">
+              <div class="px-4 py-3 border-b">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Limiters</h2>
+                    <p class="text-sm text-gray-600">Integration points discovered at runtime and configured via JSON Configs.</p>
+                  </div>
+                  <div class="flex gap-2">
+                    <button id="btnEnableSelected" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700">Enable selected</button>
+                    <button id="btnDisableSelected" class="px-3 py-2 bg-gray-800 text-white rounded hover:bg-gray-900">Disable selected</button>
+                    <button id="btnEnableAll" class="px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700">Enable all</button>
+                    <button id="btnDisableAll" class="px-3 py-2 bg-gray-800 text-white rounded hover:bg-gray-900">Disable all</button>
+                    <button id="btnReload" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Refresh</button>
+                  </div>
+                </div>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Sel</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Id</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Mode</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Limit</th>
+                      <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Window (ms)</th>
+                    </tr>
+                  </thead>
+                  <tbody id="rows" class="bg-white divide-y divide-gray-200"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow">
+              <div class="px-4 py-3 border-b">
+                <div class="flex justify-between items-center">
+                  <h2 class="text-lg font-semibold text-gray-900" id="editorTitle">Editor</h2>
+                  <div class="flex gap-2">
+                    <button id="btnReset" class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300" style="display:none;">Reset override</button>
+                    <button id="btnSave" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700" style="display:none;">Save</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4">
+                <div class="mb-4">
+                  <div class="text-xs text-gray-500">Limiter id</div>
+                  <div class="text-sm font-semibold" id="limiterId">-</div>
+                  <div class="text-xs text-gray-500 mt-2">Integration</div>
+                  <pre id="integration" class="bg-gray-50 rounded p-3 text-xs overflow-auto max-h-32">-</pre>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Enabled</label>
+                    <select id="enabled" class="w-full border rounded px-3 py-2">
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Mode</label>
+                    <select id="mode" class="w-full border rounded px-3 py-2">
+                      <option value="reportOnly">reportOnly</option>
+                      <option value="enforce">enforce</option>
+                      <option value="disabled">disabled</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Algorithm</label>
+                    <select id="algorithm" class="w-full border rounded px-3 py-2">
+                      <option value="fixedWindow">fixedWindow</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Identity</label>
+                    <select id="identityType" class="w-full border rounded px-3 py-2">
+                      <option value="userIdOrIp">userIdOrIp</option>
+                      <option value="userId">userId</option>
+                      <option value="ip">ip</option>
+                      <option value="orgId">orgId</option>
+                      <option value="header">header</option>
+                    </select>
+                  </div>
+                  <div id="identityHeaderNameWrap" style="display:none;">
+                    <label class="block text-sm font-medium mb-1">Header name</label>
+                    <input id="identityHeaderName" class="w-full border rounded px-3 py-2" placeholder="e.g. x-api-key" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Limit max</label>
+                    <input id="limitMax" type="number" min="0" step="1" class="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Window ms</label>
+                    <input id="limitWindowMs" type="number" min="1" step="1" class="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Metrics enabled</label>
+                    <select id="metricsEnabled" class="w-full border rounded px-3 py-2">
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Metrics bucket ms</label>
+                    <input id="metricsBucketMs" type="number" min="1000" step="1000" class="w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Retention days</label>
+                    <input id="metricsRetentionDays" type="number" min="1" step="1" class="w-full border rounded px-3 py-2" />
+                  </div>
+                </div>
+
+                <div class="mt-6">
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-medium">Override JSON (advanced)</label>
+                    <button id="btnSaveOverrideJson" class="px-3 py-2 bg-gray-800 text-white rounded hover:bg-gray-900" style="display:none;">Save JSON override</button>
+                  </div>
+                  <textarea id="overrideJson" spellcheck="false" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="10"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="subpanel-raw" style="display:none;">
+          <div class="bg-white rounded-lg shadow">
+            <div class="px-4 py-3 border-b">
+              <div class="flex justify-between items-center">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900">Raw rate limits config</h2>
+                  <p class="text-sm text-gray-600">Stored in JSON Configs (alias: rate-limits)</p>
+                </div>
+                <div class="flex gap-2">
+                  <button id="btnLoadRaw" class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Load</button>
+                  <button id="btnSaveRaw" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                </div>
+              </div>
+            </div>
+            <div class="p-4">
+              <textarea id="rawConfig" spellcheck="false" class="w-full border rounded px-3 py-2 font-mono text-sm" rows="18"></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-metrics" style="display:none;">
+        <div class="bg-white rounded-lg shadow">
+          <div class="px-4 py-3 border-b">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900">Metrics</h2>
+                <p class="text-sm text-gray-600">Counts are computed per limiter bucket.</p>
+              </div>
+              <button id="btnMetricsReload" class="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Refresh</button>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label class="block text-sm font-medium mb-1">Start (optional, ISO)</label>
+                <input id="metricsStart" class="w-full border rounded px-3 py-2" placeholder="2026-01-25T00:00:00.000Z" />
+              </div>
+              <div>
+                <label class="block text-sm font-medium mb-1">End (optional, ISO)</label>
+                <input id="metricsEnd" class="w-full border rounded px-3 py-2" placeholder="2026-01-25T23:59:59.000Z" />
+              </div>
+              <div class="flex items-end">
+                <button id="btnMetricsApply" class="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 w-full">Apply range</button>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                  <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Limiter</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Checked</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Allowed</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Blocked</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Block rate</th>
+                  </tr>
+                </thead>
+                <tbody id="metricsRows" class="bg-white divide-y divide-gray-200"></tbody>
+              </table>
+            </div>
+
+            <div class="mt-4">
+              <div class="text-xs text-gray-500">Range</div>
+              <div id="metricsRange" class="text-sm">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="panel-usage" style="display:none;">
+        <div class="bg-white rounded-lg shadow">
+          <div class="px-4 py-3 border-b">
+            <h2 class="text-lg font-semibold text-gray-900">Usage</h2>
+          </div>
+          <div class="p-4">
+            <div class="mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-medium">Express middleware</div>
+                <button id="btnCopyUsage" class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">Copy</button>
+              </div>
+              <pre id="usageSnippet" class="bg-gray-50 rounded p-3 text-sm overflow-auto">const { helpers } = require('@intranefr/superbackend');
+
+app.use('/api', helpers.rateLimiter.limit('globalApiLimiter'));</pre>
+            </div>
+
+            <div class="text-sm text-gray-700 space-y-2">
+              <p><strong>Identity default:</strong> userId when authenticated (Bearer JWT) else IP.</p>
+              <p><strong>Custom identity:</strong> you can provide orgId / custom identity by using <code>check()</code> programmatically or passing <code>getIdentity</code> in middleware options.</p>
+              <p><strong>Modes:</strong> reportOnly records would-be blocks; enforce blocks with 429.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="toast-container" class="fixed top-4 right-4 space-y-2 z-50"></div>
+
+  <script>
+    const API_BASE = window.location.origin + "<%= baseUrl %>" || window.location.origin;
+
+    let items = [];
+    let selectedId = null;
+    let selectedIds = new Set();
+
+    function $(id) { return document.getElementById(id); }
+
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast px-6 py-4 rounded-lg shadow-lg text-white ${type === 'success' ? 'bg-green-500' : 'bg-red-500'}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.add('fade-out');
+        setTimeout(() => toast.remove(), 300);
+      }, 2500);
+    }
+
+    function setTabs(active) {
+      const tabs = [
+        { key: 'rate-limits', tab: 'tab-rate-limits', panel: 'panel-rate-limits' },
+        { key: 'metrics', tab: 'tab-metrics', panel: 'panel-metrics' },
+        { key: 'usage', tab: 'tab-usage', panel: 'panel-usage' },
+      ];
+      tabs.forEach(t => {
+        const btn = $(t.tab);
+        const panel = $(t.panel);
+        if (!btn || !panel) return;
+        const isActive = t.key === active;
+        btn.className = `px-4 py-2 rounded ${isActive ? 'tab-active' : 'tab-inactive'}`;
+        panel.style.display = isActive ? '' : 'none';
+      });
+    }
+
+    function setSubTabs(active) {
+      const tabs = [
+        { key: 'limiter', tab: 'subtab-limiter', panel: 'subpanel-limiter' },
+        { key: 'raw', tab: 'subtab-raw', panel: 'subpanel-raw' },
+      ];
+      tabs.forEach(t => {
+        const btn = $(t.tab);
+        const panel = $(t.panel);
+        if (!btn || !panel) return;
+        const isActive = t.key === active;
+        btn.className = `px-3 py-2 rounded ${isActive ? 'tab-active' : 'tab-inactive'}`;
+        panel.style.display = isActive ? '' : 'none';
+      });
+    }
+
+    function safeJsonParse(raw, fallback) {
+      try { return JSON.parse(raw); } catch (_) { return fallback; }
+    }
+
+    function renderRows() {
+      const body = $('rows');
+      if (!body) return;
+      body.innerHTML = '';
+
+      items.forEach(item => {
+        const tr = document.createElement('tr');
+        tr.className = `cursor-pointer ${item.id === selectedId ? 'bg-blue-50' : ''}`;
+        tr.onclick = () => setSelected(item.id);
+
+        const checked = selectedIds.has(item.id);
+
+        const eff = item.effective || {};
+        const max = eff.limit?.max ?? '';
+        const windowMs = eff.limit?.windowMs ?? '';
+
+        tr.innerHTML = `
+          <td class="px-4 py-2 text-sm text-gray-700"><input type="checkbox" data-id="${item.id}" ${checked ? 'checked' : ''} /></td>
+          <td class="px-4 py-2 text-sm text-gray-900">${item.id}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${String(eff.mode || '')}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${String(eff.enabled !== false)}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${String(max)}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${String(windowMs)}</td>
+        `;
+
+        body.appendChild(tr);
+
+        const checkbox = tr.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+          checkbox.addEventListener('click', (e) => e.stopPropagation());
+          checkbox.addEventListener('change', (e) => {
+            const id = e.target?.dataset?.id;
+            if (!id) return;
+            if (e.target.checked) selectedIds.add(id);
+            else selectedIds.delete(id);
+          });
+        }
+      });
+    }
+
+    function setSelected(id) {
+      selectedId = id;
+      const item = items.find(x => x.id === id);
+
+      $('btnSave').style.display = item ? 'inline-block' : 'none';
+      $('btnReset').style.display = item ? 'inline-block' : 'none';
+      $('btnSaveOverrideJson').style.display = item ? 'inline-block' : 'none';
+
+      $('editorTitle').textContent = item ? `Editing: ${item.id}` : 'Editor';
+      $('limiterId').textContent = item ? item.id : '-';
+      $('integration').textContent = item?.integration ? JSON.stringify(item.integration, null, 2) : '-';
+
+      const eff = item?.effective || {};
+
+      $('enabled').value = String(eff.enabled !== false);
+      $('mode').value = String(eff.mode || 'reportOnly');
+      $('algorithm').value = String(eff.algorithm || 'fixedWindow');
+
+      const identityType = String(eff.identity?.type || 'userIdOrIp');
+      $('identityType').value = identityType;
+      $('identityHeaderName').value = String(eff.identity?.headerName || '');
+      $('identityHeaderNameWrap').style.display = identityType === 'header' ? '' : 'none';
+
+      $('limitMax').value = String(eff.limit?.max ?? '');
+      $('limitWindowMs').value = String(eff.limit?.windowMs ?? '');
+
+      $('metricsEnabled').value = String(eff.metrics?.enabled !== false);
+      $('metricsBucketMs').value = String(eff.metrics?.bucketMs ?? 60000);
+      $('metricsRetentionDays').value = String(eff.metrics?.retentionDays ?? 14);
+
+      $('overrideJson').value = JSON.stringify(item?.override || {}, null, 2);
+
+      renderRows();
+    }
+
+    async function loadLimiters() {
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load');
+      items = Array.isArray(data.items) ? data.items : [];
+
+      const nextSelected = new Set();
+      items.forEach((i) => {
+        if (selectedIds.has(i.id)) nextSelected.add(i.id);
+      });
+      selectedIds = nextSelected;
+
+      if (selectedId && !items.some(x => x.id === selectedId)) selectedId = null;
+      renderRows();
+      if (!selectedId && items.length) setSelected(items[0].id);
+      if (!items.length) setSelected(null);
+    }
+
+    async function bulkEnabled({ enabled, all, ids }) {
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/bulk-enabled`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ enabled, all, ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Bulk update failed');
+      await loadLimiters();
+      showToast('Updated', 'success');
+    }
+
+    function buildOverrideFromForm() {
+      const enabled = $('enabled').value === 'true';
+      const mode = $('mode').value;
+      const identityType = $('identityType').value;
+
+      const out = {
+        enabled,
+        mode,
+        algorithm: $('algorithm').value,
+        limit: {
+          max: Number($('limitMax').value || 0) || 0,
+          windowMs: Number($('limitWindowMs').value || 60000) || 60000,
+        },
+        identity: {
+          type: identityType,
+        },
+        metrics: {
+          enabled: $('metricsEnabled').value === 'true',
+          bucketMs: Number($('metricsBucketMs').value || 60000) || 60000,
+          retentionDays: Number($('metricsRetentionDays').value || 14) || 14,
+        },
+      };
+
+      if (identityType === 'header') {
+        out.identity.headerName = String($('identityHeaderName').value || '').trim();
+      }
+
+      return out;
+    }
+
+    async function saveOverride(override) {
+      const id = String(selectedId || '').trim();
+      if (!id) return;
+
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ override }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Save failed');
+      await loadLimiters();
+      showToast('Saved', 'success');
+    }
+
+    async function resetOverride() {
+      const id = String(selectedId || '').trim();
+      if (!id) return;
+
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/${encodeURIComponent(id)}/reset`, {
+        method: 'POST',
+        headers: { 'Accept': 'application/json' },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Reset failed');
+      await loadLimiters();
+      showToast('Reset override', 'success');
+    }
+
+    async function loadRawConfig() {
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/config`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load raw config');
+      $('rawConfig').value = String(data?.config?.jsonRaw || '');
+      showToast('Loaded raw config', 'success');
+    }
+
+    async function saveRawConfig() {
+      const jsonRaw = $('rawConfig').value;
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ jsonRaw }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to save raw config');
+      showToast('Saved raw config', 'success');
+      await loadLimiters();
+    }
+
+    async function loadMetrics() {
+      const start = String($('metricsStart').value || '').trim();
+      const end = String($('metricsEnd').value || '').trim();
+      const qs = new URLSearchParams();
+      if (start) qs.set('start', start);
+      if (end) qs.set('end', end);
+
+      const res = await fetch(`${API_BASE}/api/admin/rate-limits/metrics?${qs.toString()}`, { headers: { 'Accept': 'application/json' } });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load metrics');
+
+      $('metricsRange').textContent = data?.range ? `${data.range.start} → ${data.range.end}` : '-';
+
+      const totals = data?.totals || {};
+      const rows = $('metricsRows');
+      rows.innerHTML = '';
+
+      Object.keys(totals).sort().forEach((id) => {
+        const t = totals[id] || {};
+        const checked = Number(t.checked || 0) || 0;
+        const blocked = Number(t.blocked || 0) || 0;
+        const allowed = Number(t.allowed || 0) || 0;
+        const rate = checked ? (blocked / checked) : 0;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="px-4 py-2 text-sm text-gray-900">${id}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${checked}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${allowed}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${blocked}</td>
+          <td class="px-4 py-2 text-sm text-gray-700">${(rate * 100).toFixed(2)}%</td>
+        `;
+        rows.appendChild(tr);
+      });
+
+      showToast('Loaded metrics', 'success');
+    }
+
+    function bind() {
+      $('tab-rate-limits').onclick = () => setTabs('rate-limits');
+      $('tab-metrics').onclick = () => { setTabs('metrics'); loadMetrics().catch(e => showToast(e.message, 'error')); };
+      $('tab-usage').onclick = () => setTabs('usage');
+
+      $('subtab-limiter').onclick = () => setSubTabs('limiter');
+      $('subtab-raw').onclick = () => setSubTabs('raw');
+
+      $('btnReload').onclick = () => loadLimiters().catch(e => showToast(e.message, 'error'));
+
+      $('btnEnableAll').onclick = () => bulkEnabled({ enabled: true, all: true }).catch(e => showToast(e.message, 'error'));
+      $('btnDisableAll').onclick = () => bulkEnabled({ enabled: false, all: true }).catch(e => showToast(e.message, 'error'));
+      $('btnEnableSelected').onclick = () => {
+        const ids = Array.from(selectedIds);
+        if (!ids.length) return showToast('Select at least 1 limiter', 'error');
+        return bulkEnabled({ enabled: true, all: false, ids }).catch(e => showToast(e.message, 'error'));
+      };
+      $('btnDisableSelected').onclick = () => {
+        const ids = Array.from(selectedIds);
+        if (!ids.length) return showToast('Select at least 1 limiter', 'error');
+        return bulkEnabled({ enabled: false, all: false, ids }).catch(e => showToast(e.message, 'error'));
+      };
+
+      $('btnSave').onclick = () => saveOverride(buildOverrideFromForm()).catch(e => showToast(e.message, 'error'));
+      $('btnSaveOverrideJson').onclick = () => {
+        const parsed = safeJsonParse($('overrideJson').value, null);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          showToast('Override JSON must be an object', 'error');
+          return;
+        }
+        saveOverride(parsed).catch(e => showToast(e.message, 'error'));
+      };
+      $('btnReset').onclick = () => resetOverride().catch(e => showToast(e.message, 'error'));
+
+      $('identityType').onchange = () => {
+        const v = $('identityType').value;
+        $('identityHeaderNameWrap').style.display = v === 'header' ? '' : 'none';
+      };
+
+      $('btnLoadRaw').onclick = () => loadRawConfig().catch(e => showToast(e.message, 'error'));
+      $('btnSaveRaw').onclick = () => saveRawConfig().catch(e => showToast(e.message, 'error'));
+
+      $('btnMetricsReload').onclick = () => loadMetrics().catch(e => showToast(e.message, 'error'));
+      $('btnMetricsApply').onclick = () => loadMetrics().catch(e => showToast(e.message, 'error'));
+
+      $('btnCopyUsage').onclick = async () => {
+        try {
+          await navigator.clipboard.writeText($('usageSnippet').textContent);
+          showToast('Copied', 'success');
+        } catch (e) {
+          showToast(e.message || 'Copy failed', 'error');
+        }
+      };
+    }
+
+    (function init() {
+      bind();
+      setTabs('rate-limits');
+      setSubTabs('limiter');
+      loadLimiters().catch(e => showToast(e.message, 'error'));
+    })();
+  </script>
+</body>
+</html>

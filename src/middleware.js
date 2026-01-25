@@ -19,6 +19,7 @@ const {
   expressErrorMiddleware,
   requestIdMiddleware,
 } = require("./middleware/errorCapture");
+const rateLimiter = require("./services/rateLimiter.service");
 
 let errorCaptureInitialized = false;
 
@@ -231,6 +232,8 @@ function createMiddleware(options = {}) {
   }
 
   router.use(requestIdMiddleware);
+
+  router.use("/api", rateLimiter.limit("globalApiLimiter"));
 
   // Serve public static files (e.g. /og/og-default.png)
   router.use(express.static(path.join(__dirname, "..", "public")));
@@ -527,6 +530,10 @@ function createMiddleware(options = {}) {
   router.use(
     "/api/admin/json-configs",
     require("./routes/adminJsonConfigs.routes"),
+  );
+  router.use(
+    "/api/admin/rate-limits",
+    require("./routes/adminRateLimits.routes"),
   );
   router.use(
     "/api/admin/seo-config",
@@ -1308,6 +1315,31 @@ function createMiddleware(options = {}) {
     });
   });
 
+  router.get(`${adminPath}/rate-limiter`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-rate-limiter.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, {
+          baseUrl: req.baseUrl,
+          adminPath,
+        });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
   // Admin global settings page (protected by basic auth) - render manually
   router.get(`${adminPath}/global-settings`, basicAuth, (req, res) => {
     const templatePath = path.join(
@@ -1399,7 +1431,7 @@ function createMiddleware(options = {}) {
     });
   });
 
-  router.get("/health", (req, res) => {
+  router.get("/health",rateLimiter.limit('healthRateLimiter'), (req, res) => {
     res.json({
       status: "ok",
       mode: "middleware",
