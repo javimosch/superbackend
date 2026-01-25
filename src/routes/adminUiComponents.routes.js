@@ -4,6 +4,7 @@ const router = express.Router();
 const { basicAuth } = require('../middleware/auth');
 const adminUiComponentsController = require('../controllers/adminUiComponents.controller');
 const adminUiComponentsAiController = require('../controllers/adminUiComponentsAi.controller');
+const rateLimiter = require('../services/rateLimiter.service');
 
 router.use(basicAuth);
 
@@ -24,6 +25,6 @@ router.get('/projects/:projectId/components', adminUiComponentsController.listPr
 router.post('/projects/:projectId/components/:code', adminUiComponentsController.setAssignment);
 router.delete('/projects/:projectId/components/:code', adminUiComponentsController.deleteAssignment);
 
-router.post('/ai/components/:code/propose', adminUiComponentsAiController.propose);
+router.post('/ai/components/:code/propose', rateLimiter.limit('aiOperationsLimiter'), adminUiComponentsAiController.propose);
 
 module.exports = router;

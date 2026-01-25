@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { basicAuth } = require('../middleware/auth');
 const controller = require('../controllers/blogAutomationAdmin.controller');
+const rateLimiter = require('../services/rateLimiter.service');
 
 router.use(basicAuth);
 router.use(express.json({ limit: '2mb' }));
@@ -21,6 +22,6 @@ router.get('/blog-automation/style-guide', controller.getStyleGuide);
 router.put('/blog-automation/style-guide', controller.saveStyleGuide);
 
 router.get('/blog-automation/runs', controller.listRuns);
-router.post('/blog-automation/run-now', controller.runNow);
+router.post('/blog-automation/run-now', rateLimiter.limit('blogAiLimiter'), controller.runNow);
 
 module.exports = router;

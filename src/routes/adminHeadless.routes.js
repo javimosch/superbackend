@@ -3,6 +3,7 @@ const router = express.Router();
 
 const { basicAuth } = require('../middleware/auth');
 const adminHeadlessController = require('../controllers/adminHeadless.controller');
+const rateLimiter = require('../services/rateLimiter.service');
 
 router.use(basicAuth);
 
@@ -24,7 +25,7 @@ router.post('/models/validate', adminHeadlessController.validateModelDefinition)
 router.post('/models/apply', adminHeadlessController.applyModelProposal);
 
 // AI model builder
-router.post('/ai/model-builder/chat', adminHeadlessController.aiModelBuilderChat);
+router.post('/ai/model-builder/chat', rateLimiter.limit('aiOperationsLimiter'), adminHeadlessController.aiModelBuilderChat);
 
 // Admin collections CRUD (UI)
 router.get('/collections/:modelCode', adminHeadlessController.listCollectionItems);
