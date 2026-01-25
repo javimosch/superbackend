@@ -7,6 +7,7 @@ const ejs = require("ejs");
 const { basicAuth } = require("./middleware/auth");
 const endpointRegistry = require("./admin/endpointRegistry");
 const { createFeatureFlagsEjsMiddleware } = require("./services/featureFlags.service");
+const globalSettingsService = require("./services/globalSettings.service");
 const consoleOverride = require("./services/consoleOverride.service");
 const cronScheduler = require("./services/cronScheduler.service");
 const healthChecksScheduler = require("./services/healthChecksScheduler.service");
@@ -35,6 +36,33 @@ function createMiddleware(options = {}) {
   const adminPath = options.adminPath || "/admin";
   const pagesPrefix = options.pagesPrefix || "/";
 
+  const normalizeBasePath = (value) => {
+    const v = String(value || "").trim();
+    if (!v) return "/files";
+    return v.startsWith("/") ? v : `/${v}`;
+  };
+
+  const fileManagerPublicConfig = {
+    enabled: false,
+    basePath: "/files",
+    loaded: false,
+  };
+
+  // Restart-required behavior: we load settings once and keep the values in memory.
+  (async () => {
+    try {
+      const enabledRaw = await globalSettingsService.getSettingValue("FILE_MANAGER_ENABLED", "false");
+      const basePathRaw = await globalSettingsService.getSettingValue("FILE_MANAGER_BASE_PATH", "/files");
+
+      fileManagerPublicConfig.enabled = String(enabledRaw) === "true";
+      fileManagerPublicConfig.basePath = normalizeBasePath(basePathRaw);
+      fileManagerPublicConfig.loaded = true;
+    } catch (error) {
+      console.error("Error loading File Manager public config:", error);
+      fileManagerPublicConfig.loaded = true;
+    }
+  })();
+
   // Expose adminPath, pagesPrefix and WS attachment helper
   router.adminPath = adminPath;
   router.pagesPrefix = pagesPrefix;
@@ -44,7 +72,10 @@ function createMiddleware(options = {}) {
   };
 
   // Initialize console override service early to capture all logs
-  consoleOverride.init();
+  // Avoid keeping timers/streams alive during Jest runs.
+  if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
+    consoleOverride.init();
+  }
 
   if (!errorCaptureInitialized) {
     errorCaptureInitialized = true;
@@ -213,6 +244,48 @@ function createMiddleware(options = {}) {
 
   // EJS locals: feature flags for server-rendered pages
   router.use(createFeatureFlagsEjsMiddleware());
+
+  // Public File Manager SPA (gated by global settings; restart required)
+  router.get("*", (req, res, next) => {
+    try {
+      if (!fileManagerPublicConfig.enabled) return next();
+
+      const basePath = fileManagerPublicConfig.basePath || "/files";
+      const reqPath = req.path;
+      const matches =
+        reqPath === basePath ||
+        reqPath === `${basePath}/` ||
+        reqPath.startsWith(`${basePath}/`);
+
+      if (!matches) return next();
+      if (req.method !== "GET") return next();
+
+      const templatePath = path.join(__dirname, "..", "views", "file-manager.ejs");
+      fs.readFile(templatePath, "utf8", (err, template) => {
+        if (err) {
+          console.error("Error reading template:", err);
+          return res.status(500).send("Error loading page");
+        }
+        try {
+          const html = ejs.render(
+            template,
+            {
+              baseUrl: req.baseUrl,
+              fileManagerBasePath: basePath,
+            },
+            { filename: templatePath },
+          );
+          res.send(html);
+        } catch (renderErr) {
+          console.error("Error rendering template:", renderErr);
+          res.status(500).send("Error rendering page");
+        }
+      });
+    } catch (error) {
+      console.error("Error serving File Manager SPA:", error);
+      next();
+    }
+  });
 
   // API Routes
   router.use("/api/auth", require("./routes/auth.routes"));
@@ -409,6 +482,37 @@ function createMiddleware(options = {}) {
     });
   });
 
+	  router.get(`${adminPath}/db-browser`, basicAuth, (req, res) => {
+	    const templatePath = path.join(
+	      __dirname,
+	      "..",
+	      "views",
+	      "admin-db-browser.ejs",
+	    );
+	    fs.readFile(templatePath, "utf8", (err, template) => {
+	      if (err) {
+	        console.error("Error reading template:", err);
+	        return res.status(500).send("Error loading page");
+	      }
+	      try {
+	        const html = ejs.render(
+	          template,
+	          {
+	            baseUrl: req.baseUrl,
+	            adminPath,
+	          },
+	          {
+	            filename: templatePath,
+	          },
+	        );
+	        res.send(html);
+	      } catch (renderErr) {
+	        console.error("Error rendering template:", renderErr);
+	        res.status(500).send("Error rendering page");
+	      }
+	    });
+	  });
+
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
   router.use(
@@ -429,6 +533,7 @@ function createMiddleware(options = {}) {
   router.use("/api/admin/crons", require("./routes/adminCrons.routes"));
   router.use("/api/admin/health-checks", require("./routes/adminHealthChecks.routes"));
   router.use("/api/admin/cache", require("./routes/adminCache.routes"));
+  router.use("/api/admin/db-browser", require("./routes/adminDbBrowser.routes"));
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
@@ -460,6 +565,7 @@ function createMiddleware(options = {}) {
   router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
   router.use("/api/llm/ui", require("./routes/llmUi.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
+  router.use("/api/file-manager", require("./routes/fileManager.routes"));
 
   // Public health checks status (gated by global setting)
   router.use("/api/health-checks", require("./routes/healthChecksPublic.routes"));
@@ -591,6 +697,32 @@ function createMiddleware(options = {}) {
 
   router.get(`${adminPath}/pages`, basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-pages.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/file-manager`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-file-manager.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
         console.error("Error reading template:", err);
