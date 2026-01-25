@@ -37,6 +37,7 @@ Common pages:
 - `/admin/seo-config`
 - `/admin/i18n`
 - `/admin/assets`
+- `/admin/db-browser`
 - `/admin/test` (admin testing UI)
 
 If you mount in middleware mode under a prefix (for example `/saas`), URLs become:
