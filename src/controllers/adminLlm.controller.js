@@ -2,9 +2,16 @@ const GlobalSetting = require("../models/GlobalSetting");
 const AuditEvent = require("../models/AuditEvent");
 const llmService = require("../services/llm.service");
 const { encryptString } = require("../utils/encryption");
+const { decryptString } = require("../utils/encryption");
+const axios = require("axios");
 
 const PROVIDERS_KEY = "llm.providers";
 const PROMPTS_KEY = "llm.prompts";
+
+const DEFAULTS_PROVIDER_KEY = "llm.defaults.providerKey";
+const DEFAULTS_MODEL_KEY = "llm.defaults.model";
+const SYSTEM_DEFAULTS_KEY = "llm.systemDefaults";
+const PROVIDER_MODELS_KEY = "llm.providerModels";
 
 async function getJsonSetting(key, defaultValue) {
   const doc = await GlobalSetting.findOne({ key }).lean();
@@ -15,12 +22,43 @@ async function getJsonSetting(key, defaultValue) {
   } catch (e) {
     return defaultValue;
   }
+
+}
+
+async function getStringSetting(key, defaultValue) {
+  const doc = await GlobalSetting.findOne({ key }).lean();
+  if (!doc || doc.value === undefined || doc.value === null) return defaultValue;
+  return String(doc.value);
+}
+
+async function setStringSetting(key, value, description) {
+  const stringValue = value === undefined || value === null ? "" : String(value);
+  const existing = await GlobalSetting.findOne({ key });
+  if (existing) {
+    existing.value = stringValue;
+    existing.type = "string";
+    if (!existing.description && description) {
+      existing.description = description;
+    }
+    await existing.save();
+    return existing;
+  }
+  const created = new GlobalSetting({
+    key,
+    value: stringValue,
+    type: "string",
+    description: description || `LLM setting ${key}`,
+  });
+  await created.save();
+  return created;
 }
 
 async function setJsonSetting(key, value) {
   const descriptions = {
     [PROVIDERS_KEY]: "LLM providers configuration (JSON)",
     [PROMPTS_KEY]: "LLM prompts configuration (JSON)",
+    [SYSTEM_DEFAULTS_KEY]: "LLM system defaults (JSON)",
+    [PROVIDER_MODELS_KEY]: "LLM provider model suggestions (JSON)",
   };
   const description = descriptions[key] || `LLM setting ${key}`;
   const stringValue = JSON.stringify(value || {});
@@ -48,6 +86,10 @@ async function getConfig(req, res) {
   try {
     const providers = await getJsonSetting(PROVIDERS_KEY, {});
     const prompts = await getJsonSetting(PROMPTS_KEY, {});
+    const defaultsProviderKey = (await getStringSetting(DEFAULTS_PROVIDER_KEY, "")) || "";
+    const defaultsModel = (await getStringSetting(DEFAULTS_MODEL_KEY, "")) || "";
+    const systemDefaults = await getJsonSetting(SYSTEM_DEFAULTS_KEY, {});
+    const providerModels = await getJsonSetting(PROVIDER_MODELS_KEY, {});
     const safeProviders = {};
     if (providers && typeof providers === "object") {
       for (const [key, value] of Object.entries(providers)) {
@@ -56,7 +98,13 @@ async function getConfig(req, res) {
         safeProviders[key] = rest;
       }
     }
-    res.json({ providers: safeProviders, prompts });
+    res.json({
+      providers: safeProviders,
+      prompts,
+      defaults: { providerKey: defaultsProviderKey, model: defaultsModel },
+      systemDefaults,
+      providerModels,
+    });
   } catch (error) {
     console.error("[adminLlm] getConfig error", error);
     res.status(500).json({ error: "Failed to load LLM configuration" });
@@ -68,6 +116,10 @@ async function saveConfig(req, res) {
     const body = req.body || {};
     const providers = body.providers && typeof body.providers === "object" ? body.providers : {};
     const prompts = body.prompts && typeof body.prompts === "object" ? body.prompts : {};
+
+    const defaults = body.defaults && typeof body.defaults === "object" ? body.defaults : {};
+    const systemDefaults = body.systemDefaults && typeof body.systemDefaults === "object" ? body.systemDefaults : {};
+    const providerModels = body.providerModels && typeof body.providerModels === "object" ? body.providerModels : {};
 
     const storedProviders = {};
     for (const [key, value] of Object.entries(providers)) {
@@ -102,10 +154,70 @@ async function saveConfig(req, res) {
     await setJsonSetting(PROVIDERS_KEY, storedProviders);
     await setJsonSetting(PROMPTS_KEY, prompts);
 
+    await setStringSetting(
+      DEFAULTS_PROVIDER_KEY,
+      typeof defaults.providerKey === "string" ? defaults.providerKey.trim() : "",
+      "LLM global default providerKey",
+    );
+    await setStringSetting(
+      DEFAULTS_MODEL_KEY,
+      typeof defaults.model === "string" ? defaults.model.trim() : "",
+      "LLM global default model",
+    );
+
+    await setJsonSetting(SYSTEM_DEFAULTS_KEY, systemDefaults);
+    await setJsonSetting(PROVIDER_MODELS_KEY, providerModels);
+
     res.json({ success: true });
   } catch (error) {
     console.error("[adminLlm] saveConfig error", error);
     res.status(500).json({ error: "Failed to save LLM configuration" });
+  }
+}
+
+async function listOpenRouterModels(req, res) {
+  try {
+    const apiKeyDoc = await GlobalSetting.findOne({ key: "llm.provider.openrouter.apiKey", type: "encrypted" }).lean();
+    if (!apiKeyDoc || !apiKeyDoc.value) {
+      return res.status(400).json({ error: "Missing OpenRouter API key (llm.provider.openrouter.apiKey)" });
+    }
+
+    let apiKey;
+    try {
+      const payload = JSON.parse(apiKeyDoc.value);
+      apiKey = decryptString(payload);
+    } catch (e) {
+      return res.status(500).json({ error: "Failed to decrypt OpenRouter API key" });
+    }
+
+    // OpenRouter model list endpoint
+    let data;
+    try {
+      const response = await axios.get("https://openrouter.ai/api/v1/models", {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        timeout: 20000,
+      });
+      data = response && response.data ? response.data : {};
+    } catch (e) {
+      const message =
+        (e.response && e.response.data && e.response.data.error && e.response.data.error.message)
+          ? e.response.data.error.message
+          : (e.message || "Failed to fetch OpenRouter models");
+      return res.status(502).json({ error: message });
+    }
+
+    const items = Array.isArray(data?.data) ? data.data : [];
+    const models = items
+      .map((m) => (m && (m.id || m.name) ? String(m.id || m.name) : ""))
+      .filter(Boolean)
+      .sort();
+
+    return res.json({ models });
+  } catch (error) {
+    console.error("[adminLlm] listOpenRouterModels error", error);
+    return res.status(500).json({ error: "Failed to list OpenRouter models" });
   }
 }
 
@@ -270,4 +382,5 @@ module.exports = {
   testPrompt,
   listAudit,
   listCosts,
+  listOpenRouterModels,
 };
