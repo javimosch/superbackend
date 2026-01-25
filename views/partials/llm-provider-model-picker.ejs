@@ -1,13 +1,13 @@
 <div class="min-w-[200px]">
-  <label class="block text-xs font-medium text-gray-600 mb-1"><%= providerLabel || 'LLM Provider Key' %></label>
+  <label class="block text-xs font-medium text-gray-600 mb-1"><%= (typeof providerLabel !== 'undefined' && providerLabel) ? providerLabel : 'LLM Provider Key' %></label>
   <input id="<%= providerInputId %>" class="w-full border rounded px-2 py-2 text-sm" placeholder="e.g. openrouter" list="<%= providerInputId %>__datalist" />
   <datalist id="<%= providerInputId %>__datalist"></datalist>
 </div>
 
 <div class="min-w-[260px]">
   <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
-    <label class="block text-xs font-medium text-gray-600"><%= modelLabel || 'Model' %></label>
-    <% if (showOpenRouterFetch !== false) { %>
+    <label class="block text-xs font-medium text-gray-600"><%= (typeof modelLabel !== 'undefined' && modelLabel) ? modelLabel : 'Model' %></label>
+    <% if ((typeof showOpenRouterFetch === 'undefined') ? true : (showOpenRouterFetch !== false)) { %>
       <button
         type="button"
         class="px-2 py-1 bg-gray-200 text-gray-800 rounded text-[11px] whitespace-nowrap"
