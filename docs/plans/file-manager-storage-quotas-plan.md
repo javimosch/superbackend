@@ -25,8 +25,9 @@ Add a **Storage configuration** section supporting:
 
 - Global max upload size (human units helper, e.g. `50mb`, `1gb`)
 - Global max storage size (human units helper)
-- Per-org max storage size
-- Per-group max storage size (groups scoped to org)
+- Per-org max upload size + max storage size
+- Per-group max upload size + max storage size (groups scoped to org)
+- Per-user max upload size + max storage size (for user drives)
 
 Rules example to support:
 
@@ -76,10 +77,14 @@ Info text:
   },
   "orgs": {
     "<orgId>": {
+      "maxUploadBytes": 41943040,
       "maxStorageBytes": 1073741824,
+      "users": {
+        "<userId>": { "maxUploadBytes": 41943040, "maxStorageBytes": 10737418240 }
+      },
       "groups": {
-        "<groupId>": { "maxStorageBytes": 104857600 },
-        "<groupId2>": { "maxStorageBytes": 5368709120 }
+        "<groupId>": { "maxUploadBytes": 10485760, "maxStorageBytes": 104857600 },
+        "<groupId2>": { "maxUploadBytes": 52428800, "maxStorageBytes": 5368709120 }
       }
     }
   }
@@ -94,28 +99,29 @@ Notes:
 
 ## Precedence Rules
 
-### Max upload size
-Given:
-- existing `FILE_MANAGER_MAX_UPLOAD_BYTES`
-- new Storage section global override `FILE_MANAGER_GLOBAL_MAX_UPLOAD_BYTES`
+All limits are evaluated **per drive**.
 
-Resolution:
-1. If `FILE_MANAGER_GLOBAL_MAX_UPLOAD_BYTES` is set and valid (>0): use it
-2. Else if `FILE_MANAGER_MAX_UPLOAD_BYTES` is set and valid: use it
-3. Else: default to `1gb` (1073741824)
+### Max upload size
+Resolution order: `user > group > org > global > default`.
+
+- **Org drive**: org -> global -> default
+- **Group drive**: group -> org -> global -> default
+- **User drive**: user -> group(max) -> org -> global -> default
+
+Defaults:
+
+- Default max upload bytes uses `FILE_MANAGER_MAX_UPLOAD_BYTES` if present, otherwise falls back to `FILE_MANAGER_DEFAULT_MAX_UPLOAD_BYTES` env, otherwise `1073741824`.
 
 ### Max storage size
-Resolution:
-1. If group overrides exist for the user’s org, compute max over all groups the user belongs to:
-   - `maxGroupStorageBytes = max(group.maxStorageBytes)`
-2. Else if org override exists:
-   - `org.maxStorageBytes`
-3. Else if global policy storage exists:
-   - `policy.global.maxStorageBytes`
-4. Else env fallback:
-   - `FILE_MANAGER_DEFAULT_MAX_STORAGE_BYTES`
-5. Else hard fallback:
-   - `100mb` (104857600)
+Resolution order: `user > group > org > global > default`.
+
+- **Org drive**: org -> global -> default
+- **Group drive**: group -> org -> global -> default
+- **User drive**: user -> group(max) -> org -> global -> default
+
+Defaults:
+
+- Default max storage bytes uses `FILE_MANAGER_DEFAULT_MAX_STORAGE_BYTES` env, otherwise `100mb` (104857600).
 
 Edge cases:
 - If a configured value is invalid (NaN, <=0): treat as “not set”.
@@ -147,17 +153,21 @@ Enforcement points:
 ### 3) Enforcing max storage bytes
 We need to define “storage usage” for the user’s effective scope.
 
-Proposed scope (needs confirmation):
-- Storage quotas apply to **org-scoped storage** across all drives (user/group/org drives) within an org.
+Locked scope:
+
+- Max storage is **per drive**:
+  - Org drive usage: `{ orgId, driveType: 'org', driveId: orgId }`
+  - Group drive usage: `{ orgId, driveType: 'group', driveId: groupId }`
+  - User drive usage: `{ orgId, driveType: 'user', driveId: userId }`
 
 Usage computation approach:
 - Sum `Asset.sizeBytes` for all active assets reachable by `FileEntry` within `{orgId, deletedAt:null}`.
 - When enforcing per-group max storage, we still compute usage at org level but compare against the user’s effective max based on groups.
 
 Implementation detail:
-- For enforcement during upload:
-  - Compute current usage bytes
-  - Compare `usage + incomingFileSize <= effectiveMaxStorageBytes`
+
+- Storage limits are **informational** and should not reject uploads.
+- We still compute `usedBytes` and `overageBytes = max(0, usedBytes - maxStorageBytes)` for UI display.
 
 Performance considerations:
 - Aggregation query can be expensive; add:
