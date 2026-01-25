@@ -354,6 +354,21 @@ describe('StripeService', () => {
       // Plan should not change on error
       expect(mockUser.currentPlan).toBe('free');
     });
+
+    test('should handle missing price in subscription', async () => {
+      const mockSubscription = {
+        id: 'sub_123',
+        items: {
+          data: [] // No items
+        }
+      };
+      mockStripe.subscriptions.retrieve.mockResolvedValue(mockSubscription);
+
+      await StripeService.updateUserPlanFromSubscription(mockUser, 'sub_123');
+
+      // Should resolve to creator (default for unknown/missing price)
+      expect(mockUser.currentPlan).toBe('creator');
+    });
   });
 
   describe('getStatusMapping', () => {
@@ -369,6 +384,24 @@ describe('StripeService', () => {
         'incomplete_expired': 'incomplete_expired',
         'trialing': 'trialing'
       });
+    });
+
+    test('should handle all mapped statuses in handleSubscriptionUpdated', async () => {
+      const statuses = ['past_due', 'unpaid', 'canceled', 'incomplete', 'incomplete_expired', 'trialing'];
+      User.findOne.mockResolvedValue(mockUser);
+      
+      const mockSubscriptionDetails = {
+        id: 'sub_123',
+        items: { data: [{ price: { id: 'price_pro' } }] }
+      };
+      mockStripe.subscriptions.retrieve.mockResolvedValue(mockSubscriptionDetails);
+
+      for (const status of statuses) {
+        const subscription = { id: 'sub_123', customer: 'cus_123', status };
+        await StripeService.handleSubscriptionUpdated(subscription);
+        const expected = status === 'canceled' ? 'cancelled' : status;
+        expect(mockUser.subscriptionStatus).toBe(expected);
+      }
     });
   });
 });
