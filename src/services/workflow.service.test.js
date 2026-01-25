@@ -175,15 +175,34 @@ describe('workflow.service', () => {
     test('stops execution on exit node', async () => {
       const nodes = [
         { id: 'n1', type: 'exit', body: { a: 1 } },
-        { id: 'n2', type: 'exit', body: { b: 2 } }
+        { id: 'n2', type: 'llm', prompt: 'prompt2' }
       ];
       
-      // In workflow.service.js, executeNodes checks if node.type === 'exit' to break
       const executeNodeSpy = jest.spyOn(service, 'executeNode');
       
       await service.executeNodes(nodes);
       
       expect(executeNodeSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleParallel', () => {
+    test('executes multiple branches in parallel', async () => {
+      const node = {
+        type: 'parallel',
+        branches: [
+          [{ id: 'b1', type: 'llm', prompt: 'p1', name: 'res1', provider: 'p1', model: 'm1' }],
+          [{ id: 'b2', type: 'llm', prompt: 'p2', name: 'res2', provider: 'p2', model: 'm2' }]
+        ]
+      };
+
+      llmService.callAdhoc.mockResolvedValueOnce({ content: 'val1' })
+                         .mockResolvedValueOnce({ content: 'val2' });
+
+      await service.handleParallel(node);
+
+      expect(service.context.res1).toEqual({ result: 'val1' });
+      expect(service.context.res2).toEqual({ result: 'val2' });
     });
   });
 
