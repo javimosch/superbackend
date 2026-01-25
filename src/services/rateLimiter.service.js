@@ -139,9 +139,11 @@ async function ensureLimiterOverrideExists(limiterId) {
     if (!state.scheduled) {
       state.scheduled = true;
       bootstrapState.set(id, state);
-      mongoose.connection.once('connected', () => {
-        ensureLimiterOverrideExists(id);
-      });
+      if (mongoose.connection && typeof mongoose.connection.once === 'function') {
+        mongoose.connection.once('connected', () => {
+          ensureLimiterOverrideExists(id);
+        });
+      }
     }
     return;
   }
