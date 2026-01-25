@@ -1,6 +1,6 @@
 const UiComponent = require('../models/UiComponent');
-const { getSettingValue } = require('./globalSettings.service');
 const llmService = require('./llm.service');
+const { resolveLlmProviderModel } = require('./llmDefaults.service');
 const { createAuditEvent } = require('./audit.service');
 
 const ALLOWED_FIELDS = new Set(['html', 'css', 'js', 'usageMarkdown']);
@@ -94,24 +94,11 @@ function computeWarnings(nextFields) {
 }
 
 async function resolveLlmDefaults({ providerKey, model }) {
-  const uiProvider = String(providerKey || '').trim();
-  const uiModel = String(model || '').trim();
-
-  const settingProvider = String(await getSettingValue('uiComponents.ai.providerKey', '') || '').trim();
-  const settingModel = String(await getSettingValue('uiComponents.ai.model', '') || '').trim();
-
-  const envProvider = String(process.env.DEFAULT_LLM_PROVIDER_KEY || '').trim();
-  const envModel = String(process.env.DEFAULT_LLM_MODEL || '').trim();
-
-  const resolvedProviderKey = uiProvider || settingProvider || envProvider;
-  if (!resolvedProviderKey) {
-    const err = new Error('Missing LLM providerKey (configure uiComponents.ai.providerKey or DEFAULT_LLM_PROVIDER_KEY, or send from UI)');
-    err.code = 'VALIDATION';
-    throw err;
-  }
-
-  const resolvedModel = uiModel || settingModel || envModel || 'x-ai/grok-code-fast-1';
-  return { providerKey: resolvedProviderKey, model: resolvedModel };
+  return resolveLlmProviderModel({
+    systemKey: 'uiComponents.proposeEdit',
+    providerKey,
+    model,
+  });
 }
 
 function buildSystemPrompt({ targets }) {

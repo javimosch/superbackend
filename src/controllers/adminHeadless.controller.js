@@ -15,6 +15,7 @@ const {
 
 const llmService = require('../services/llm.service');
 const { getSettingValue } = require('../services/globalSettings.service');
+const { resolveLlmProviderModel } = require('../services/llmDefaults.service');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
 const axios = require('axios');
 const { logAudit, scrubObject } = require('../services/auditLogger');
@@ -698,8 +699,14 @@ exports.aiModelBuilderChat = async (req, res) => {
       { role: 'user', content: message },
     ];
 
-    const providerKey = (await getSettingValue('headless.aiProviderKey')) || process.env.HEADLESS_AI_PROVIDER_KEY || 'openrouter';
-    const model = (await getSettingValue('headless.aiModel')) || process.env.HEADLESS_AI_MODEL || 'google/gemini-2.5-flash-lite';
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'headless.modelBuilder.chat',
+      providerKey: await getSettingValue('headless.aiProviderKey'),
+      model: await getSettingValue('headless.aiModel'),
+    });
+
+    const providerKey = resolved.providerKey;
+    const model = resolved.model;
 
     console.log('[headless aiModelBuilder] Resolved providerKey:', providerKey);
     console.log('[headless aiModelBuilder] Resolved model:', model);

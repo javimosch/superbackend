@@ -8,7 +8,7 @@ const VirtualEjsFileVersion = require('../models/VirtualEjsFileVersion');
 const VirtualEjsGroupChange = require('../models/VirtualEjsGroupChange');
 
 const llmService = require('./llm.service');
-const { getSettingValue } = require('./globalSettings.service');
+const { resolveLlmProviderModel } = require('./llmDefaults.service');
 const { createAuditEvent } = require('./audit.service');
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -261,25 +261,11 @@ function parseMultiFilePatch(text) {
 }
 
 async function resolveLlmDefaults({ providerKey, model }) {
-  const uiProvider = String(providerKey || '').trim();
-  const uiModel = String(model || '').trim();
-
-  const settingProvider = String(await getSettingValue('ejsVirtual.ai.providerKey', '') || '').trim();
-  const settingModel = String(await getSettingValue('ejsVirtual.ai.model', '') || '').trim();
-
-  const envProvider = String(process.env.DEFAULT_LLM_PROVIDER_KEY || '').trim();
-  const envModel = String(process.env.DEFAULT_LLM_MODEL || '').trim();
-
-  const resolvedProviderKey = uiProvider || settingProvider || envProvider;
-  if (!resolvedProviderKey) {
-    const err = new Error('Missing LLM providerKey (configure ejsVirtual.ai.providerKey or DEFAULT_LLM_PROVIDER_KEY, or send from UI)');
-    err.code = 'VALIDATION';
-    throw err;
-  }
-
-  const resolvedModel = uiModel || settingModel || envModel || 'x-ai/grok-code-fast-1';
-
-  return { providerKey: resolvedProviderKey, model: resolvedModel };
+  return resolveLlmProviderModel({
+    systemKey: 'ejsVirtual.vibe.apply',
+    providerKey,
+    model,
+  });
 }
 
 async function vibeEdit({ prompt, paths, providerKey, model, viewsRoot, actor }) {

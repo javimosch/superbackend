@@ -1,6 +1,6 @@
 const BlockDefinition = require('../models/BlockDefinition');
 const llmService = require('./llm.service');
-const { getSettingValue } = require('./globalSettings.service');
+const { resolveLlmProviderModel } = require('./llmDefaults.service');
 const { createAuditEvent } = require('./audit.service');
 
 function normalizeCode(code) {
@@ -70,25 +70,8 @@ function validateProposalShape(obj) {
   };
 }
 
-async function resolveLlmDefaults({ providerKey, model }) {
-  const uiProvider = String(providerKey || '').trim();
-  const uiModel = String(model || '').trim();
-
-  const settingProvider = String(await getSettingValue('pageBuilder.blocks.ai.providerKey', '') || '').trim();
-  const settingModel = String(await getSettingValue('pageBuilder.blocks.ai.model', '') || '').trim();
-
-  const envProvider = String(process.env.DEFAULT_LLM_PROVIDER_KEY || '').trim();
-  const envModel = String(process.env.DEFAULT_LLM_MODEL || '').trim();
-
-  const resolvedProviderKey = uiProvider || settingProvider || envProvider;
-  if (!resolvedProviderKey) {
-    const err = new Error('Missing LLM providerKey (configure pageBuilder.blocks.ai.providerKey or DEFAULT_LLM_PROVIDER_KEY, or send from UI)');
-    err.code = 'VALIDATION';
-    throw err;
-  }
-
-  const resolvedModel = uiModel || settingModel || envModel || 'x-ai/grok-code-fast-1';
-  return { providerKey: resolvedProviderKey, model: resolvedModel };
+async function resolveLlmDefaults({ systemKey, providerKey, model }) {
+  return resolveLlmProviderModel({ systemKey, providerKey, model });
 }
 
 function buildSystemPrompt() {
@@ -121,7 +104,11 @@ async function generateBlockDefinition({ prompt, providerKey, model, actor }) {
     throw err;
   }
 
-  const llmDefaults = await resolveLlmDefaults({ providerKey, model });
+  const llmDefaults = await resolveLlmDefaults({
+    systemKey: 'pageBuilder.blocks.generate',
+    providerKey,
+    model,
+  });
 
   const result = await llmService.callAdhoc(
     {
@@ -185,7 +172,11 @@ async function proposeBlockDefinitionEdit({ code, prompt, providerKey, model, ac
 
   const current = doc.toObject();
 
-  const llmDefaults = await resolveLlmDefaults({ providerKey, model });
+  const llmDefaults = await resolveLlmDefaults({
+    systemKey: 'pageBuilder.blocks.propose',
+    providerKey,
+    model,
+  });
 
   const messages = [
     { role: 'system', content: buildSystemPrompt() },

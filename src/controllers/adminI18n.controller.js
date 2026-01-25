@@ -6,7 +6,8 @@ const { getInferredI18nKeys, getInferredI18nEntries } = require('../services/i18
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
 const { getSettingValue } = require('../services/globalSettings.service');
 
-const OpenAI = require('openai');
+const llmService = require('../services/llm.service');
+const { resolveLlmProviderModel } = require('../services/llmDefaults.service');
 
 async function ensureLocaleExists(code, actor) {
   if (!code) return;
@@ -379,16 +380,8 @@ exports.deleteEntry = async (req, res) => {
   }
 };
 
-async function buildOpenRouterClient() {
-  const apiKey = await getSettingValue('i18n.ai.openrouter.apiKey', await getSettingValue('ai.openrouter.apiKey', null));
-  if (!apiKey) {
-    throw new Error('Missing i18n.ai.openrouter.apiKey or ai.openrouter.apiKey');
-  }
-
-  return new OpenAI({
-    apiKey,
-    baseURL: 'https://openrouter.ai/api/v1',
-  });
+async function getLegacyOpenRouterApiKey() {
+  return getSettingValue('i18n.ai.openrouter.apiKey', await getSettingValue('ai.openrouter.apiKey', null));
 }
 
 function buildAiPrompt({ glossary, fromLocale, toLocale, key, fromValue }) {
@@ -446,10 +439,19 @@ exports.aiPreview = async (req, res) => {
 
     const fromMap = new Map(fromEntries.map((e) => [e.key, e]));
 
-    const aiModel = model || (await getSettingValue('i18n.ai.model', 'google/gemini-2.5-flash-lite'));
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'i18n.translate.preview',
+      providerKey: req.body?.providerKey,
+      model,
+    });
+
+    const aiModel = resolved.model || (await getSettingValue('i18n.ai.model', 'google/gemini-2.5-flash-lite'));
     const glossary = await getSettingValue('i18n.ai.glossary', '');
 
-    const client = await buildOpenRouterClient();
+    const legacyApiKey = await getLegacyOpenRouterApiKey();
+    const runtimeOptions = (resolved.providerKey === 'openrouter' && legacyApiKey)
+      ? { apiKey: legacyApiKey, baseUrl: 'https://openrouter.ai/api/v1' }
+      : {};
 
     const results = [];
     for (const key of targetKeys) {
@@ -459,12 +461,17 @@ exports.aiPreview = async (req, res) => {
       }
 
       const prompt = buildAiPrompt({ glossary, fromLocale, toLocale, key, fromValue: from.value });
-      const resp = await client.chat.completions.create({
-        model: aiModel,
-        messages: [{ role: 'user', content: prompt }],
-      });
+      const resp = await llmService.callAdhoc(
+        {
+          providerKey: resolved.providerKey,
+          model: aiModel,
+          messages: [{ role: 'user', content: prompt }],
+          promptKeyForAudit: 'i18n.translate.preview',
+        },
+        runtimeOptions,
+      );
 
-      const translated = resp.choices?.[0]?.message?.content?.trim() || '';
+      const translated = String(resp.content || '').trim();
 
       results.push({
         key,
@@ -473,6 +480,7 @@ exports.aiPreview = async (req, res) => {
         fromValue: from.value,
         proposedValue: translated,
         valueFormat: from.valueFormat || 'text',
+        providerKey: resolved.providerKey,
         model: aiModel,
       });
     }
@@ -514,7 +522,7 @@ exports.aiApply = async (req, res) => {
           edited: true,
           editedAt: new Date(),
           editedBy: actor.actorId,
-          lastAiProvider: 'openrouter',
+          lastAiProvider: item.providerKey || 'openrouter',
           lastAiModel: item.model || null,
         });
 
@@ -540,7 +548,7 @@ exports.aiApply = async (req, res) => {
       existing.edited = true;
       existing.editedAt = new Date();
       existing.editedBy = actor.actorId;
-      existing.lastAiProvider = 'openrouter';
+      existing.lastAiProvider = item.providerKey || 'openrouter';
       existing.lastAiModel = item.model || null;
       await existing.save();
 
@@ -578,10 +586,19 @@ exports.aiTranslateText = async (req, res) => {
 
     await ensureLocaleExists(toLocale, getBasicAuthActor(req));
 
-    const aiModel = model || (await getSettingValue('i18n.ai.model', 'google/gemini-2.5-flash-lite'));
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'i18n.translate.text',
+      providerKey: req.body?.providerKey,
+      model,
+    });
+
+    const aiModel = resolved.model || (await getSettingValue('i18n.ai.model', 'google/gemini-2.5-flash-lite'));
     const glossary = await getSettingValue('i18n.ai.glossary', '');
 
-    const client = await buildOpenRouterClient();
+    const legacyApiKey = await getLegacyOpenRouterApiKey();
+    const runtimeOptions = (resolved.providerKey === 'openrouter' && legacyApiKey)
+      ? { apiKey: legacyApiKey, baseUrl: 'https://openrouter.ai/api/v1' }
+      : {};
     const prompt = buildAiPrompt({
       glossary,
       fromLocale,
@@ -590,13 +607,18 @@ exports.aiTranslateText = async (req, res) => {
       fromValue: text,
     });
 
-    const resp = await client.chat.completions.create({
-      model: aiModel,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const resp = await llmService.callAdhoc(
+      {
+        providerKey: resolved.providerKey,
+        model: aiModel,
+        messages: [{ role: 'user', content: prompt }],
+        promptKeyForAudit: 'i18n.translate.text',
+      },
+      runtimeOptions,
+    );
 
-    const translatedText = resp.choices?.[0]?.message?.content?.trim() || '';
-    res.json({ translatedText, model: aiModel });
+    const translatedText = String(resp.content || '').trim();
+    res.json({ translatedText, model: aiModel, providerKey: resolved.providerKey });
   } catch (error) {
     console.error('Error translating text with AI:', error);
     res.status(500).json({ error: error.message || 'Failed to translate text' });
