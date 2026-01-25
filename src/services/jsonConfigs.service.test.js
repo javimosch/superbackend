@@ -145,4 +145,59 @@ describe('jsonConfigs.service', () => {
       });
     });
   });
+
+  describe('createJsonConfig', () => {
+    test('creates a new config successfully', async () => {
+      const input = {
+        title: 'New Config',
+        jsonRaw: '{"a":1}',
+        alias: 'my-alias'
+      };
+
+      mockFindOneWithLean(null); // alias check
+      mockFindOneWithLean(null); // slug check
+
+      const mockDoc = {
+        ...input,
+        slug: 'new-config-abcd',
+        toObject: () => ({ ...input, slug: 'new-config-abcd' })
+      };
+      JsonConfig.create = jest.fn().mockResolvedValue(mockDoc);
+
+      const result = await jsonConfigsService.createJsonConfig(input);
+
+      expect(result.slug).toBe('new-config-abcd');
+      expect(JsonConfig.create).toHaveBeenCalled();
+    });
+
+    test('throws error if title is missing', async () => {
+      await expect(jsonConfigsService.createJsonConfig({ jsonRaw: '{}' }))
+        .rejects.toMatchObject({ code: 'VALIDATION' });
+    });
+  });
+
+  describe('updateJsonConfig', () => {
+    test('updates an existing config', async () => {
+      const mockDoc = {
+        _id: 'id123',
+        title: 'Old',
+        slug: 'old-slug',
+        save: jest.fn().mockResolvedValue(true),
+        toObject: function() { return this; }
+      };
+      JsonConfig.findById.mockResolvedValue(mockDoc);
+      mockFindOneWithLean(null); // alias uniqueness check
+
+      const result = await jsonConfigsService.updateJsonConfig('id123', { title: 'New' });
+
+      expect(mockDoc.title).toBe('New');
+      expect(mockDoc.save).toHaveBeenCalled();
+    });
+
+    test('throws error if config not found', async () => {
+      JsonConfig.findById.mockResolvedValue(null);
+      await expect(jsonConfigsService.updateJsonConfig('badid', { title: 'New' }))
+        .rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+  });
 });
