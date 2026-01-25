@@ -2,6 +2,7 @@ const Page = require('../models/Page');
 const PageCollection = require('../models/PageCollection');
 const VirtualEjsFile = require('../models/VirtualEjsFile');
 const pagesService = require('../services/pages.service');
+const pagesContextService = require('../services/pagesContext.service');
 const { getBasicAuthActor, createAuditEvent } = require('../services/audit.service');
 
 exports.listCollections = async (req, res) => {
@@ -220,6 +221,7 @@ exports.createPage = async (req, res) => {
       templateKey,
       layoutKey,
       blocks,
+      repeat,
       customCss,
       customJs,
       seoMeta,
@@ -266,6 +268,7 @@ exports.createPage = async (req, res) => {
       templateKey: templateKey || 'default',
       layoutKey: layoutKey || 'default',
       blocks: blocks || [],
+      repeat: repeat === undefined ? null : repeat,
       customCss: customCss || '',
       customJs: customJs || '',
       seoMeta: seoMeta || {},
@@ -305,6 +308,7 @@ exports.updatePage = async (req, res) => {
       templateKey,
       layoutKey,
       blocks,
+      repeat,
       customCss,
       customJs,
       seoMeta,
@@ -360,6 +364,7 @@ exports.updatePage = async (req, res) => {
       pagesService.validateBlocks(blocks || [], blocksSchema);
       existing.blocks = blocks;
     }
+    if (repeat !== undefined) existing.repeat = repeat;
     if (customCss !== undefined) existing.customCss = customCss;
     if (customJs !== undefined) existing.customJs = customJs;
     if (seoMeta !== undefined) existing.seoMeta = seoMeta;
@@ -577,5 +582,139 @@ exports.getBlocksSchema = async (req, res) => {
   } catch (err) {
     console.error('[adminPages] getBlocksSchema error:', err);
     res.status(500).json({ error: 'Failed to get blocks schema' });
+  }
+};
+
+function toSafeJsonError(error) {
+  const msg = error?.message || 'Operation failed';
+  const code = error?.code;
+  if (code === 'VALIDATION') return { status: 400, body: { error: msg } };
+  if (code === 'NOT_FOUND') return { status: 404, body: { error: msg } };
+  if (code === 'TIMEOUT') return { status: 408, body: { error: msg } };
+  return { status: 500, body: { error: msg } };
+}
+
+exports.testPageContextPhase = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = await Page.findById(id).lean();
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+
+    const routePath = req.body?.routePath || (page.collectionId ? '/_test' : '/_test');
+    const params = req.body?.params || (page._params || {});
+    const mockContext = req.body?.mockContext || null;
+
+    const startedAt = Date.now();
+    const { pageContext, contextBlocks } = await pagesContextService.resolvePageContext({
+      page,
+      req,
+      res,
+      routePath,
+      params,
+      mockContext,
+    });
+
+    res.json({
+      ok: true,
+      elapsedMs: Date.now() - startedAt,
+      contextBlocksCount: contextBlocks.length,
+      vars: pageContext.vars,
+    });
+  } catch (err) {
+    const safe = toSafeJsonError(err);
+    res.status(safe.status).json(safe.body);
+  }
+};
+
+exports.testPageContextBlock = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const page = await Page.findById(id).lean();
+    if (!page) return res.status(404).json({ error: 'Page not found' });
+
+    const block = req.body?.block;
+    if (!block || typeof block !== 'object') {
+      return res.status(400).json({ error: 'block is required' });
+    }
+
+    const type = String(block.type || '').trim();
+    if (!type.startsWith('context.')) {
+      return res.status(400).json({ error: 'Only context.* blocks can be tested with this endpoint' });
+    }
+
+    const routePath = req.body?.routePath || (page.collectionId ? '/_test' : '/_test');
+    const params = req.body?.params || (page._params || {});
+    const mockContext = req.body?.mockContext || null;
+
+    const startedAt = Date.now();
+    const synthetic = { ...page, blocks: [block] };
+    const { pageContext, contextBlocks } = await pagesContextService.resolvePageContext({
+      page: synthetic,
+      req,
+      res,
+      routePath,
+      params,
+      mockContext,
+    });
+
+    res.json({
+      ok: true,
+      elapsedMs: Date.now() - startedAt,
+      contextBlocksCount: contextBlocks.length,
+      vars: pageContext.vars,
+    });
+  } catch (err) {
+    const safe = toSafeJsonError(err);
+    res.status(safe.status).json(safe.body);
+  }
+};
+
+exports.testContextBlockAdhoc = async (req, res) => {
+  try {
+    const block = req.body?.block;
+    if (!block || typeof block !== 'object') {
+      return res.status(400).json({ error: 'block is required' });
+    }
+
+    const type = String(block.type || '').trim();
+    if (!type.startsWith('context.')) {
+      return res.status(400).json({ error: 'Only context.* blocks can be tested with this endpoint' });
+    }
+
+    const mockContext = req.body?.mockContext || null;
+    const routePath = req.body?.routePath || '/_test';
+    const params = req.body?.params || {};
+
+    const startedAt = Date.now();
+    const syntheticPage = {
+      slug: '_test',
+      title: 'Test',
+      templateKey: 'default',
+      layoutKey: 'default',
+      blocks: [block],
+      repeat: null,
+      seoMeta: {},
+      customCss: '',
+      customJs: '',
+    };
+
+    const { pageContext, contextBlocks } = await pagesContextService.resolvePageContext({
+      page: syntheticPage,
+      req,
+      res,
+      routePath,
+      params,
+      mockContext,
+    });
+
+    res.json({
+      ok: true,
+      elapsedMs: Date.now() - startedAt,
+      contextBlocksCount: contextBlocks.length,
+      vars: pageContext.vars,
+    });
+  } catch (err) {
+    const safe = toSafeJsonError(err);
+    res.status(safe.status).json(safe.body);
   }
 };

@@ -4,6 +4,8 @@ const { basicAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminPages.controller');
 const adminBlockDefinitionsController = require('../controllers/adminBlockDefinitions.controller');
 const adminBlockDefinitionsAiController = require('../controllers/adminBlockDefinitionsAi.controller');
+const adminPagesContextBlocksAiController = require('../controllers/adminPagesContextBlocksAi.controller');
+const rateLimiter = require('../services/rateLimiter.service');
 
 router.use(basicAuth);
 
@@ -22,6 +24,10 @@ router.delete('/pages/:id', controller.deletePage);
 router.post('/pages/:id/publish', controller.publishPage);
 router.post('/pages/:id/unpublish', controller.unpublishPage);
 
+router.post('/pages/:id/test-context', controller.testPageContextPhase);
+router.post('/pages/:id/test-block', controller.testPageContextBlock);
+router.post('/test-block', controller.testContextBlockAdhoc);
+
 router.get('/templates', controller.getAvailableTemplates);
 router.get('/layouts', controller.getAvailableLayouts);
 router.get('/blocks', controller.getAvailableBlocks);
@@ -33,7 +39,10 @@ router.get('/block-definitions/:code', adminBlockDefinitionsController.get);
 router.put('/block-definitions/:code', adminBlockDefinitionsController.update);
 router.delete('/block-definitions/:code', adminBlockDefinitionsController.remove);
 
-router.post('/ai/block-definitions/generate', adminBlockDefinitionsAiController.generate);
-router.post('/ai/block-definitions/:code/propose', adminBlockDefinitionsAiController.propose);
+router.post('/ai/block-definitions/generate', rateLimiter.limit('aiOperationsLimiter'), adminBlockDefinitionsAiController.generate);
+router.post('/ai/block-definitions/:code/propose', rateLimiter.limit('aiOperationsLimiter'), adminBlockDefinitionsAiController.propose);
+
+router.post('/ai/context-blocks/generate', rateLimiter.limit('aiOperationsLimiter'), adminPagesContextBlocksAiController.generate);
+router.post('/ai/context-blocks/propose', rateLimiter.limit('aiOperationsLimiter'), adminPagesContextBlocksAiController.propose);
 
 module.exports = router;
