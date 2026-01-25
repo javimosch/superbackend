@@ -1,4 +1,3 @@
-const OpenAI = require('openai');
 const fs = require('fs');
 const path = require('path');
 
@@ -14,6 +13,9 @@ const {
   getSeoconfigOpenRouterModel,
   DEFAULT_OG_PNG_OUTPUT_PATH,
 } = require('../services/seoConfig.service');
+
+const llmService = require('../services/llm.service');
+const { resolveLlmProviderModel } = require('../services/llmDefaults.service');
 
 function handleServiceError(res, error) {
   const msg = error?.message || 'Operation failed';
@@ -231,6 +233,7 @@ exports.seoConfigAiGenerateEntry = async (req, res) => {
     const viewPath = String(req.body?.viewPath || '').trim();
     const routePath = validateRoutePathOrThrow(req.body?.routePath);
     const modelOverride = req.body?.model;
+    const providerKeyOverride = req.body?.providerKey;
 
     if (!viewPath || !viewPath.endsWith('.ejs')) {
       return res.status(400).json({ error: 'viewPath is required and must end with .ejs' });
@@ -250,23 +253,24 @@ exports.seoConfigAiGenerateEntry = async (req, res) => {
       return res.status(400).json({ error: 'view file is too large' });
     }
 
-    const apiKey = await getSeoconfigOpenRouterApiKey();
-    if (!apiKey) {
-      return res.status(400).json({ error: 'AI is disabled (missing OpenRouter API key)' });
-    }
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'seoConfig.entry.generate',
+      providerKey: providerKeyOverride,
+      model: modelOverride,
+    });
 
-    const model = modelOverride || (await getSeoconfigOpenRouterModel());
+    const legacyApiKey = await getSeoconfigOpenRouterApiKey();
+    const runtimeOptions = (resolved.providerKey === 'openrouter' && legacyApiKey)
+      ? { apiKey: legacyApiKey, baseUrl: 'https://openrouter.ai/api/v1' }
+      : {};
+
+    const model = resolved.model || (await getSeoconfigOpenRouterModel());
 
     const { data } = await getSeoConfigData();
     const siteName = data?.siteName || '';
     const baseUrl = data?.baseUrl || '';
 
     const ejsSource = await fs.promises.readFile(abs, 'utf8');
-
-    const client = new OpenAI({
-      apiKey,
-      baseURL: 'https://openrouter.ai/api/v1',
-    });
 
     const prompt = buildSeoEntryPromptFromEjs({
       routePath,
@@ -276,15 +280,20 @@ exports.seoConfigAiGenerateEntry = async (req, res) => {
       baseUrl,
     });
 
-    const resp = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const resp = await llmService.callAdhoc(
+      {
+        providerKey: resolved.providerKey,
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        promptKeyForAudit: 'seoConfig.entry.generate',
+      },
+      runtimeOptions,
+    );
 
-    const out = resp.choices?.[0]?.message?.content || '';
+    const out = resp.content || '';
     const entry = parseAiJsonObjectOrThrow(out);
 
-    return res.json({ routePath, entry, model });
+    return res.json({ routePath, entry, model, providerKey: resolved.providerKey });
   } catch (error) {
     const code = error?.code;
     if (code === 'VALIDATION') {
@@ -323,6 +332,7 @@ exports.seoConfigAiImproveEntry = async (req, res) => {
     const routePath = validateRoutePathOrThrow(req.body?.routePath);
     const instruction = String(req.body?.instruction || '').trim();
     const modelOverride = req.body?.model;
+    const providerKeyOverride = req.body?.providerKey;
 
     if (!instruction) {
       return res.status(400).json({ error: 'instruction is required' });
@@ -331,12 +341,18 @@ exports.seoConfigAiImproveEntry = async (req, res) => {
       return res.status(400).json({ error: 'instruction is too large' });
     }
 
-    const apiKey = await getSeoconfigOpenRouterApiKey();
-    if (!apiKey) {
-      return res.status(400).json({ error: 'AI is disabled (missing OpenRouter API key)' });
-    }
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'seoConfig.entry.improve',
+      providerKey: providerKeyOverride,
+      model: modelOverride,
+    });
 
-    const model = modelOverride || (await getSeoconfigOpenRouterModel());
+    const legacyApiKey = await getSeoconfigOpenRouterApiKey();
+    const runtimeOptions = (resolved.providerKey === 'openrouter' && legacyApiKey)
+      ? { apiKey: legacyApiKey, baseUrl: 'https://openrouter.ai/api/v1' }
+      : {};
+
+    const model = resolved.model || (await getSeoconfigOpenRouterModel());
 
     const { data } = await getSeoConfigData();
     const siteName = data?.siteName || '';
@@ -346,11 +362,6 @@ exports.seoConfigAiImproveEntry = async (req, res) => {
       return res.status(404).json({ error: `No existing entry for ${routePath}` });
     }
 
-    const client = new OpenAI({
-      apiKey,
-      baseURL: 'https://openrouter.ai/api/v1',
-    });
-
     const prompt = buildSeoEntryPromptImprove({
       routePath,
       existingEntry,
@@ -359,15 +370,20 @@ exports.seoConfigAiImproveEntry = async (req, res) => {
       baseUrl,
     });
 
-    const resp = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const resp = await llmService.callAdhoc(
+      {
+        providerKey: resolved.providerKey,
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        promptKeyForAudit: 'seoConfig.entry.improve',
+      },
+      runtimeOptions,
+    );
 
-    const out = resp.choices?.[0]?.message?.content || '';
+    const out = resp.content || '';
     const entry = parseAiJsonObjectOrThrow(out);
 
-    return res.json({ routePath, entry, model });
+    return res.json({ routePath, entry, model, providerKey: resolved.providerKey });
   } catch (error) {
     const code = error?.code;
     if (code === 'VALIDATION') {
@@ -469,6 +485,7 @@ exports.aiEditSvg = async (req, res) => {
     const svgRaw = req.body?.svgRaw;
     const instruction = req.body?.instruction;
     const modelOverride = req.body?.model;
+    const providerKeyOverride = req.body?.providerKey;
 
     if (typeof svgRaw !== 'string' || svgRaw.trim() === '') {
       return res.status(400).json({ error: 'svgRaw is required' });
@@ -484,30 +501,36 @@ exports.aiEditSvg = async (req, res) => {
       return res.status(400).json({ error: 'instruction is too large' });
     }
 
-    const apiKey = await getSeoconfigOpenRouterApiKey();
-    if (!apiKey) {
-      return res.status(400).json({ error: 'AI is disabled (missing OpenRouter API key)' });
-    }
-
-    const model = modelOverride || (await getSeoconfigOpenRouterModel());
-
-    const client = new OpenAI({
-      apiKey,
-      baseURL: 'https://openrouter.ai/api/v1',
+    const resolved = await resolveLlmProviderModel({
+      systemKey: 'seoConfig.ogSvg.edit',
+      providerKey: providerKeyOverride,
+      model: modelOverride,
     });
+
+    const legacyApiKey = await getSeoconfigOpenRouterApiKey();
+    const runtimeOptions = (resolved.providerKey === 'openrouter' && legacyApiKey)
+      ? { apiKey: legacyApiKey, baseUrl: 'https://openrouter.ai/api/v1' }
+      : {};
+
+    const model = resolved.model || (await getSeoconfigOpenRouterModel());
 
     const prompt = buildSvgAiPrompt({ svg: svgRaw, instruction });
-    const resp = await client.chat.completions.create({
-      model,
-      messages: [{ role: 'user', content: prompt }],
-    });
+    const resp = await llmService.callAdhoc(
+      {
+        providerKey: resolved.providerKey,
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        promptKeyForAudit: 'seoConfig.ogSvg.edit',
+      },
+      runtimeOptions,
+    );
 
-    const out = resp.choices?.[0]?.message?.content?.trim() || '';
+    const out = String(resp.content || '').trim();
     if (!out.startsWith('<svg') || !out.includes('</svg>')) {
       return res.status(500).json({ error: 'AI returned invalid SVG' });
     }
 
-    return res.json({ svgRaw: out, model });
+    return res.json({ svgRaw: out, model, providerKey: resolved.providerKey });
   } catch (error) {
     console.error('Error editing SVG with AI:', error);
     return res.status(500).json({ error: error?.message || 'Failed to edit SVG' });
