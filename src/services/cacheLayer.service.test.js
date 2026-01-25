@@ -197,4 +197,59 @@ describe('CacheLayerService', () => {
       expect(result.memory.every(k => k.key.startsWith('key'))).toBe(true);
     });
   });
+
+  describe('eviction and rehydration', () => {
+    test('supports LFU eviction policy', async () => {
+      process.env.CACHE_LAYER_EVICTION_POLICY = 'lfu';
+      process.env.CACHE_LAYER_OFFLOAD_THRESHOLD_BYTES = '100';
+      service._configCache = { value: null, ts: 0 };
+
+      // Set entries and access them to increase frequency
+      await service.set('popular', 'val1'); // ~4 bytes
+      await service.set('rare', 'val2');    // ~4 bytes
+      
+      await service.get('popular');
+      await service.get('popular');
+      
+      // Add more to trigger offload. Needs to exceed 100 bytes significantly.
+      await service.set('new', 'x'.repeat(150));
+      
+      const keys = await service.listKeys();
+      // 'rare' should have been evicted/offloaded as it has lower frequency (0 hits initially, popular has 2)
+      const rareEntry = keys.memory.find(k => k.key === 'rare');
+      expect(rareEntry).toBeUndefined();
+    });
+
+    test('rehydrates from MongoDB on cache miss', async () => {
+      const mockDoc = {
+        namespace: 'default',
+        key: 'db-key',
+        value: '"db-value"',
+        atRestFormat: 'string',
+        expiresAt: null
+      };
+      CacheEntry.findOne.mockReturnValue({ lean: jest.fn().mockResolvedValue(mockDoc) });
+
+      const result = await service.get('db-key');
+      expect(result).toBe('db-value');
+      
+      // Check if it's now in memory
+      const keys = await service.listKeys();
+      expect(keys.memory.some(k => k.key === 'db-key')).toBe(true);
+    });
+  });
+
+  describe('metrics', () => {
+    test('returns structured cache metrics', async () => {
+      CacheEntry.countDocuments.mockResolvedValue(10);
+      CacheEntry.aggregate.mockResolvedValue([{ _id: null, bytes: 5000 }]);
+
+      const result = await service.metrics();
+
+      expect(result.backend).toBeDefined();
+      expect(result.memory.entries).toBeDefined();
+      expect(result.mongo.entries).toBe(10);
+      expect(result.mongo.estimatedBytes).toBe(5000);
+    });
+  });
 });
