@@ -295,6 +295,57 @@ const endpointRegistry = [
       },
     ],
   },
+  {
+    id: "rate-limits",
+    title: "Rate Limiter",
+    endpoints: [
+      {
+        id: "rate-limits-list",
+        method: "GET",
+        path: "/api/admin/rate-limits",
+        auth: "basic",
+      },
+      {
+        id: "rate-limits-config-get",
+        method: "GET",
+        path: "/api/admin/rate-limits/config",
+        auth: "basic",
+      },
+      {
+        id: "rate-limits-config-update",
+        method: "PUT",
+        path: "/api/admin/rate-limits/config",
+        auth: "basic",
+        bodyExample: { jsonRaw: "{\n  \"version\": 1,\n  \"defaults\": {},\n  \"limiters\": {}\n}" },
+      },
+      {
+        id: "rate-limits-metrics",
+        method: "GET",
+        path: "/api/admin/rate-limits/metrics?start=2026-01-01T00:00:00.000Z&end=2026-01-02T00:00:00.000Z",
+        auth: "basic",
+      },
+      {
+        id: "rate-limits-bulk-enabled",
+        method: "POST",
+        path: "/api/admin/rate-limits/bulk-enabled",
+        auth: "basic",
+        bodyExample: { enabled: true, all: true },
+      },
+      {
+        id: "rate-limits-limiter-update",
+        method: "PUT",
+        path: "/api/admin/rate-limits/globalApiLimiter",
+        auth: "basic",
+        bodyExample: { override: { enabled: true, mode: "reportOnly", limit: { max: 60, windowMs: 60000 } } },
+      },
+      {
+        id: "rate-limits-limiter-reset",
+        method: "POST",
+        path: "/api/admin/rate-limits/globalApiLimiter/reset",
+        auth: "basic",
+      },
+    ],
+  },
 ];
 
 module.exports = endpointRegistry;
