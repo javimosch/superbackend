@@ -32,8 +32,59 @@ exports.listRights = async (req, res) => {
 };
 
 exports.searchUsers = async (req, res) => {
-  const { q, limit } = req.query;
+  const { q, limit, orgId } = req.query;
   const l = parseLimit(limit);
+
+  if (orgId !== undefined && orgId !== null && String(orgId).trim()) {
+    if (!isValidObjectId(orgId)) {
+      return res.status(400).json({ error: 'Invalid orgId' });
+    }
+
+    const pattern = q ? escapeRegex(String(q).trim()) : null;
+
+    const pipeline = [
+      { $match: { orgId: new mongoose.Types.ObjectId(String(orgId)), status: 'active' } },
+      {
+        $lookup: {
+          from: 'users',
+          let: { uid: '$userId' },
+          pipeline: [
+            { $match: { $expr: { $eq: ['$_id', '$$uid'] } } },
+            ...(pattern
+              ? [
+                  {
+                    $match: {
+                      $or: [
+                        { email: { $regex: pattern, $options: 'i' } },
+                        { name: { $regex: pattern, $options: 'i' } },
+                      ],
+                    },
+                  },
+                ]
+              : []),
+            { $project: { email: 1, name: 1, role: 1, createdAt: 1 } },
+          ],
+          as: 'user',
+        },
+      },
+      { $unwind: '$user' },
+      { $sort: { 'user.createdAt': -1 } },
+      { $limit: l },
+      { $project: { _id: 0, user: 1 } },
+    ];
+
+    const rows = await OrganizationMember.aggregate(pipeline);
+    const users = rows.map((r) => r.user).filter(Boolean);
+
+    return res.json({
+      users: users.map((u) => ({
+        id: String(u._id),
+        email: u.email,
+        name: u.name || '',
+        role: u.role,
+      })),
+    });
+  }
 
   const query = {};
   if (q) {
@@ -320,6 +371,21 @@ exports.addGroupMember = async (req, res) => {
     return res.status(400).json({ error: 'group id and userId are required' });
   }
 
+  const group = await RbacGroup.findById(id).select('isGlobal orgId status').lean();
+  if (!group) {
+    return res.status(404).json({ error: 'Group not found' });
+  }
+  if (group.status !== 'active') {
+    return res.status(400).json({ error: 'Group is not active' });
+  }
+
+  if (!group.isGlobal) {
+    const exists = await OrganizationMember.exists({ orgId: group.orgId, userId, status: 'active' });
+    if (!exists) {
+      return res.status(400).json({ error: 'User is not an active member of the group org' });
+    }
+  }
+
   const actor = getBasicAuthActor(req);
   const member = await RbacGroupMember.create({ groupId: id, userId });
 
@@ -362,6 +428,106 @@ exports.removeGroupMember = async (req, res) => {
   });
 
   return res.json({ success: true });
+};
+
+exports.addGroupMembersBulk = async (req, res) => {
+  const { id } = req.params;
+  const { userIds } = req.body || {};
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ error: 'Invalid group id' });
+  }
+
+  const ids = Array.isArray(userIds) ? userIds.map((v) => String(v)).filter(Boolean) : [];
+  const uniqueUserIds = Array.from(new Set(ids));
+
+  if (uniqueUserIds.length === 0) {
+    return res.status(400).json({ error: 'userIds is required' });
+  }
+
+  const group = await RbacGroup.findById(id).select('isGlobal orgId status').lean();
+  if (!group) {
+    return res.status(404).json({ error: 'Group not found' });
+  }
+  if (group.status !== 'active') {
+    return res.status(400).json({ error: 'Group is not active' });
+  }
+
+  const validUserIds = uniqueUserIds.filter((uid) => isValidObjectId(uid));
+  if (validUserIds.length !== uniqueUserIds.length) {
+    return res.status(400).json({ error: 'Invalid userIds' });
+  }
+
+  if (!group.isGlobal) {
+    const rows = await OrganizationMember.find({ orgId: group.orgId, status: 'active', userId: { $in: validUserIds } })
+      .select('userId')
+      .lean();
+    const allowed = new Set(rows.map((r) => String(r.userId)));
+    const deniedUserIds = validUserIds.filter((uid) => !allowed.has(String(uid)));
+    if (deniedUserIds.length) {
+      return res.status(400).json({ error: 'Some users are not active members of the group org', deniedUserIds });
+    }
+  }
+
+  const actor = getBasicAuthActor(req);
+
+  const inserts = validUserIds.map((uid) => ({ groupId: id, userId: uid }));
+  let insertedCount = 0;
+  try {
+    const created = await RbacGroupMember.insertMany(inserts, { ordered: false });
+    insertedCount = Array.isArray(created) ? created.length : 0;
+  } catch (e) {
+    // Swallow duplicate-key errors; bubble up anything else
+    if (!(e && Array.isArray(e.writeErrors))) throw e;
+    insertedCount = Array.isArray(e.insertedDocs) ? e.insertedDocs.length : 0;
+  }
+
+  await createAuditEvent({
+    ...actor,
+    action: 'admin.rbac.group_member.bulk_add',
+    entityType: 'RbacGroup',
+    entityId: String(id),
+    before: null,
+    after: { groupId: String(id), userIds: validUserIds },
+    meta: { insertedCount },
+  });
+
+  return res.status(201).json({ success: true, insertedCount });
+};
+
+exports.removeGroupMembersBulk = async (req, res) => {
+  const { id } = req.params;
+  const { memberIds } = req.body || {};
+
+  if (!isValidObjectId(id)) {
+    return res.status(400).json({ error: 'Invalid group id' });
+  }
+
+  const ids = Array.isArray(memberIds) ? memberIds.map((v) => String(v)).filter(Boolean) : [];
+  const uniqueMemberIds = Array.from(new Set(ids));
+  if (uniqueMemberIds.length === 0) {
+    return res.status(400).json({ error: 'memberIds is required' });
+  }
+
+  const validMemberIds = uniqueMemberIds.filter((mid) => isValidObjectId(mid));
+  if (validMemberIds.length !== uniqueMemberIds.length) {
+    return res.status(400).json({ error: 'Invalid memberIds' });
+  }
+
+  const actor = getBasicAuthActor(req);
+  const result = await RbacGroupMember.deleteMany({ groupId: id, _id: { $in: validMemberIds } });
+
+  await createAuditEvent({
+    ...actor,
+    action: 'admin.rbac.group_member.bulk_remove',
+    entityType: 'RbacGroup',
+    entityId: String(id),
+    before: null,
+    after: { groupId: String(id), memberIds: validMemberIds },
+    meta: { deletedCount: result?.deletedCount ?? null },
+  });
+
+  return res.json({ success: true, deletedCount: result?.deletedCount ?? 0 });
 };
 
 exports.listGroupRoles = async (req, res) => {
