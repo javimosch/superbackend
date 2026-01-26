@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Console Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Console Manager</h1>
+        <div class="text-sm text-gray-500">Manage backend console entries, tags, and persisted logs</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="refreshAll" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+        <button @click="saveConfig" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+          <i class="ti ti-device-floppy mr-1"></i> Save Config
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg">
+      <div class="p-4 border-b border-gray-200 flex items-center gap-2">
+        <button @click="activeTab='entries'" :class="tabClass('entries')" class="px-3 py-2 rounded text-sm">
+          Entries
+        </button>
+        <button @click="activeTab='logs'" :class="tabClass('logs')" class="px-3 py-2 rounded text-sm">
+          Logs
+        </button>
+        <button @click="activeTab='config'" :class="tabClass('config')" class="px-3 py-2 rounded text-sm">
+          Config
+        </button>
+        <div class="flex-1"></div>
+        <div v-if="status" class="text-sm text-gray-600">{{ status }}</div>
+      </div>
+
+      <div class="p-4" v-if="activeTab==='entries'">
+        <div class="grid grid-cols-12 gap-4 mb-4">
+          <div class="col-span-4">
+            <label class="text-xs font-semibold text-gray-600">Search</label>
+            <input v-model="entriesQuery.q" @keyup.enter="loadEntries" class="mt-1 w-full border rounded px-3 py-2" placeholder="message, hash, topFrame" />
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs font-semibold text-gray-600">Method</label>
+            <select v-model="entriesQuery.method" class="mt-1 w-full border rounded px-3 py-2">
+              <option value="">(any)</option>
+              <option value="debug">debug</option>
+              <option value="log">log</option>
+              <option value="info">info</option>
+              <option value="warn">warn</option>
+              <option value="error">error</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs font-semibold text-gray-600">Enabled</label>
+            <select v-model="entriesQuery.enabled" class="mt-1 w-full border rounded px-3 py-2">
+              <option value="">(any)</option>
+              <option value="true">enabled</option>
+              <option value="false">disabled</option>
+            </select>
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs font-semibold text-gray-600">Page size</label>
+            <select v-model.number="entriesQuery.pageSize" class="mt-1 w-full border rounded px-3 py-2">
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+              <option :value="200">200</option>
+            </select>
+          </div>
+          <div class="col-span-2 flex items-end">
+            <button @click="loadEntries" class="w-full px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">
+              Load
+            </button>
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <div class="text-xs font-semibold text-gray-600 mb-2">Tags</div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="t in tags"
+              :key="t.tag"
+              @click="toggleTag(t.tag)"
+              class="px-2.5 py-1 rounded-full text-xs border"
+              :class="selectedTags.includes(t.tag) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
+            >
+              {{ t.tag }}
+              <span class="ml-1 opacity-75">({{ t.count }})</span>
+            </button>
+            <div v-if="!tags.length" class="text-xs text-gray-500">No tags yet.</div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+          <button @click="bulkEnable(true)" class="px-3 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700" :disabled="!selectedHashes.length">
+            Enable selected
+          </button>
+          <button @click="bulkEnable(false)" class="px-3 py-2 rounded bg-orange-600 text-white text-sm hover:bg-orange-700" :disabled="!selectedHashes.length">
+            Disable selected
+          </button>
+          <div class="flex items-center gap-2">
+            <input v-model="bulkTag" class="border rounded px-3 py-2 text-sm" placeholder="Tag name" />
+            <button @click="bulkAddTag" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700" :disabled="!selectedHashes.length || !bulkTag.trim()">
+              Add tag
+            </button>
+            <button @click="bulkRemoveTag" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700" :disabled="!selectedHashes.length || !bulkTag.trim()">
+              Remove tag
+            </button>
+            <button @click="confirmBulkDelete" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700" :disabled="!selectedHashes.length">
+              Delete selected
+            </button>
+          </div>
+          <div class="text-sm text-gray-500">Selected: {{ selectedHashes.length }}</div>
+        </div>
+
+        <!-- Confirmation Modal -->
+        <div v-if="showDeleteModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div class="flex items-center mb-4">
+              <i class="ti ti-alert-triangle text-red-600 text-2xl mr-3"></i>
+              <h3 class="text-lg font-semibold text-gray-900">Delete Console Entries</h3>
+            </div>
+            <div class="text-sm text-gray-600 mb-4">
+              <p class="mb-2">You are about to delete <span class="font-semibold">{{ selectedHashes.length }}</span> console entr{{ selectedHashes.length === 1 ? 'y' : 'ies' }}.</p>
+              <p class="mb-3">This action cannot be undone.</p>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" v-model="deleteLogsAlso" class="rounded" />
+                <span class="text-sm">Also delete associated logs ({{ selectedHashes.length }} entr{{ selectedHashes.length === 1 ? 'y' : 'ies' }})</span>
+              </label>
+            </div>
+            <div class="flex justify-end gap-3">
+              <button @click="showDeleteModal = false" class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button @click="bulkDelete" class="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700" :disabled="isDeleting">
+                <span v-if="isDeleting">Deleting...</span>
+                <span v-else>Delete{{ deleteLogsAlso ? ' Entries & Logs' : ' Entries' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-gray-200 rounded">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                  <input type="checkbox" @change="toggleSelectAll($event)" :checked="allSelected" />
+                </th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Enabled</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Top frame</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Last seen</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Count</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tags</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <tr v-for="it in entries" :key="it.hash" class="hover:bg-gray-50">
+                <td class="px-3 py-2">
+                  <input type="checkbox" :value="it.hash" v-model="selectedHashes" />
+                </td>
+                <td class="px-3 py-2">
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                        :class="it.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
+                    {{ it.enabled ? 'enabled' : 'disabled' }}
+                  </span>
+                </td>
+                <td class="px-3 py-2 text-xs font-mono">{{ it.method }}</td>
+                <td class="px-3 py-2 text-sm text-gray-900">{{ it.messageTemplate }}</td>
+                <td class="px-3 py-2 text-xs text-gray-600 font-mono">{{ it.topFrame }}</td>
+                <td class="px-3 py-2 text-xs text-gray-700">{{ formatDate(it.lastSeenAt) }}</td>
+                <td class="px-3 py-2 text-xs text-gray-700">{{ it.countTotal }}</td>
+                <td class="px-3 py-2">
+                  <span v-for="tg in (it.tags || [])" :key="tg" class="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 mr-1">
+                    {{ tg }}
+                  </span>
+                </td>
+              </tr>
+              <tr v-if="!entries.length">
+                <td colspan="8" class="px-4 py-6 text-sm text-gray-500">No entries found.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
+          <div>
+            Page {{ entriesPagination.page }} / {{ entriesPagination.totalPages }} ({{ entriesPagination.total }} total)
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="prevEntries" class="px-3 py-2 rounded border hover:bg-gray-50" :disabled="entriesPagination.page<=1">Prev</button>
+            <button @click="nextEntries" class="px-3 py-2 rounded border hover:bg-gray-50" :disabled="entriesPagination.page>=entriesPagination.totalPages">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4" v-if="activeTab==='logs'">
+        <div class="grid grid-cols-12 gap-4 mb-4">
+          <div class="col-span-4">
+            <label class="text-xs font-semibold text-gray-600">Search</label>
+            <input v-model="logsQuery.q" @keyup.enter="loadLogs" class="mt-1 w-full border rounded px-3 py-2" placeholder="message, argsPreview, entryHash" />
+          </div>
+          <div class="col-span-2">
+            <label class="text-xs font-semibold text-gray-600">Method</label>
+            <select v-model="logsQuery.method" class="mt-1 w-full border rounded px-3 py-2">
+              <option value="">(any)</option>
+              <option value="debug">debug</option>
+              <option value="log">log</option>
+              <option value="info">info</option>
+              <option value="warn">warn</option>
+              <option value="error">error</option>
+            </select>
+          </div>
+          <div class="col-span-3">
+            <label class="text-xs font-semibold text-gray-600">Entry hash (optional)</label>
+            <input v-model="logsQuery.entryHash" class="mt-1 w-full border rounded px-3 py-2 font-mono text-xs" placeholder="hash" />
+          </div>
+          <div class="col-span-1">
+            <label class="text-xs font-semibold text-gray-600">Size</label>
+            <select v-model.number="logsQuery.pageSize" class="mt-1 w-full border rounded px-3 py-2">
+              <option :value="20">20</option>
+              <option :value="50">50</option>
+              <option :value="100">100</option>
+              <option :value="200">200</option>
+            </select>
+          </div>
+          <div class="col-span-2 flex items-end">
+            <button @click="loadLogs" class="w-full px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">Load</button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-gray-200 rounded">
+          <table class="w-full">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">At</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Entry</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Message</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Args</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+              <tr v-for="it in logs" :key="it._id" class="hover:bg-gray-50">
+                <td class="px-3 py-2 text-xs text-gray-700">{{ formatDate(it.createdAt) }}</td>
+                <td class="px-3 py-2 text-xs font-mono">{{ it.method }}</td>
+                <td class="px-3 py-2 text-xs font-mono text-gray-600">{{ it.entryHash }}</td>
+                <td class="px-3 py-2 text-sm text-gray-900">{{ it.message }}</td>
+                <td class="px-3 py-2 text-xs text-gray-600 font-mono">{{ it.argsPreview }}</td>
+              </tr>
+              <tr v-if="!logs.length">
+                <td colspan="5" class="px-4 py-6 text-sm text-gray-500">No logs found (enable DB persistence in Config).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between mt-4 text-sm text-gray-600">
+          <div>
+            Page {{ logsPagination.page }} / {{ logsPagination.totalPages }} ({{ logsPagination.total }} total)
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click="prevLogs" class="px-3 py-2 rounded border hover:bg-gray-50" :disabled="logsPagination.page<=1">Prev</button>
+            <button @click="nextLogs" class="px-3 py-2 rounded border hover:bg-gray-50" :disabled="logsPagination.page>=logsPagination.totalPages">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4" v-if="activeTab==='config'">
+        <div class="grid grid-cols-12 gap-6">
+          <div class="col-span-6 space-y-4">
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">General</div>
+              <div class="space-y-3">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.enabled" />
+                  Enable Console Manager
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.defaultEntryEnabled" />
+                  New entries enabled by default
+                </label>
+              </div>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">Persistence defaults</div>
+              <div class="space-y-3">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.defaults.persist.cache" />
+                  Default persist to Cache
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.defaults.persist.db" />
+                  Default persist to DB
+                </label>
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.defaults.persist.warnErrorToCacheDb" />
+                  For warn/error, enable persistence defaults for new entries
+                </label>
+              </div>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">DB logs</div>
+              <div class="grid grid-cols-2 gap-4">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.db.enabled" />
+                  Enable DB persistence
+                </label>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Retention (days)</label>
+                  <input type="number" v-model.number="config.db.ttlDays" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+                <div class="col-span-2">
+                  <label class="text-xs font-semibold text-gray-600">Sample rate (%)</label>
+                  <input type="number" v-model.number="config.db.sampleRatePercent" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-6 space-y-4">
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">Cache</div>
+              <div class="grid grid-cols-2 gap-4">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="config.cache.enabled" />
+                  Enable cache counters
+                </label>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">TTL seconds</label>
+                  <input type="number" v-model.number="config.cache.ttlSeconds" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+                <div class="col-span-2">
+                  <label class="text-xs font-semibold text-gray-600">Namespace</label>
+                  <input v-model="config.cache.namespace" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">Performance</div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Max arg chars</label>
+                  <input type="number" v-model.number="config.performance.maxArgChars" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Max args serialized</label>
+                  <input type="number" v-model.number="config.performance.maxArgsSerialized" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+              <div class="text-xs text-gray-500 mt-2">Config is stored using the JSON Configs system under the hood.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <style>
+    [v-cloak] { display: none; }
+  </style>
+
+  <script>
+    window.BASE_URL = '<%= baseUrl %>';
+
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          activeTab: 'entries',
+          status: '',
+
+          config: {
+            enabled: true,
+            defaultEntryEnabled: true,
+            defaults: { persist: { cache: false, db: false, warnErrorToCacheDb: false } },
+            db: { enabled: false, ttlDays: 7, sampleRatePercent: 100 },
+            cache: { enabled: false, ttlSeconds: 3600, namespace: 'console-manager' },
+            performance: { maxArgChars: 2000, maxArgsSerialized: 5 },
+          },
+
+          tags: [],
+          selectedTags: [],
+
+          entries: [],
+          entriesPagination: { page: 1, pageSize: 50, total: 0, totalPages: 1 },
+          entriesQuery: { q: '', method: '', enabled: '', page: 1, pageSize: 50 },
+
+          logs: [],
+          logsPagination: { page: 1, pageSize: 50, total: 0, totalPages: 1 },
+          logsQuery: { q: '', method: '', entryHash: '', page: 1, pageSize: 50 },
+
+          selectedHashes: [],
+          bulkTag: '',
+          showDeleteModal: false,
+          deleteLogsAlso: false,
+          isDeleting: false,
+        };
+      },
+      computed: {
+        allSelected() {
+          return this.entries.length > 0 && this.selectedHashes.length === this.entries.length;
+        }
+      },
+      methods: {
+        tabClass(tab) {
+          return this.activeTab === tab
+            ? 'bg-gray-900 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200';
+        },
+        async api(path, opts) {
+          const base = window.BASE_URL || '';
+          const res = await fetch(base + path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(json.error || 'Request failed');
+          return json;
+        },
+        formatDate(d) {
+          if (!d) return '';
+          const dt = new Date(d);
+          if (Number.isNaN(dt.getTime())) return '';
+          return dt.toISOString().replace('T', ' ').slice(0, 19);
+        },
+        async loadConfig() {
+          const data = await this.api('/api/admin/console-manager/config');
+          if (data && data.config) {
+            this.config = data.config;
+          }
+        },
+        async saveConfig() {
+          this.status = 'Saving...';
+          try {
+            await this.api('/api/admin/console-manager/config', {
+              method: 'PUT',
+              body: JSON.stringify(this.config),
+            });
+            this.status = 'Saved config (retroactive defaults applied).';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        async loadTags() {
+          const data = await this.api('/api/admin/console-manager/tags');
+          this.tags = Array.isArray(data.items) ? data.items : [];
+        },
+        toggleTag(tag) {
+          const idx = this.selectedTags.indexOf(tag);
+          if (idx >= 0) this.selectedTags.splice(idx, 1);
+          else this.selectedTags.push(tag);
+          this.entriesQuery.page = 1;
+          this.loadEntries();
+        },
+        buildTagsQuery() {
+          return this.selectedTags.join(',');
+        },
+        async loadEntries() {
+          this.status = 'Loading entries...';
+          try {
+            const params = new URLSearchParams();
+            if (this.entriesQuery.q) params.set('q', this.entriesQuery.q);
+            if (this.entriesQuery.method) params.set('method', this.entriesQuery.method);
+            if (this.entriesQuery.enabled) params.set('enabled', this.entriesQuery.enabled);
+            params.set('page', String(this.entriesQuery.page || 1));
+            params.set('pageSize', String(this.entriesQuery.pageSize || 50));
+            const tagQ = this.buildTagsQuery();
+            if (tagQ) params.set('tags', tagQ);
+
+            const data = await this.api('/api/admin/console-manager/entries?' + params.toString());
+            this.entries = Array.isArray(data.items) ? data.items : [];
+            this.entriesPagination = data.pagination || this.entriesPagination;
+            this.selectedHashes = [];
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        prevEntries() {
+          if (this.entriesPagination.page <= 1) return;
+          this.entriesQuery.page = this.entriesPagination.page - 1;
+          this.loadEntries();
+        },
+        nextEntries() {
+          if (this.entriesPagination.page >= this.entriesPagination.totalPages) return;
+          this.entriesQuery.page = this.entriesPagination.page + 1;
+          this.loadEntries();
+        },
+        toggleSelectAll(e) {
+          const checked = Boolean(e?.target?.checked);
+          if (!checked) {
+            this.selectedHashes = [];
+          } else {
+            this.selectedHashes = this.entries.map((it) => it.hash);
+          }
+        },
+        async bulkEnable(enabled) {
+          if (!this.selectedHashes.length) return;
+          this.status = enabled ? 'Enabling...' : 'Disabling...';
+          try {
+            await this.api('/api/admin/console-manager/entries/bulk-enable', {
+              method: 'PUT',
+              body: JSON.stringify({ hashes: this.selectedHashes, enabled: Boolean(enabled) }),
+            });
+            await this.loadEntries();
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        async bulkAddTag() {
+          const tag = String(this.bulkTag || '').trim();
+          if (!tag || !this.selectedHashes.length) return;
+          this.status = 'Updating tags...';
+          try {
+            await this.api('/api/admin/console-manager/entries/bulk-tags', {
+              method: 'PUT',
+              body: JSON.stringify({ hashes: this.selectedHashes, add: [tag] }),
+            });
+            this.bulkTag = '';
+            await this.loadTags();
+            await this.loadEntries();
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        async bulkRemoveTag() {
+          const tag = String(this.bulkTag || '').trim();
+          if (!tag || !this.selectedHashes.length) return;
+          this.status = 'Updating tags...';
+          try {
+            await this.api('/api/admin/console-manager/entries/bulk-tags', {
+              method: 'PUT',
+              body: JSON.stringify({ hashes: this.selectedHashes, remove: [tag] }),
+            });
+            this.bulkTag = '';
+            await this.loadTags();
+            await this.loadEntries();
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        confirmBulkDelete() {
+          if (!this.selectedHashes.length) return;
+          this.showDeleteModal = true;
+          this.deleteLogsAlso = false;
+        },
+        async bulkDelete() {
+          if (!this.selectedHashes.length) return;
+          this.isDeleting = true;
+          this.status = 'Deleting...';
+          try {
+            const data = await this.api('/api/admin/console-manager/entries/bulk-delete', {
+              method: 'DELETE',
+              body: JSON.stringify({ 
+                hashes: this.selectedHashes, 
+                deleteLogs: this.deleteLogsAlso 
+              }),
+            });
+            this.showDeleteModal = false;
+            this.selectedHashes = [];
+            await this.loadTags();
+            await this.loadEntries();
+            this.status = `Deleted ${data.deletedEntries} entr${data.deletedEntries === 1 ? 'y' : 'ies'}${data.deletedLogs ? ` and ${data.deletedLogs} log${data.deletedLogs === 1 ? '' : 's'}` : ''}.`;
+          } catch (e) {
+            this.status = e.message;
+          } finally {
+            this.isDeleting = false;
+          }
+        },
+        async loadLogs() {
+          this.status = 'Loading logs...';
+          try {
+            const params = new URLSearchParams();
+            if (this.logsQuery.q) params.set('q', this.logsQuery.q);
+            if (this.logsQuery.method) params.set('method', this.logsQuery.method);
+            if (this.logsQuery.entryHash) params.set('entryHash', this.logsQuery.entryHash);
+            params.set('page', String(this.logsQuery.page || 1));
+            params.set('pageSize', String(this.logsQuery.pageSize || 50));
+
+            const data = await this.api('/api/admin/console-manager/logs?' + params.toString());
+            this.logs = Array.isArray(data.items) ? data.items : [];
+            this.logsPagination = data.pagination || this.logsPagination;
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+        prevLogs() {
+          if (this.logsPagination.page <= 1) return;
+          this.logsQuery.page = this.logsPagination.page - 1;
+          this.loadLogs();
+        },
+        nextLogs() {
+          if (this.logsPagination.page >= this.logsPagination.totalPages) return;
+          this.logsQuery.page = this.logsPagination.page + 1;
+          this.loadLogs();
+        },
+        async refreshAll() {
+          this.status = 'Refreshing...';
+          try {
+            await Promise.all([
+              this.loadConfig(),
+              this.loadTags(),
+              this.loadEntries(),
+            ]);
+            this.status = '';
+          } catch (e) {
+            this.status = e.message;
+          }
+        },
+      },
+      async mounted() {
+        await this.refreshAll();
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
