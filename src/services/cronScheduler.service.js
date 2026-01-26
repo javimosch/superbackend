@@ -6,6 +6,8 @@ const CronExecution = require('../models/CronExecution');
 const ScriptDefinition = require('../models/ScriptDefinition');
 const ScriptRun = require('../models/ScriptRun');
 
+const console = global.console
+
 class CronScheduler {
   constructor() {
     this.scheduledJobs = new Map(); // Map<jobId, cron.ScheduledTask>
