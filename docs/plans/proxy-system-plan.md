@@ -47,9 +47,18 @@ description: Proxy system (design + plan)
   - Example:
     - `/proxy/https://api1.com/users.json?x=1` -> target `https://api1.com/users.json?x=1`
 
+ ## Locked-in decisions (2026-01-25)
+
+ - Default behavior is **deny** unless a matching `ProxyEntry` exists and is **enabled**.
+ - Unknown targets are still **auto-discovered** (upsert) but stored **ephemerally with TTL** using the existing Cache Layer (not persisted in Mongo as `ProxyEntry`).
+ - Request header proxying includes `Authorization` and `Cookie` by default, but is configurable per `ProxyEntry`.
+ - Caching is enabled for `GET`/`HEAD` by default; caching other methods must be enabled by admin.
+ - Cache key parts are configurable; safe defaults include URL (with querystring), body hash, and selected headers hash.
+ - Transform functions run as JS in a sandbox-ish environment with a hard timeout.
+
 ### Admin API routes
 
-- `GET /api/admin/proxy/entries` — list configured/discovered entries
+ - `GET /api/admin/proxy/entries` — list configured/discovered entries
 - `GET /api/admin/proxy/entries/:id` — read entry
 - `PUT /api/admin/proxy/entries/:id` — update entry (enable/disable, rules, cache, transform, rate limit linkage)
 - `POST /api/admin/proxy/entries/:id/reset-metrics` (optional)
@@ -62,9 +71,9 @@ description: Proxy system (design + plan)
   - **Entries**: discovered/configured proxy targets and rules
   - **Audit** sub-tab: audit view filtered to proxy actions
 
-## Data model
+ ## Data model
 
-### ProxyEntry
+ ### ProxyEntry
 
 Represents an admin-configurable “proxy target pattern” + policies.
 
@@ -86,7 +95,13 @@ Suggested Mongo model (new): `ProxyEntry`
   - `enabled`: boolean
   - `ttlSeconds`: number
   - `namespace`: string (default `proxy`)
-  - `keyTemplate`: string (optional; default computed from method+url+body hash)
+  - `keyTemplate`: string (optional; default computed from method+url(+query)+body hash+headers hash)
+  - `methods`: array (optional; default `['GET','HEAD']`)
+- `headers`:
+  - `forwardAuthorization`: boolean (default true)
+  - `forwardCookie`: boolean (default true)
+  - `allowList`: array of header names (optional)
+  - `denyList`: array of header names (optional)
 - `transform`:
   - `enabled`: boolean
   - `type`: `js` (initial)
@@ -147,14 +162,16 @@ Rule match fields:
 1. Parse and validate target URL
    - Must be `http` or `https`
    - Must be absolute URL
-2. Find or create `ProxyEntry`
+2. Find matching `ProxyEntry`
+   - If none, upsert into **ephemeral discovery list** via Cache Layer.
 3. Apply allow/deny
-   - If denied => return `403` with `{ error: 'Proxy request blocked' }`
+   - If no matching enabled entry => return `403` with `{ error: 'Proxy request blocked' }`
    - Log audit `proxy.blocked`.
 4. Apply rate limiting
    - Use `rateLimiter.limit(limiterId)` with inferred limiter id `proxy:<entryId>` or `proxy:<host>`.
 5. Check cache (optional)
-   - Compute cache key: method + targetUrl + body hash + selected headers
+   - Default only when method is `GET`/`HEAD` unless admin enables others.
+   - Compute cache key using configured parts; safe defaults include URL (+query), body hash and headers hash.
    - `cacheLayer.get(key,{namespace})`
    - If hit => return cached response and audit `proxy.cache.hit`
 6. Dispatch upstream request
