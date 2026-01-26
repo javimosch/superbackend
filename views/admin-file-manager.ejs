@@ -59,7 +59,14 @@
 
             <div>
               <label class="block text-sm font-medium text-gray-900 mb-2">Computed URL</label>
-              <div class="bg-gray-50 rounded px-3 py-2 text-sm text-gray-800" id="computedUrl"></div>
+              <div class="flex gap-2">
+                <div class="flex-1 bg-gray-50 rounded px-3 py-2 text-sm text-gray-800" id="computedUrl"></div>
+                <button id="openComputedUrl" class="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition-colors" title="Open in new tab">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div class="flex justify-end space-x-2">
@@ -211,6 +218,7 @@
     const elBasePath = document.getElementById('basePath');
     const elMaxUploadBytes = document.getElementById('maxUploadBytes');
     const elComputedUrl = document.getElementById('computedUrl');
+    const elOpenComputedUrl = document.getElementById('openComputedUrl');
     const elToast = document.getElementById('toast');
 
     const elTabGeneral = document.getElementById('tabGeneral');
@@ -920,6 +928,13 @@
     document.getElementById('refresh').addEventListener('click', load);
     document.getElementById('save').addEventListener('click', save);
     elBasePath.addEventListener('input', updateComputedUrl);
+    
+    elOpenComputedUrl.addEventListener('click', () => {
+      const url = elComputedUrl.textContent;
+      if (url) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    });
 
     load();
   </script>
