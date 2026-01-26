@@ -249,57 +249,100 @@
         <div class="bg-white rounded-lg shadow-sm border p-4">
           <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div>
-              <div class="font-semibold text-gray-900">AI Assist: Context Blocks</div>
-              <div class="text-xs text-gray-500">Generate/propose a single <span class="font-mono">context.*</span> block. You manually Apply and Test.</div>
+              <div class="font-semibold text-gray-900">Context Block Definitions</div>
+              <div class="text-xs text-gray-500">Create reusable <span class="font-mono">context.*</span> block templates and attach them to Pages.</div>
             </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <%- include('partials/llm-provider-model-picker', {
-              providerInputId: 'ctxblocks-ai-provider',
-              modelInputId: 'ctxblocks-ai-model',
-              providerLabel: 'Provider (optional)',
-              modelLabel: 'Model (optional)',
-              showOpenRouterFetch: true,
-            }) %>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-sm font-semibold text-gray-800">Library</div>
+                <div class="flex gap-2">
+                  <button type="button" onclick="openCreateContextBlockDefinition()" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-800">New</button>
+                  <button type="button" onclick="loadContextBlockDefinitions()" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-800">Reload</button>
+                </div>
+              </div>
+
+              <div class="border rounded overflow-hidden">
+                <table class="w-full text-sm">
+                  <thead class="bg-gray-50 border-b">
+                    <tr>
+                      <th class="text-left px-4 py-3 font-medium text-gray-700">Code</th>
+                      <th class="text-left px-4 py-3 font-medium text-gray-700">Type</th>
+                      <th class="text-right px-4 py-3 font-medium text-gray-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="ctxblockdefs-tbody"></tbody>
+                </table>
+                <div id="ctxblockdefs-empty" class="hidden p-6 text-center text-gray-500">No context block definitions found.</div>
+              </div>
+            </div>
 
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Block type</label>
-              <select id="ctxblocks-ai-type" class="w-full border rounded px-2 py-2 text-sm">
-                <option value="context.db_query">context.db_query</option>
-                <option value="context.service_invoke">context.service_invoke</option>
-              </select>
-              <div class="text-[11px] text-gray-500 mt-1">Uses $ctx interpolation: <span class="font-mono">{"$ctx":"params.slug"}</span></div>
+              <div class="text-sm font-semibold text-gray-800 mb-2">Editor</div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Code *</label>
+                  <input id="ctxblockdef-code" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="blog-post-by-slug" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">Label *</label>
+                  <input id="ctxblockdef-label" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Blog post by slug" />
+                </div>
+              </div>
+
+              <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                <input id="ctxblockdef-description" type="text" class="w-full border rounded px-2 py-2 text-sm" placeholder="Used by blog post page" />
+              </div>
+
+              <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Type *</label>
+                <select id="ctxblockdef-type" class="w-full border rounded px-2 py-2 text-sm">
+                  <option value="context.db_query">context.db_query</option>
+                  <option value="context.service_invoke">context.service_invoke</option>
+                </select>
+                <div class="text-[11px] text-gray-500 mt-1">Uses $ctx interpolation: <span class="font-mono">{"$ctx":"params.slug"}</span></div>
+              </div>
+
+              <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">Props (JSON object) *</label>
+                <textarea id="ctxblockdef-props" class="w-full border rounded px-2 py-2 font-mono text-xs" rows="10" placeholder='{"assignTo":"post","model":"BlogPost","op":"findOne","filter":{"slug":{"$ctx":"params.slug"}}}'></textarea>
+              </div>
+
+              <div class="mt-3">
+                <label class="block text-xs font-medium text-gray-600 mb-1">AI prompt</label>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <%- include('partials/llm-provider-model-picker', {
+                    providerInputId: 'ctxblocks-ai-provider',
+                    modelInputId: 'ctxblocks-ai-model',
+                    providerLabel: 'Provider (optional)',
+                    modelLabel: 'Model (optional)',
+                    showOpenRouterFetch: true,
+                  }) %>
+                  <div>
+                    <textarea id="ctxblocks-ai-prompt" class="w-full border rounded px-2 py-2 text-sm" rows="4" placeholder="Example: Load the published BlogPost for params.slug into vars.post. Add cache 30s."></textarea>
+                  </div>
+                </div>
+
+                <div class="flex gap-2 mt-2">
+                  <button type="button" onclick="aiGenerateContextBlockIntoEditor()" class="px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white">AI Generate Props</button>
+                  <button type="button" onclick="testContextBlockDefinitionFromEditor()" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-800">Test</button>
+                </div>
+                <div id="ctxblocks-ai-warnings" class="hidden mt-2 text-xs bg-amber-50 border border-amber-200 rounded p-2"></div>
+              </div>
+
+              <div class="flex flex-wrap gap-2 mt-4 pt-4 border-t">
+                <button type="button" onclick="saveContextBlockDefinitionFromEditor()" class="px-3 py-2 rounded text-sm bg-blue-600 hover:bg-blue-700 text-white">Save Definition</button>
+                <button type="button" onclick="deleteContextBlockDefinitionFromEditor()" class="px-3 py-2 rounded text-sm bg-red-600 hover:bg-red-700 text-white">Delete</button>
+              </div>
+
+              <div class="mt-3 text-[11px] text-gray-500">
+                Invokable helpers: <span class="font-mono">helpers.services.*</span>, <span class="font-mono">helpers.models.*</span>, <span class="font-mono">helpers.mongoose.*</span>
+              </div>
             </div>
-          </div>
-
-          <div class="mt-3">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Prompt</label>
-            <textarea id="ctxblocks-ai-prompt" class="w-full border rounded px-2 py-2 text-sm" rows="4" placeholder="Example: Load the published BlogPost for params.slug into vars.post. Add cache 30s."></textarea>
-          </div>
-
-          <div class="flex gap-2 mt-3">
-            <button type="button" onclick="aiGenerateContextBlock()" class="px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white">Generate</button>
-            <button type="button" onclick="aiProposeContextBlock()" class="px-3 py-2 rounded text-sm bg-purple-600 hover:bg-purple-700 text-white">Propose (selected block)</button>
-            <button type="button" onclick="applyContextBlockProposal()" class="px-3 py-2 rounded text-sm bg-gray-800 hover:bg-gray-900 text-white">Apply</button>
-            <button type="button" onclick="testContextBlockProposal()" class="px-3 py-2 rounded text-sm bg-gray-100 hover:bg-gray-200 text-gray-800">Test</button>
-          </div>
-
-          <div id="ctxblocks-ai-warnings" class="hidden mt-3 text-xs bg-amber-50 border border-amber-200 rounded p-2"></div>
-
-          <div class="mt-3">
-            <div class="text-xs font-semibold text-gray-700 mb-1">Proposal preview</div>
-            <pre id="ctxblocks-ai-preview" class="text-[11px] whitespace-pre-wrap break-words bg-gray-50 border border-gray-200 rounded p-2 min-h-[80px]"></pre>
-          </div>
-
-          <div class="mt-3">
-            <div class="text-xs font-semibold text-gray-700 mb-1">Mock context (optional JSON)</div>
-            <textarea id="ctxblocks-ai-mock-context" class="w-full border rounded px-2 py-2 font-mono text-xs" rows="4" placeholder='{"params":{"slug":"hello"},"query":{}}'></textarea>
-            <div class="text-[11px] text-gray-500 mt-1">Merged into pageContext for tests only.</div>
-          </div>
-
-          <div class="mt-3 text-[11px] text-gray-500">
-            Invokable helpers: <span class="font-mono">helpers.services.*</span>, <span class="font-mono">helpers.models.*</span>, <span class="font-mono">helpers.mongoose.*</span>
           </div>
         </div>
       </div>
@@ -376,6 +419,12 @@
               </select>
               <button type="button" onclick="addSelectedBlock()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
                 <i class="ti ti-plus"></i> Add Block
+              </button>
+              <select id="blocks-add-contextdef" class="border rounded px-3 py-2 text-sm">
+                <option value="">Select context block</option>
+              </select>
+              <button type="button" onclick="addSelectedContextBlockDefinition()" class="bg-gray-100 text-gray-800 px-3 py-2 rounded text-sm hover:bg-gray-200">
+                <i class="ti ti-plus"></i> Add Context Block
               </button>
             </div>
           </div>
@@ -560,6 +609,8 @@
       collections: { items: [], offset: 0, limit: 25, total: 0 },
       selectedBlockId: null,
       ctxBlocksAiProposal: null,
+      contextBlockDefs: { items: [], selectedCode: null },
+      pageContextBlockDefs: { items: [] },
     };
 
     function showToast(message, type = 'success') {
@@ -600,6 +651,10 @@
       if (normalized === 'settings') {
         loadBlocksAiSettings();
       }
+
+      if (normalized === 'context') {
+        loadContextBlockDefinitions();
+      }
     }
 
     function safeJsonParse(raw, fallback) {
@@ -628,6 +683,271 @@
       const preview = document.getElementById('ctxblocks-ai-preview');
       if (preview) {
         preview.textContent = state.ctxBlocksAiProposal ? JSON.stringify(state.ctxBlocksAiProposal, null, 2) : '';
+      }
+    }
+
+    function openCreateContextBlockDefinition() {
+      state.contextBlockDefs.selectedCode = null;
+      const codeEl = document.getElementById('ctxblockdef-code');
+      if (codeEl) {
+        codeEl.disabled = false;
+        codeEl.value = '';
+      }
+      const labelEl = document.getElementById('ctxblockdef-label');
+      if (labelEl) labelEl.value = '';
+      const descEl = document.getElementById('ctxblockdef-description');
+      if (descEl) descEl.value = '';
+      const typeEl = document.getElementById('ctxblockdef-type');
+      if (typeEl) typeEl.value = 'context.db_query';
+      const propsEl = document.getElementById('ctxblockdef-props');
+      if (propsEl) propsEl.value = JSON.stringify({}, null, 2);
+    }
+
+    function setContextBlockDefinitionEditor(item) {
+      const code = String(item?.code || '').trim();
+      state.contextBlockDefs.selectedCode = code || null;
+      const codeEl = document.getElementById('ctxblockdef-code');
+      if (codeEl) {
+        codeEl.value = code;
+        codeEl.disabled = Boolean(code);
+      }
+      const labelEl = document.getElementById('ctxblockdef-label');
+      if (labelEl) labelEl.value = String(item?.label || '');
+      const descEl = document.getElementById('ctxblockdef-description');
+      if (descEl) descEl.value = String(item?.description || '');
+      const typeEl = document.getElementById('ctxblockdef-type');
+      if (typeEl) typeEl.value = String(item?.type || 'context.db_query');
+      const propsEl = document.getElementById('ctxblockdef-props');
+      if (propsEl) propsEl.value = JSON.stringify(item?.props || {}, null, 2);
+    }
+
+    async function loadContextBlockDefinitions() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/context-block-definitions`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.contextBlockDefs.items = Array.isArray(data.items) ? data.items : [];
+        renderContextBlockDefinitions();
+        if (!state.contextBlockDefs.selectedCode) {
+          openCreateContextBlockDefinition();
+        }
+      } catch (e) {
+        state.contextBlockDefs.items = [];
+        renderContextBlockDefinitions();
+      }
+    }
+
+    async function loadActiveContextBlockDefinitionsForPageModal() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/context-block-definitions?active=true`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        state.pageContextBlockDefs.items = Array.isArray(data.items) ? data.items : [];
+        populateContextBlockDefinitionSelect();
+      } catch (_) {
+        state.pageContextBlockDefs.items = [];
+        populateContextBlockDefinitionSelect();
+      }
+    }
+
+    function populateContextBlockDefinitionSelect() {
+      const select = document.getElementById('blocks-add-contextdef');
+      if (!select) return;
+      const current = select.value;
+      select.innerHTML = '<option value="">Select context block</option>';
+      (state.pageContextBlockDefs.items || []).forEach((d) => {
+        const code = String(d.code || '').trim();
+        if (!code) return;
+        const label = String(d.label || code);
+        const type = String(d.type || '');
+        select.innerHTML += `<option value="${escapeHtml(code)}">${escapeHtml(label)} (${escapeHtml(code)}) — ${escapeHtml(type)}</option>`;
+      });
+      select.value = current;
+    }
+
+    function renderContextBlockDefinitions() {
+      const tbody = document.getElementById('ctxblockdefs-tbody');
+      const empty = document.getElementById('ctxblockdefs-empty');
+      if (!tbody || !empty) return;
+      const items = state.contextBlockDefs.items || [];
+
+      if (!items.length) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+
+      empty.classList.add('hidden');
+      tbody.innerHTML = items
+        .map((d) => {
+          const code = String(d.code || '');
+          const type = String(d.type || '');
+          return `
+            <tr class="border-b hover:bg-gray-50">
+              <td class="px-4 py-3 font-mono">${escapeHtml(code)}</td>
+              <td class="px-4 py-3 font-mono text-xs text-gray-600">${escapeHtml(type)}</td>
+              <td class="px-4 py-3 text-right">
+                <button onclick="editContextBlockDefinition('${escapeHtml(code)}')" class="text-blue-600 hover:text-blue-800"><i class="ti ti-edit"></i></button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+    }
+
+    async function editContextBlockDefinition(code) {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/context-block-definitions/${encodeURIComponent(code)}`, { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        setContextBlockDefinitionEditor(data.item);
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    function readContextBlockDefinitionEditor() {
+      const code = String(document.getElementById('ctxblockdef-code')?.value || '').trim().toLowerCase();
+      const label = String(document.getElementById('ctxblockdef-label')?.value || '').trim();
+      const description = String(document.getElementById('ctxblockdef-description')?.value || '');
+      const type = String(document.getElementById('ctxblockdef-type')?.value || '').trim();
+      const propsRaw = String(document.getElementById('ctxblockdef-props')?.value || '').trim();
+
+      let props = {};
+      if (propsRaw) {
+        try {
+          props = JSON.parse(propsRaw);
+        } catch (e) {
+          return { error: 'Props must be valid JSON', item: null };
+        }
+      }
+
+      return {
+        error: null,
+        item: { code, label, description, type, props },
+      };
+    }
+
+    async function saveContextBlockDefinitionFromEditor() {
+      const { error, item } = readContextBlockDefinitionEditor();
+      if (error) {
+        showToast(error, 'error');
+        return;
+      }
+      if (!item.code) {
+        showToast('code is required', 'error');
+        return;
+      }
+      if (!item.label) {
+        showToast('label is required', 'error');
+        return;
+      }
+      if (!item.type) {
+        showToast('type is required', 'error');
+        return;
+      }
+
+      const isEdit = Boolean(state.contextBlockDefs.selectedCode);
+      try {
+        const url = isEdit
+          ? `${API_BASE}/api/admin/pages/context-block-definitions/${encodeURIComponent(state.contextBlockDefs.selectedCode)}`
+          : `${API_BASE}/api/admin/pages/context-block-definitions`;
+        const method = isEdit ? 'PUT' : 'POST';
+
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({
+            code: item.code,
+            label: item.label,
+            description: item.description,
+            type: item.type,
+            props: item.props,
+            isActive: true,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(isEdit ? 'Context block updated' : 'Context block created');
+        setContextBlockDefinitionEditor(data.item);
+        await loadContextBlockDefinitions();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function deleteContextBlockDefinitionFromEditor() {
+      const code = state.contextBlockDefs.selectedCode;
+      if (!code) {
+        showToast('Select a definition first', 'error');
+        return;
+      }
+      if (!confirm(`Delete context block definition "${code}"?`)) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/context-block-definitions/${encodeURIComponent(code)}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast('Context block deleted');
+        openCreateContextBlockDefinition();
+        await loadContextBlockDefinitions();
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function aiGenerateContextBlockIntoEditor() {
+      const prompt = String(document.getElementById('ctxblocks-ai-prompt')?.value || '').trim();
+      const blockType = String(document.getElementById('ctxblockdef-type')?.value || '').trim();
+      const providerKey = String(document.getElementById('ctxblocks-ai-provider')?.value || '').trim();
+      const model = String(document.getElementById('ctxblocks-ai-model')?.value || '').trim();
+      if (!prompt) return;
+      if (!blockType) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/ai/context-blocks/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ prompt, blockType, providerKey, model }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const proposal = data.proposal;
+        document.getElementById('ctxblockdef-type').value = proposal.type;
+        document.getElementById('ctxblockdef-props').value = JSON.stringify(proposal.props || {}, null, 2);
+        setContextBlocksWarnings(data.warnings);
+        showToast('AI props loaded into editor');
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function testContextBlockDefinitionFromEditor() {
+      const { error, item } = readContextBlockDefinitionEditor();
+      if (error) {
+        showToast(error, 'error');
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/pages/test-block`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ block: { type: item.type, props: item.props }, routePath: '/_test', mockContext: null }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        const varsStr = JSON.stringify(data.vars || {}, null, 2);
+        showToast(`Test OK (${data.elapsedMs}ms). Vars: ${varsStr.substring(0, 200)}${varsStr.length > 200 ? '...' : ''}`);
+      } catch (e) {
+        showToast(e.message, 'error');
       }
     }
 
@@ -1069,6 +1389,7 @@
       state.currentPage = null;
       state.currentBlocks = [];
       renderBlocksEditor();
+      loadActiveContextBlockDefinitionsForPageModal();
       document.getElementById('modal-page').classList.remove('hidden');
       document.getElementById('modal-page').classList.add('flex');
     }
@@ -1102,6 +1423,8 @@
         document.getElementById('page-repeat').value = p.repeat ? JSON.stringify(p.repeat, null, 2) : '';
 
         renderBlocksEditor();
+
+        loadActiveContextBlockDefinitionsForPageModal();
 
         document.getElementById('modal-page').classList.remove('hidden');
         document.getElementById('modal-page').classList.add('flex');
@@ -1854,6 +2177,19 @@
       const type = document.getElementById('blocks-add-type')?.value;
       if (!type) return;
       addBlock(type);
+    }
+
+    function addSelectedContextBlockDefinition() {
+      const code = document.getElementById('blocks-add-contextdef')?.value;
+      if (!code) return;
+      const def = (state.pageContextBlockDefs.items || []).find((d) => String(d.code) === String(code));
+      if (!def) {
+        showToast('Context block not found', 'error');
+        return;
+      }
+      if (!state.currentBlocks) state.currentBlocks = [];
+      state.currentBlocks.push({ id: uuid(), type: def.type, props: def.props || {} });
+      renderBlocksEditor();
     }
 
     function uuid() {

@@ -71,6 +71,75 @@ const endpointRegistry = [
     ],
   },
   {
+    id: "admin-pages",
+    title: "Pages (Admin)",
+    endpoints: [
+      {
+        id: "pages-context-block-definitions-list",
+        method: "GET",
+        path: "/api/admin/pages/context-block-definitions",
+        auth: "basic",
+      },
+      {
+        id: "pages-context-block-definitions-create",
+        method: "POST",
+        path: "/api/admin/pages/context-block-definitions",
+        auth: "basic",
+        bodyExample: {
+          code: "blog-post-by-slug",
+          label: "Blog post by slug",
+          description: "Used by blog post page",
+          type: "context.db_query",
+          props: {
+            assignTo: "post",
+            model: "BlogPost",
+            op: "findOne",
+            filter: { slug: { $ctx: "params.slug" } },
+          },
+        },
+      },
+      {
+        id: "pages-context-block-definitions-get",
+        method: "GET",
+        path: "/api/admin/pages/context-block-definitions/:code",
+        auth: "basic",
+      },
+      {
+        id: "pages-context-block-definitions-update",
+        method: "PUT",
+        path: "/api/admin/pages/context-block-definitions/:code",
+        auth: "basic",
+        bodyExample: {
+          label: "Blog post by slug (updated)",
+          description: "Used by blog post page",
+          type: "context.db_query",
+          props: {
+            assignTo: "post",
+            model: "BlogPost",
+            op: "findOne",
+            filter: { slug: { $ctx: "params.slug" } },
+          },
+        },
+      },
+      {
+        id: "pages-context-block-definitions-delete",
+        method: "DELETE",
+        path: "/api/admin/pages/context-block-definitions/:code",
+        auth: "basic",
+      },
+      {
+        id: "pages-context-blocks-ai-generate",
+        method: "POST",
+        path: "/api/admin/pages/ai/context-blocks/generate",
+        auth: "basic",
+        bodyExample: {
+          prompt: "Load the published BlogPost for params.slug into vars.post. Add cache 30s.",
+          blockType: "context.db_query",
+        },
+      },
+    ],
+  },
+  {
     id: "ejs-virtual",
     title: "EJS Virtual Codebase",
     endpoints: [

@@ -4,6 +4,7 @@ const { basicAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminPages.controller');
 const adminBlockDefinitionsController = require('../controllers/adminBlockDefinitions.controller');
 const adminBlockDefinitionsAiController = require('../controllers/adminBlockDefinitionsAi.controller');
+const adminContextBlockDefinitionsController = require('../controllers/adminContextBlockDefinitions.controller');
 const adminPagesContextBlocksAiController = require('../controllers/adminPagesContextBlocksAi.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
@@ -38,6 +39,12 @@ router.post('/block-definitions', adminBlockDefinitionsController.create);
 router.get('/block-definitions/:code', adminBlockDefinitionsController.get);
 router.put('/block-definitions/:code', adminBlockDefinitionsController.update);
 router.delete('/block-definitions/:code', adminBlockDefinitionsController.remove);
+
+router.get('/context-block-definitions', adminContextBlockDefinitionsController.list);
+router.post('/context-block-definitions', adminContextBlockDefinitionsController.create);
+router.get('/context-block-definitions/:code', adminContextBlockDefinitionsController.get);
+router.put('/context-block-definitions/:code', adminContextBlockDefinitionsController.update);
+router.delete('/context-block-definitions/:code', adminContextBlockDefinitionsController.remove);
 
 router.post('/ai/block-definitions/generate', rateLimiter.limit('aiOperationsLimiter'), adminBlockDefinitionsAiController.generate);
 router.post('/ai/block-definitions/:code/propose', rateLimiter.limit('aiOperationsLimiter'), adminBlockDefinitionsAiController.propose);
