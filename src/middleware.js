@@ -225,6 +225,12 @@ function createMiddleware(options = {}) {
     webhookHandler,
   );
 
+  router.use(
+    '/proxy',
+    express.raw({ type: '*/*', limit: '10mb' }),
+    require('./routes/proxy.routes'),
+  );
+
   // Regular JSON parsing for other routes (skip if parent app already handles it)
   if (!options.skipBodyParser) {
     router.use(express.json());
@@ -534,6 +540,10 @@ function createMiddleware(options = {}) {
   router.use(
     "/api/admin/rate-limits",
     require("./routes/adminRateLimits.routes"),
+  );
+  router.use(
+    "/api/admin/proxy",
+    require("./routes/adminProxy.routes"),
   );
   router.use(
     "/api/admin/seo-config",
@@ -1399,6 +1409,23 @@ function createMiddleware(options = {}) {
 
   router.get(`${adminPath}/coolify-deploy`, basicAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-coolify-deploy.ejs");
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath }, { filename: templatePath });
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/proxy`, basicAuth, (req, res) => {
+    const templatePath = path.join(__dirname, "..", "views", "admin-proxy.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
         console.error("Error reading template:", err);

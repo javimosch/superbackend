@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proxy system - Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Proxy system</h1>
+        <div class="text-sm text-gray-500">Configure proxy entries for <code>/proxy/*</code>, including allow/deny, rate limits, caching, and transforms.</div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button @click="loadAll" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">
+          <i class="ti ti-refresh mr-1"></i> Refresh
+        </button>
+        <button @click="createEntry" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">
+          <i class="ti ti-plus mr-1"></i> New entry
+        </button>
+      </div>
+    </div>
+
+    <div class="flex gap-2 mb-5">
+      <button @click="activeTab='entries'" :class="tabClass('entries')" class="px-4 py-2 rounded">Entries</button>
+      <button @click="activeTab='audit'" :class="tabClass('audit')" class="px-4 py-2 rounded">Audit</button>
+    </div>
+
+    <div v-if="activeTab==='entries'" class="grid grid-cols-12 gap-6">
+      <div class="col-span-5 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Configured entries</div>
+            <div class="text-xs text-gray-400">Stored in Mongo</div>
+          </div>
+          <div class="p-2">
+            <div class="flex items-center gap-2 p-2">
+              <input v-model="filter" class="w-full border rounded px-3 py-2 text-sm" placeholder="Filter (name / match value)" />
+            </div>
+            <div class="max-h-[420px] overflow-auto">
+              <button
+                v-for="it in filteredEntries"
+                :key="it._id"
+                class="w-full text-left px-3 py-2 border-t hover:bg-gray-50"
+                @click="selectEntry(it)"
+              >
+                <div class="flex items-center justify-between">
+                  <div class="font-semibold text-sm text-gray-900">{{ it.name || '(unnamed)' }}</div>
+                  <div class="text-xs" :class="it.enabled ? 'text-green-700' : 'text-gray-500'">
+                    {{ it.enabled ? 'enabled' : 'disabled' }}
+                  </div>
+                </div>
+                <div class="text-xs text-gray-600 mt-1">
+                  match: {{ it.match?.type }} {{ it.match?.applyTo }} = {{ it.match?.value }}
+                </div>
+                <div class="text-xs text-gray-400 mt-1">
+                  policy: {{ it.policy?.mode || 'whitelist' }}
+                </div>
+              </button>
+              <div v-if="filteredEntries.length===0" class="p-4 text-sm text-gray-500">No entries.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Discoveries (ephemeral)</div>
+            <div class="text-xs text-gray-400">Cache Layer TTL</div>
+          </div>
+          <div class="p-4">
+            <div class="text-xs text-gray-500 mb-3">
+              Unknown <code>/proxy/*</code> requests are denied, but recorded here for visibility.
+            </div>
+            <div class="max-h-[320px] overflow-auto">
+              <div v-for="d in discoveries" :key="d.key" class="border-t py-2">
+                <div class="text-xs text-gray-700 break-all"><span class="font-semibold">{{ d.host }}</span> — {{ d.path }}</div>
+                <div class="text-xs text-gray-400 break-all">{{ d.targetUrl }}</div>
+                <div class="text-xs text-gray-500 mt-1">count: {{ d.count }} | last: {{ d.lastSeenAt }}</div>
+                <div class="mt-2">
+                  <button class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-xs" @click="prefillFromDiscovery(d)">
+                    Create entry from this
+                  </button>
+                </div>
+              </div>
+              <div v-if="discoveries.length===0" class="text-sm text-gray-500">No discoveries yet.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-span-7 space-y-6">
+        <div class="bg-white border border-gray-200 rounded-lg">
+          <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div class="text-sm font-semibold text-gray-800">Editor</div>
+            <div class="flex gap-2">
+              <button v-if="selected && selected._id" @click="deleteSelected" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Delete</button>
+              <button v-if="selected" @click="saveSelected" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">Save</button>
+            </div>
+          </div>
+
+          <div v-if="!selected" class="p-4 text-sm text-gray-500">Select an entry or click “New entry”.</div>
+
+          <div v-else class="p-4 space-y-6">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Name</label>
+                <input v-model="selected.name" class="mt-1 w-full border rounded px-3 py-2" />
+              </div>
+              <div class="flex items-center gap-3 mt-6">
+                <input id="enabled" type="checkbox" v-model="selected.enabled" class="w-4 h-4" />
+                <label for="enabled" class="text-sm text-gray-800">Enabled</label>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Match type</label>
+                <select v-model="selected.match.type" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="exact">exact</option>
+                  <option value="contains">contains</option>
+                  <option value="regexp">regexp</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Match field</label>
+                <select v-model="selected.match.applyTo" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="host">host</option>
+                  <option value="path">path</option>
+                  <option value="targetUrl">targetUrl</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Regexp flags</label>
+                <input v-model="selected.match.flags" class="mt-1 w-full border rounded px-3 py-2" placeholder="i" />
+              </div>
+            </div>
+
+            <div>
+              <label class="text-xs font-semibold text-gray-600">Match value</label>
+              <input v-model="selected.match.value" class="mt-1 w-full border rounded px-3 py-2" placeholder="api2.com" />
+              <div class="text-xs text-gray-400 mt-1">Requests are denied unless a matching entry is enabled.</div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs font-semibold text-gray-600">Policy mode</label>
+                <select v-model="selected.policy.mode" class="mt-1 w-full border rounded px-3 py-2">
+                  <option value="whitelist">whitelist (default deny)</option>
+                  <option value="blacklist">blacklist (default allow)</option>
+                  <option value="allowAll">allowAll</option>
+                  <option value="denyAll">denyAll</option>
+                </select>
+              </div>
+              <div class="flex items-center gap-3 mt-6">
+                <button class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm" @click="addRule">Add rule</button>
+              </div>
+            </div>
+
+            <div class="border rounded">
+              <div class="px-3 py-2 text-xs font-semibold text-gray-600 border-b bg-gray-50">Rules</div>
+              <div class="p-3 space-y-2">
+                <div v-for="(r, idx) in selected.policy.rules" :key="idx" class="grid grid-cols-12 gap-2 items-center">
+                  <div class="col-span-1">
+                    <input type="checkbox" v-model="r.enabled" class="w-4 h-4" />
+                  </div>
+                  <div class="col-span-3">
+                    <select v-model="r.type" class="w-full border rounded px-2 py-1 text-sm">
+                      <option value="contains">contains</option>
+                      <option value="regexp">regexp</option>
+                    </select>
+                  </div>
+                  <div class="col-span-3">
+                    <select v-model="r.applyTo" class="w-full border rounded px-2 py-1 text-sm">
+                      <option value="targetUrl">targetUrl</option>
+                      <option value="host">host</option>
+                      <option value="path">path</option>
+                    </select>
+                  </div>
+                  <div class="col-span-4">
+                    <input v-model="r.value" class="w-full border rounded px-2 py-1 text-sm" placeholder="api2" />
+                  </div>
+                  <div class="col-span-1">
+                    <button class="text-xs text-red-600" @click="removeRule(idx)">Remove</button>
+                  </div>
+                </div>
+                <div v-if="selected.policy.rules.length===0" class="text-sm text-gray-500">No rules.</div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div class="border rounded p-3">
+                <div class="text-xs font-semibold text-gray-600">Rate limit</div>
+                <div class="mt-2 flex items-center gap-3">
+                  <input type="checkbox" v-model="selected.rateLimit.enabled" class="w-4 h-4" />
+                  <div class="text-sm text-gray-800">Enabled</div>
+                </div>
+                <div class="mt-2">
+                  <label class="text-xs font-semibold text-gray-600">Limiter ID</label>
+                  <input v-model="selected.rateLimit.limiterId" class="mt-1 w-full border rounded px-3 py-2" placeholder="proxy:..." />
+                  <div class="text-xs text-gray-400 mt-1">Configure details in Rate Limiter UI.</div>
+                </div>
+              </div>
+
+              <div class="border rounded p-3">
+                <div class="text-xs font-semibold text-gray-600">Cache</div>
+                <div class="mt-2 flex items-center gap-3">
+                  <input type="checkbox" v-model="selected.cache.enabled" class="w-4 h-4" />
+                  <div class="text-sm text-gray-800">Enabled</div>
+                </div>
+                <div class="mt-2 grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs font-semibold text-gray-600">TTL seconds</label>
+                    <input type="number" v-model.number="selected.cache.ttlSeconds" class="mt-1 w-full border rounded px-3 py-2" />
+                  </div>
+                  <div>
+                    <label class="text-xs font-semibold text-gray-600">Namespace</label>
+                    <input v-model="selected.cache.namespace" class="mt-1 w-full border rounded px-3 py-2" />
+                  </div>
+                </div>
+                <div class="mt-2">
+                  <label class="text-xs font-semibold text-gray-600">Allowed methods (cached)</label>
+                  <input v-model="cacheMethods" class="mt-1 w-full border rounded px-3 py-2" placeholder="GET,HEAD" />
+                  <div class="text-xs text-gray-400 mt-1">Default: GET,HEAD. Other methods require admin enable.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="border rounded p-3">
+              <div class="text-xs font-semibold text-gray-600">Headers</div>
+              <div class="mt-2 grid grid-cols-2 gap-4">
+                <label class="flex items-center gap-2 text-sm text-gray-800"><input type="checkbox" v-model="selected.headers.forwardAuthorization" class="w-4 h-4" /> Forward Authorization</label>
+                <label class="flex items-center gap-2 text-sm text-gray-800"><input type="checkbox" v-model="selected.headers.forwardCookie" class="w-4 h-4" /> Forward Cookie</label>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Allow list (comma-separated, optional)</label>
+                  <input v-model="headersAllowList" class="mt-1 w-full border rounded px-3 py-2" placeholder="x-api-key,x-tenant" />
+                </div>
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Deny list (comma-separated, optional)</label>
+                  <input v-model="headersDenyList" class="mt-1 w-full border rounded px-3 py-2" placeholder="x-internal" />
+                </div>
+              </div>
+            </div>
+
+            <div class="border rounded p-3">
+              <div class="text-xs font-semibold text-gray-600">Transform (JS)</div>
+              <div class="mt-2 flex items-center gap-3">
+                <input type="checkbox" v-model="selected.transform.enabled" class="w-4 h-4" />
+                <div class="text-sm text-gray-800">Enabled</div>
+              </div>
+              <div class="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label class="text-xs font-semibold text-gray-600">Timeout (ms)</label>
+                  <input type="number" v-model.number="selected.transform.timeoutMs" class="mt-1 w-full border rounded px-3 py-2" />
+                </div>
+              </div>
+              <div class="mt-3">
+                <label class="text-xs font-semibold text-gray-600">Code (define <code>function transform(ctx)</code>)</label>
+                <textarea v-model="selected.transform.code" rows="10" class="mt-1 w-full border rounded px-3 py-2 font-mono text-xs" placeholder="function transform(ctx) {\n  return {};\n}"></textarea>
+              </div>
+            </div>
+
+            <div v-if="error" class="p-3 rounded bg-red-50 border border-red-200 text-sm text-red-700">{{ error }}</div>
+            <div v-if="toast" class="p-3 rounded bg-green-50 border border-green-200 text-sm text-green-700">{{ toast }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="activeTab==='audit'" class="bg-white border border-gray-200 rounded-lg">
+      <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+        <div class="text-sm font-semibold text-gray-800">Proxy audit</div>
+        <div class="flex items-center gap-2">
+          <button @click="loadAudit" class="px-3 py-2 rounded bg-gray-100 hover:bg-gray-200 text-sm">Refresh</button>
+        </div>
+      </div>
+      <div class="p-4">
+        <div class="text-xs text-gray-500 mb-3">Filtered from the global Audit Logs API by <code>action</code> prefix <code>proxy.</code>.</div>
+        <div class="max-h-[560px] overflow-auto border rounded">
+          <div v-for="evt in auditEvents" :key="evt._id" class="border-b p-3">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold text-gray-900">{{ evt.action }}</div>
+              <div class="text-xs" :class="evt.outcome==='failure' ? 'text-red-700' : 'text-green-700'">{{ evt.outcome }}</div>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">{{ evt.at || evt.createdAt }} — {{ evt.context?.method }} {{ evt.context?.path }}</div>
+            <div class="text-xs text-gray-700 mt-2 break-all" v-if="evt.details && evt.details.targetUrl">target: {{ evt.details.targetUrl }}</div>
+            <details class="mt-2">
+              <summary class="text-xs text-gray-500 cursor-pointer">Details</summary>
+              <pre class="text-xs mt-2 bg-gray-50 border rounded p-2 overflow-auto">{{ JSON.stringify(evt.details || evt.meta || {}, null, 2) }}</pre>
+            </details>
+          </div>
+          <div v-if="auditEvents.length===0" class="p-4 text-sm text-gray-500">No proxy audit events found.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          activeTab: 'entries',
+          items: [],
+          discoveries: [],
+          selected: null,
+          filter: '',
+          error: '',
+          toast: '',
+          auditEvents: [],
+          auditPage: 1,
+        };
+      },
+      computed: {
+        filteredEntries() {
+          const q = (this.filter || '').toLowerCase().trim();
+          if (!q) return this.items;
+          return (this.items || []).filter((it) => {
+            const name = (it.name || '').toLowerCase();
+            const mv = (it.match && it.match.value ? String(it.match.value) : '').toLowerCase();
+            return name.includes(q) || mv.includes(q);
+          });
+        },
+        cacheMethods: {
+          get() {
+            const arr = (this.selected && this.selected.cache && Array.isArray(this.selected.cache.methods)) ? this.selected.cache.methods : ['GET', 'HEAD'];
+            return arr.join(',');
+          },
+          set(value) {
+            const parts = String(value || '').split(',').map((x) => x.trim().toUpperCase()).filter(Boolean);
+            if (this.selected && this.selected.cache) this.selected.cache.methods = parts.length ? parts : ['GET', 'HEAD'];
+          }
+        },
+        headersAllowList: {
+          get() {
+            const arr = (this.selected && this.selected.headers && Array.isArray(this.selected.headers.allowList)) ? this.selected.headers.allowList : [];
+            return arr.join(',');
+          },
+          set(value) {
+            const parts = String(value || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+            if (this.selected && this.selected.headers) this.selected.headers.allowList = parts;
+          }
+        },
+        headersDenyList: {
+          get() {
+            const arr = (this.selected && this.selected.headers && Array.isArray(this.selected.headers.denyList)) ? this.selected.headers.denyList : [];
+            return arr.join(',');
+          },
+          set(value) {
+            const parts = String(value || '').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+            if (this.selected && this.selected.headers) this.selected.headers.denyList = parts;
+          }
+        },
+      },
+      methods: {
+        tabClass(id) {
+          return this.activeTab === id ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300';
+        },
+        setToast(msg) {
+          this.toast = msg;
+          setTimeout(() => { this.toast = ''; }, 2500);
+        },
+        async loadAll() {
+          this.error = '';
+          const res = await fetch('/api/admin/proxy/entries', { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) {
+            this.error = 'Failed to load proxy entries';
+            return;
+          }
+          const data = await res.json();
+          this.items = data.items || [];
+          this.discoveries = data.discoveries || [];
+        },
+        selectEntry(it) {
+          this.error = '';
+          this.selected = JSON.parse(JSON.stringify(it));
+          this.ensureDefaults();
+        },
+        ensureDefaults() {
+          if (!this.selected.match) this.selected.match = { type: 'contains', applyTo: 'host', value: '', flags: 'i' };
+          if (!this.selected.policy) this.selected.policy = { mode: 'whitelist', rules: [] };
+          if (!Array.isArray(this.selected.policy.rules)) this.selected.policy.rules = [];
+          if (!this.selected.rateLimit) this.selected.rateLimit = { enabled: false, limiterId: null };
+          if (!this.selected.cache) this.selected.cache = { enabled: false, ttlSeconds: 60, namespace: 'proxy', methods: ['GET','HEAD'] };
+          if (!Array.isArray(this.selected.cache.methods)) this.selected.cache.methods = ['GET','HEAD'];
+          if (!this.selected.headers) this.selected.headers = { forwardAuthorization: true, forwardCookie: true, allowList: [], denyList: [] };
+          if (!Array.isArray(this.selected.headers.allowList)) this.selected.headers.allowList = [];
+          if (!Array.isArray(this.selected.headers.denyList)) this.selected.headers.denyList = [];
+          if (!this.selected.transform) this.selected.transform = { enabled: false, timeoutMs: 200, code: 'function transform(ctx) {\n  return {};\n}' };
+        },
+        createEntry() {
+          this.selected = {
+            name: '',
+            enabled: false,
+            match: { type: 'contains', applyTo: 'host', value: '', flags: 'i' },
+            policy: { mode: 'whitelist', rules: [] },
+            rateLimit: { enabled: false, limiterId: null },
+            cache: { enabled: false, ttlSeconds: 60, namespace: 'proxy', methods: ['GET','HEAD'] },
+            headers: { forwardAuthorization: true, forwardCookie: true, allowList: [], denyList: [] },
+            transform: { enabled: false, timeoutMs: 200, code: 'function transform(ctx) {\n  return {};\n}' },
+          };
+        },
+        prefillFromDiscovery(d) {
+          this.createEntry();
+          this.selected.name = d.host || '';
+          this.selected.match.applyTo = 'host';
+          this.selected.match.type = 'contains';
+          this.selected.match.value = d.host || '';
+        },
+        addRule() {
+          this.selected.policy.rules.push({ enabled: true, type: 'contains', applyTo: 'targetUrl', value: '' });
+        },
+        removeRule(idx) {
+          this.selected.policy.rules.splice(idx, 1);
+        },
+        async saveSelected() {
+          this.error = '';
+          this.toast = '';
+          const payload = JSON.parse(JSON.stringify(this.selected));
+
+          if (!payload.match || !payload.match.value) {
+            this.error = 'match.value is required';
+            return;
+          }
+
+          const isUpdate = Boolean(payload._id);
+          const url = isUpdate ? `/api/admin/proxy/entries/${payload._id}` : '/api/admin/proxy/entries';
+          const method = isUpdate ? 'PUT' : 'POST';
+
+          const res = await fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            this.error = data.error || 'Save failed';
+            return;
+          }
+
+          const data = await res.json().catch(() => ({}));
+          if (data.item) {
+            this.selected = JSON.parse(JSON.stringify(data.item));
+          }
+
+          await this.loadAll();
+          this.setToast('Saved');
+        },
+        async deleteSelected() {
+          this.error = '';
+          if (!this.selected || !this.selected._id) return;
+
+          const res = await fetch(`/api/admin/proxy/entries/${this.selected._id}`, { method: 'DELETE' });
+          if (!res.ok) {
+            this.error = 'Delete failed';
+            return;
+          }
+
+          this.selected = null;
+          await this.loadAll();
+          this.setToast('Deleted');
+        },
+        async loadAudit() {
+          this.error = '';
+          const params = new URLSearchParams({ page: String(this.auditPage || 1), pageSize: '50', action: 'proxy\.' });
+          const res = await fetch(`/api/admin/audit?${params.toString()}`);
+          if (!res.ok) {
+            this.error = 'Failed to load audit';
+            return;
+          }
+          const data = await res.json();
+          const events = Array.isArray(data.events) ? data.events : [];
+          this.auditEvents = events.filter((e) => String(e.action || '').startsWith('proxy.'));
+        }
+      },
+      async mounted() {
+        await this.loadAll();
+        await this.loadAudit();
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
