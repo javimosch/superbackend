@@ -222,6 +222,10 @@
                 const paletteQuery = ref('');
                 const paletteCursor = ref(0);
                 const paletteInput = ref(null);
+                
+                // Toggle safeguards and debugging
+                let toggleTimeout = null;
+                let lastToggleTime = 0;
 
                 // Flattened modules for search
                 const allModules = computed(() => {
@@ -285,19 +289,34 @@
                 };
 
                 // Palette methods
-                const togglePalette = () => {
+                const togglePalette = (source = 'unknown') => {
+                    // Prevent rapid successive toggles
+                    const now = Date.now();
+                    if (now - lastToggleTime < 100) {
+                        return;
+                    }
+                    lastToggleTime = now;
+                    
+                    clearTimeout(toggleTimeout);
+                    
                     showPalette.value = !showPalette.value;
                     if (showPalette.value) {
                         paletteQuery.value = '';
                         paletteCursor.value = 0;
-                        nextTick(() => {
-                            if (paletteInput.value) paletteInput.value.focus();
-                        });
+                        // Use setTimeout instead of nextTick for better timing
+                        toggleTimeout = setTimeout(() => {
+                            if (paletteInput.value) {
+                                paletteInput.value.focus();
+                            }
+                        }, 50);
                     }
                 };
 
-                const closePalette = () => {
-                    showPalette.value = false;
+                const closePalette = (source = 'unknown') => {
+                    if (showPalette.value) {
+                        showPalette.value = false;
+                        clearTimeout(toggleTimeout);
+                    }
                 };
 
                 const navigatePalette = (dir) => {
@@ -325,13 +344,14 @@
                 const handleKeydown = (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                         e.preventDefault();
-                        togglePalette();
+                        e.stopPropagation();
+                        togglePalette('keyboard-ctrl-k');
                     }
                 };
 
                 const handleMessage = (e) => {
                     if (e.data && e.data.type === 'keydown' && e.data.ctrlK) {
-                        togglePalette();
+                        togglePalette('iframe-message');
                     }
                 };
 

@@ -1,10 +1,12 @@
 <!-- Command Palette Component -->
 <div v-if="showPalette" class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4">
   <!-- Backdrop -->
-  <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" @click="closePalette"></div>
+  <div class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" @click.stop="closePalette('backdrop-click')" @mousedown.stop></div>
   
   <!-- Palette Modal -->
-  <div class="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+  <div class="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
+       @click.stop 
+       @mousedown.stop>
     <!-- Input -->
     <div class="relative flex items-center px-4 py-4 border-b border-gray-200">
       <i class="ti ti-search text-gray-400 text-xl mr-3"></i>
@@ -17,7 +19,7 @@
         @keydown.down.prevent="navigatePalette(1)"
         @keydown.up.prevent="navigatePalette(-1)"
         @keydown.enter.prevent="selectPaletteItem"
-        @keydown.esc="closePalette"
+        @keydown.esc="closePalette('escape-key')"
       >
       <div class="flex items-center gap-1 ml-4">
         <kbd class="px-2 py-1 bg-gray-100 border border-gray-300 rounded text-xs text-gray-500 font-sans">ESC</kbd>
