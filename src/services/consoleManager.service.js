@@ -104,7 +104,6 @@ async function ensureJsonConfigExists() {
   if (existing) return;
 
   const initial = {
-    enabled: true,
     defaultEntryEnabled: true,
     defaults: {
       persist: {
@@ -390,17 +389,11 @@ function handleConsoleCall(method, args, stack) {
     previousConsole[method](...args);
     return;
   } 
-  
-  // Check if console manager is globally disabled
-  if (configFromMemory && configFromMemory.enabled === false) {
-    previousConsole[method](...args);
-    return;
-  }
 
   // Check if this specific entry is enabled
   const isEnabled = entryFromMemory
     ? entryFromMemory.enabled !== false
-    : configFromMemory.defaultEntryEnabled !== false;
+    : configFromMemory?.defaultEntryEnabled !== false;
     
   if (isEnabled) {
     previousConsole[method](...args);

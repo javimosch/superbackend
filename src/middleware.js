@@ -34,6 +34,36 @@ const rateLimiter = require("./services/rateLimiter.service");
 let errorCaptureInitialized = false;
 
 /**
+ * Check if console manager should be enabled based on environment variable and global settings
+ * Priority: Environment Variable > Global Settings > Default (true)
+ * @returns {Promise<boolean>} Whether console manager should be enabled
+ */
+async function isConsoleManagerEnabled() {
+  // Environment variable takes highest priority
+  const envEnabled = process.env.CONSOLE_MANAGER_ENABLED;
+  if (envEnabled !== undefined) {
+    const enabled = String(envEnabled).toLowerCase() !== 'false';
+    console.log(`[Console Manager] Environment variable CONSOLE_MANAGER_ENABLED=${envEnabled}, ${enabled ? 'enabled' : 'disabled'}`);
+    return enabled;
+  }
+
+  // Check global settings if environment variable not set
+  try {
+    const enabledRaw = await globalSettingsService.getSettingValue(
+      "CONSOLE_MANAGER_ENABLED",
+      "true"
+    );
+    const enabled = String(enabledRaw) === "true";
+    console.log(`[Console Manager] Global setting CONSOLE_MANAGER_ENABLED=${enabledRaw}, ${enabled ? 'enabled' : 'disabled'}`);
+    return enabled;
+  } catch (error) {
+    console.error("[Console Manager] Error loading global setting:", error);
+    console.log("[Console Manager] Fallback to enabled due to error");
+    return true; // Fallback to enabled on error
+  }
+}
+
+/**
  * Creates and configures the SaaS backend middleware
  * @param {Object} options - Configuration options
  * @param {string} options.mongodbUri - MongoDB connection string
@@ -129,9 +159,13 @@ function createMiddleware(options = {}) {
         
         // Initialize console manager AFTER database is connected
         if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
-          consoleManager.init();
-    
-        
+          const consoleManagerEnabled = await isConsoleManagerEnabled();
+          if (consoleManagerEnabled) {
+            consoleManager.init();
+            console.log("[Console Manager] Initialized");
+          } else {
+            console.log("[Console Manager] Disabled - console methods not overridden");
+          }
         }
         
         return true;
@@ -223,8 +257,19 @@ function createMiddleware(options = {}) {
     
     // Initialize console manager AFTER database is already connected
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
-      consoleManager.init();
-      console.log("[Console Manager] Initialized");
+      isConsoleManagerEnabled().then(consoleManagerEnabled => {
+        if (consoleManagerEnabled) {
+          consoleManager.init();
+          console.log("[Console Manager] Initialized");
+        } else {
+          console.log("[Console Manager] Disabled - console methods not overridden");
+        }
+      }).catch(error => {
+        console.error("[Console Manager] Error checking enabled status:", error);
+        console.log("[Console Manager] Fallback to enabled due to error");
+        consoleManager.init();
+        console.log("[Console Manager] Initialized (fallback)");
+      });
     }
   }
 
