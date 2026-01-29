@@ -7,6 +7,46 @@ Console Manager is a backend subsystem that wraps the global Node.js `console` m
 - Tagging and tag-based filtering to quickly enable a focused subset of logs.
 - Optional persistence of log occurrences to cache and/or database.
 - Bulk operations including enable/disable, tag management, and deletion of entries.
+- Environment variable and global settings control for complete enable/disable of console manager.
+
+## Control Methods
+
+### Environment Variable Control
+Set `CONSOLE_MANAGER_ENABLED` environment variable to control console manager initialization:
+
+- `CONSOLE_MANAGER_ENABLED=true` (default) - Console manager initializes and overrides console methods
+- `CONSOLE_MANAGER_ENABLED=false` - Console manager does not initialize, no console override occurs
+
+**Priority**: Environment variable takes highest priority over global settings.
+
+**Restart Required**: Yes - environment variable is read at startup only.
+
+### Global Settings Control
+Use the `CONSOLE_MANAGER_ENABLED` global setting for runtime control:
+
+- **Key**: `CONSOLE_MANAGER_ENABLED`
+- **Values**: `"true"` or `"false"`
+- **Default**: `"true"`
+
+**Priority**: Global settings are used when environment variable is not set.
+
+**Restart Required**: Yes - global settings are loaded once at startup.
+
+### UI Control
+The Console Manager admin UI provides a toggle in the Config tab under "Global Settings" section:
+
+- Updates the `CONSOLE_MANAGER_ENABLED` global setting
+- Shows current status and restart requirement
+- Provides user-friendly feedback for setting changes
+
+**Priority**: UI toggle uses global settings (same as direct global setting control).
+
+**Restart Required**: Yes - requires server restart to take effect.
+
+### Control Priority
+1. **Environment Variable** (`CONSOLE_MANAGER_ENABLED`) - Highest priority
+2. **Global Settings** (`CONSOLE_MANAGER_ENABLED`) - Used when env var not set
+3. **Default** - `true` (console manager enabled) - Fallback
 
 ## Runtime behavior
 
@@ -44,7 +84,6 @@ Persistence is best-effort and designed not to block the calling path.
 Configuration is stored and managed via the JSON Configs system using alias `console-manager`.
 
 Config fields:
-- `enabled` (boolean)
 - `defaultEntryEnabled` (boolean)
 - `defaults.persist.cache` (boolean)
 - `defaults.persist.db` (boolean)
@@ -101,6 +140,38 @@ Endpoints:
 - `DELETE /entries/bulk-delete`
 - `GET /tags`
 - `GET /logs`
+- `GET /global-setting` - Get global settings status
+- `PUT /global-setting` - Update global settings
+
+### Global Settings API
+`GET /api/admin/console-manager/global-setting`
+
+Returns the current global setting status:
+```json
+{
+  "enabled": true
+}
+```
+
+`PUT /api/admin/console-manager/global-setting`
+
+Updates the global setting (requires restart):
+
+Request body:
+```json
+{
+  "enabled": true
+}
+```
+
+Response:
+```json
+{
+  "ok": true,
+  "enabled": true,
+  "message": "Console manager global setting updated. Restart required for changes to take effect."
+}
+```
 
 ### Bulk Delete API
 `DELETE /api/admin/console-manager/entries/bulk-delete`
@@ -127,9 +198,17 @@ A dedicated admin page provides:
 - Entries view with selection, bulk enable/disable, tag management, and deletion.
 - Logs view with pagination and filtering.
 - Config view with a form UI backed by JSON Configs.
+- Global Settings section for enabling/disabling console manager (requires restart).
 
 Route:
 - `/admin/console-manager`
+
+### Global Settings Section
+Located in the Config tab, provides:
+- Toggle to enable/disable console manager initialization
+- Current status display
+- Restart requirement messaging
+- Integration with Global Settings system
 
 ### Bulk Operations
 - **Enable/Disable**: Toggle output for selected entries
