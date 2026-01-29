@@ -225,11 +225,6 @@ function createMiddleware(options = {}) {
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
       consoleManager.init();
       console.log("[Console Manager] Initialized");
-      
-      // Test interval to verify console manager is working
-      setInterval(() => {
-        console.info("TICKTI", console.overrided);
-      }, 5000);
     }
   }
 
