@@ -4,6 +4,7 @@ const router = express.Router();
 const { basicAuth } = require('../middleware/auth');
 const ConsoleEntry = require('../models/ConsoleEntry');
 const ConsoleLog = require('../models/ConsoleLog');
+const GlobalSetting = require('../models/GlobalSetting');
 const consoleManager = require('../services/consoleManager.service');
 
 function normalizeTags(val) {
@@ -258,6 +259,43 @@ router.delete('/entries/bulk-delete', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err?.message || 'Failed to bulk delete entries' });
+  }
+});
+
+// Global Settings endpoint for console manager control
+router.get('/global-setting', async (req, res) => {
+  try {
+    const globalSetting = await GlobalSetting.findOne({ key: 'CONSOLE_MANAGER_ENABLED' }).lean();
+    const value = globalSetting ? globalSetting.value : 'true';
+    res.json({ enabled: String(value) === 'true' });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || 'Failed to load global setting' });
+  }
+});
+
+router.put('/global-setting', async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const enabledValue = Boolean(enabled) ? 'true' : 'false';
+    
+    await GlobalSetting.findOneAndUpdate(
+      { key: 'CONSOLE_MANAGER_ENABLED' },
+      { 
+        key: 'CONSOLE_MANAGER_ENABLED', 
+        value: enabledValue,
+        type: 'string',
+        description: 'Enable/disable console manager initialization (requires restart)'
+      },
+      { upsert: true, new: true }
+    );
+    
+    res.json({ 
+      ok: true, 
+      enabled: Boolean(enabled),
+      message: 'Console manager global setting updated. Restart required for changes to take effect.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || 'Failed to update global setting' });
   }
 });
 
