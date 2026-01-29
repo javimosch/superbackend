@@ -66,14 +66,6 @@ The UI Components admin page includes a collapsible “Using the system endpoint
 - Example `<script>` and `uiCmp.init` usage for the browser SDK.
 - A short project setup checklist and troubleshooting tips.
 
-## LLM-friendly APIs (basic auth)
-LLM-friendly APIs are standard JSON endpoints protected by basic auth.
-
-Base path:
-- `/api/llm/ui`
-
-Routes mirror the admin UI Components API routes.
-
 ## Public/browser APIs
 Base path:
 - `/api/ui-components`

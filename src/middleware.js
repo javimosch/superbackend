@@ -721,11 +721,7 @@ function createMiddleware(options = {}) {
   router.use("/api/invites", require("./routes/invite.routes"));
   router.use("/api/log", require("./routes/log.routes"));
   router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
-  router.use(
-    "/api/ui-components",
-    require("./routes/uiComponentsPublic.routes"),
-  );
-  router.use("/api/llm/ui", require("./routes/llmUi.routes"));
+  router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
 

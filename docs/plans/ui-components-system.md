@@ -118,32 +118,6 @@ All responses should be JSON; JS/CSS delivered as plain strings in JSON for v1.
 
 For private projects, this endpoint requires `x-project-key` as well.
 
-### LLM-friendly endpoints (basic auth)
-All of the following are protected by basic auth.
-
-#### Projects
-- `GET /api/llm/ui/projects`
-- `POST /api/llm/ui/projects` (create)
-- `GET /api/llm/ui/projects/:projectId`
-- `PUT /api/llm/ui/projects/:projectId` (update fields like `isPublic`, `name`, regenerate key)
-- `DELETE /api/llm/ui/projects/:projectId`
-
-#### Components
-- `GET /api/llm/ui/components`
-- `POST /api/llm/ui/components`
-- `GET /api/llm/ui/components/:code`
-- `PUT /api/llm/ui/components/:code`
-- `DELETE /api/llm/ui/components/:code`
-
-#### Assignments
-- `POST /api/llm/ui/projects/:projectId/components/:code` (assign/enable)
-- `DELETE /api/llm/ui/projects/:projectId/components/:code` (unassign)
-- `GET /api/llm/ui/projects/:projectId/components` (list enabled)
-
-#### Component usage/details
-- `GET /api/llm/ui/components/:code/usage`
-  - returns `usageMarkdown`, `api`, plus an example snippet.
-
 ### Error semantics
 Follow existing patterns:
 - `400` validation
