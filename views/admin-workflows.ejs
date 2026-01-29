@@ -220,11 +220,11 @@
             this.loadWorkflows().then(() => {
               if (workflowIdFromUrl !== 'new' && workflowIdFromUrl.length > 5) {
                 const wf = this.workflows.find(w => w._id === workflowIdFromUrl);
-                if (wf) this.editWorkflow(wf); else fetch(`/saas/api/workflows/${workflowIdFromUrl}`).then(res => res.ok && res.json().then(data => this.editWorkflow(data)));
+                if (wf) this.editWorkflow(wf); else fetch(`/saas/api/admin/workflows/${workflowIdFromUrl}`).then(res => res.ok && res.json().then(data => this.editWorkflow(data)));
               } else if (workflowIdFromUrl === 'new') this.createNew();
             });
           },
-          async loadWorkflows() { const res = await fetch('/saas/api/workflows'); this.workflows = await res.json(); },
+          async loadWorkflows() { const res = await fetch('/saas/api/admin/workflows'); this.workflows = await res.json(); },
           createNew() { this.workflow = { name: 'New Workflow', status: 'inactive', entrypoint: { awaitResponse: false, allowedMethods: ['POST', 'GET'], auth: { type: 'none' } }, testDataset: { method: 'POST', body: { message: 'Hello' }, query: {}, headers: {} }, nodes: [] }; this.view = 'editor'; },
           editWorkflow(wf) {
             const currentView = this.view; this.workflow = JSON.parse(JSON.stringify(wf)); this.showRuns = false; this.runs = []; this.inspectedRun = null;
@@ -233,7 +233,7 @@
             this.view = (currentView === 'list') ? 'editor' : currentView;
           },
           toggleMethod(m) { this.workflow.entrypoint.allowedMethods = this.workflow.entrypoint.allowedMethods || []; const idx = this.workflow.entrypoint.allowedMethods.indexOf(m); if (idx > -1) this.workflow.entrypoint.allowedMethods.splice(idx, 1); else this.workflow.entrypoint.allowedMethods.push(m); },
-          async deleteWorkflow(id) { if (confirm('Are you sure?')) { await fetch(`/saas/api/workflows/${id}`, { method: 'DELETE' }); await this.loadWorkflows(); } },
+          async deleteWorkflow(id) { if (confirm('Are you sure?')) { await fetch(`/saas/api/admin/workflows/${id}`, { method: 'DELETE' }); await this.loadWorkflows(); } },
           getWebhookUrl() { return window.location.origin + '/saas/w/' + (this.workflow._id || 'NEW'); },
           copyWebhookUrl() { navigator.clipboard.writeText(this.getWebhookUrl()); this.showToast('Copied!'); },
           addNode(type) { this.workflow.nodes.push({ id: 'node_' + Date.now(), type, name: 'node_' + (this.workflow.nodes.length + 1) }); },
@@ -247,7 +247,7 @@
           getNodeIcon(type) { return { llm: 'ti-brain', if: 'ti-git-branch', http: 'ti-world', exit: 'ti-door-exit', parallel: 'ti-git-merge' }[type] || 'ti-circle'; },
           getNodeColor(type) { return { llm: 'bg-indigo-500', if: 'bg-yellow-500', http: 'bg-blue-500', exit: 'bg-red-500', parallel: 'bg-purple-500' }[type]; },
           async saveWorkflow(silent = false) {
-            const res = await fetch(this.workflow._id ? `/saas/api/workflows/${this.workflow._id}` : '/saas/api/workflows', { method: this.workflow._id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.workflow) });
+            const res = await fetch(this.workflow._id ? `/saas/api/admin/workflows/${this.workflow._id}` : '/saas/api/admin/workflows', { method: this.workflow._id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(this.workflow) });
             if (res.ok) { const saved = await res.json(); if (!silent) this.showToast('Saved!'); await this.loadWorkflows(); this.editWorkflow(saved); }
           },
           async runFullTest(entrypointOnly = false) {
@@ -255,7 +255,7 @@
             try {
               const payload = { method: this.testConfig.method, body: JSON.parse(this.testConfig.body), query: JSON.parse(this.testConfig.query), headers: JSON.parse(this.testConfig.headers) };
               if (entrypointOnly) { this.workflow.testDataset = payload; await this.saveWorkflow(true); return this.showToast('Dataset set.'); }
-              this.testing = true; const res = await fetch(`/saas/api/workflows/${this.workflow._id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+              this.testing = true; const res = await fetch(`/saas/api/admin/workflows/${this.workflow._id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
               this.testResult = await res.json(); if (this.showRuns) this.loadRuns(); this.showToast('Ran.');
             } catch (e) { this.showToast('Failed', 'error'); } finally { this.testing = false; }
           },
@@ -263,11 +263,11 @@
           async testIsolatedNode(node) {
             const context = { entrypoint: this.workflow.testDataset, payload: this.workflow.testDataset, lastNode: this.workflow.testDataset };
             try {
-              const res = await fetch(`/saas/api/workflows/${this.workflow._id}/nodes/${node.id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context, node }) });
+              const res = await fetch(`/saas/api/admin/workflows/${this.workflow._id}/nodes/${node.id}/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context, node }) });
               const data = await res.json(); node.testOutput = data.result; node.testResult = data.result; this.showToast('Tested');
             } catch (e) { this.showToast('Failed', 'error'); }
           },
-          async loadRuns() { if (!this.workflow._id) return; const res = await fetch(`/saas/api/workflows/${this.workflow._id}/runs`); this.runs = await res.json(); },
+          async loadRuns() { if (!this.workflow._id) return; const res = await fetch(`/saas/api/admin/workflows/${this.workflow._id}/runs`); this.runs = await res.json(); },
           inspectRun(run) { this.inspectedRun = run; }, testWorkflow() { this.showTestPanel = true; },
           showToast(message, type = 'success') {
             const id = Date.now(); this.toasts.push({ id, message, type, show: true });

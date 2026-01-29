@@ -4,7 +4,7 @@ Workflows enable automated execution of business logic through a visual node-bas
 
 ## Base URL / mount prefix
 
-`/workflows`
+`/api/admin/workflows`
 
 ## Configuration
 
@@ -12,7 +12,7 @@ No additional environment variables required. Workflows integrate with existing 
 
 ## API
 
-### GET /workflows
+### GET /api/admin/workflows
 List all workflows for the current organization.
 
 **Response (200 OK)**:
@@ -28,7 +28,7 @@ List all workflows for the current organization.
 ]
 ```
 
-### GET /workflows/:id
+### GET /api/admin/workflows/:id
 Get a specific workflow by ID.
 
 **Request parameters**:
@@ -56,7 +56,7 @@ Get a specific workflow by ID.
 }
 ```
 
-### POST /workflows
+### POST /api/admin/workflows
 Create a new workflow.
 
 **Request body**:
@@ -80,7 +80,7 @@ Create a new workflow.
 }
 ```
 
-### PUT /workflows/:id
+### PUT /api/admin/workflows/:id
 Update an existing workflow.
 
 **Request parameters**:
@@ -96,7 +96,7 @@ Update an existing workflow.
 }
 ```
 
-### DELETE /workflows/:id
+### DELETE /api/admin/workflows/:id
 Delete a workflow and all its execution history.
 
 **Request parameters**:
@@ -104,7 +104,7 @@ Delete a workflow and all its execution history.
 |-----------|------|----------|-------------|
 | id | string | Yes | Workflow ID |
 
-### GET /workflows/:id/runs
+### GET /api/admin/workflows/:id/runs
 Get execution history for a workflow.
 
 **Request parameters**:
@@ -125,7 +125,7 @@ Get execution history for a workflow.
 ]
 ```
 
-### POST /workflows/:id/test
+### POST /api/admin/workflows/:id/test
 Test execute a workflow with provided context.
 
 **Request parameters**:
@@ -155,7 +155,7 @@ Test execute a workflow with provided context.
 }
 ```
 
-### POST /workflows/:id/nodes/:nodeId/test
+### POST /api/admin/workflows/:id/nodes/:nodeId/test
 Test execute a single node within a workflow.
 
 **Request parameters**:

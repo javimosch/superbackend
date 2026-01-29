@@ -706,7 +706,7 @@ function createMiddleware(options = {}) {
   router.use("/api/admin", require("./routes/adminBlog.routes"));
   router.use("/api/admin", require("./routes/adminBlogAi.routes"));
   router.use("/api/admin", require("./routes/adminBlogAutomation.routes"));
-  router.use("/api/workflows", basicAuth, require("./routes/workflows.routes"));
+  router.use("/api/admin/workflows", basicAuth, require("./routes/workflows.routes"));
   router.use("/w", require("./routes/workflowWebhook.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
