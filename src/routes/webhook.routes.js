@@ -3,6 +3,7 @@ const router = express.Router();
 const webhookController = require('../controllers/webhook.controller');
 const authMiddleware = require('../middleware/auth');
 const orgMiddleware = require('../middleware/org');
+const rateLimiter = require('../services/rateLimiter.service');
 
 // Webhook routes support both User (JWT) and SuperAdmin (Basic Auth)
 router.use((req, res, next) => {
@@ -27,6 +28,6 @@ router.post('/', webhookController.create);
 router.patch('/:id', webhookController.update);
 router.get('/:id/history', webhookController.getHistory);
 router.delete('/:id', webhookController.delete);
-router.post('/:id/test', webhookController.test);
+router.post('/:id/test', rateLimiter.limit('webhookTestLimiter'), webhookController.test);
 
 module.exports = router;

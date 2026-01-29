@@ -34,6 +34,11 @@ Every webhook delivery (success or failure) is logged in the `AuditEvent` collec
 - **HMAC Signatures**: Recipient should verify the `X-SaaS-Signature` header using their webhook secret.
 - **Timeouts**: Deliveries have a 5-second timeout to prevent blocking.
 - **Retries**: (Planned) Intelligent retry logic for transient failures.
+- **Rate Limiting**: Webhook test endpoints are rate-limited to prevent abuse:
+  - **Limit**: 10 test requests per minute per user/IP
+  - **Configuration**: Manageable via Admin UI at `/admin/rate-limiter`
+  - **Behavior**: Returns 429 status when limit exceeded
+  - **Headers**: Rate limit information included in response headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`)
 
 ## Administration UI
 Located at `/saas/admin/webhooks`, providing:
