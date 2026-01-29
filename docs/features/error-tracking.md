@@ -59,8 +59,12 @@ In this document we use `${BASE_URL}` which should include the mount prefix.
 
 Report a frontend error. This is intended to be called from browsers.
 
-- Rate-limited per IP.
+- Rate-limited using centralized rate limiter service.
+- Anonymous users: 10 requests per minute (IP-based).
+- Authenticated users: 30 requests per minute (user-based).
 - If a Bearer token is provided, the event is attributed to that user.
+- Rate limits persist across server restarts via MongoDB storage.
+- Configurable via admin UI at `/admin/rate-limiter`.
 
 Request body (representative):
 
@@ -123,7 +127,30 @@ Response:
 
 ### User (JWT)
 
-If you include `Authorization: Bearer ${TOKEN}` when calling `POST /api/log/error`, the error is attributed to that user.
+If you include `Authorization: Bearer ${TOKEN}` when calling `POST /api/log/error`, the error is attributed to that user and rate-limited at 30 requests per minute.
+
+### Rate Limiting
+
+The error reporting endpoint uses the centralized rate limiter service with two distinct limiters:
+
+#### Anonymous Users (`errorReportingAnonLimiter`)
+- **Limit**: 10 requests per minute
+- **Identity**: IP address
+- **Storage**: MongoDB with TTL
+- **Configuration**: `/admin/rate-limiter`
+
+#### Authenticated Users (`errorReportingAuthLimiter`)
+- **Limit**: 30 requests per minute  
+- **Identity**: User ID from JWT token
+- **Storage**: MongoDB with TTL
+- **Configuration**: `/admin/rate-limiter`
+
+#### Response Headers
+- `X-RateLimit-Limit`: Maximum requests allowed in the window
+- `X-RateLimit-Remaining`: Remaining requests in current window
+
+#### Fail-Open Behavior
+If the rate limiter service is unavailable, the endpoint will continue to accept error reports to ensure service continuity.
 
 ### Admin (Basic Auth)
 

@@ -1,66 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const { logError, getConfig } = require('../services/errorLogger');
-const { verifyAccessToken } = require('../utils/jwt');
-
-const rateLimitStore = new Map();
-const CLEANUP_INTERVAL = 60000;
-
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, data] of rateLimitStore) {
-    if (now - data.windowStart > 60000) {
-      rateLimitStore.delete(key);
-    }
-  }
-}, CLEANUP_INTERVAL);
-
-async function checkRateLimit(ip, isAuthenticated) {
-  const config = await getConfig();
-  const limit = isAuthenticated ? config.errorRateLimitPerMinute : config.errorRateLimitAnonPerMinute;
-  const key = `${ip}:${isAuthenticated ? 'auth' : 'anon'}`;
-  const now = Date.now();
-
-  let data = rateLimitStore.get(key);
-  if (!data || now - data.windowStart > 60000) {
-    data = { windowStart: now, count: 0 };
-    rateLimitStore.set(key, data);
-  }
-
-  data.count++;
-
-  if (data.count > limit) {
-    return { allowed: false, remaining: 0, limit };
-  }
-
-  return { allowed: true, remaining: limit - data.count, limit };
-}
-
-function extractUserFromToken(req) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-    const token = authHeader.slice(7).trim();
-    if (!token) return null;
-    const decoded = verifyAccessToken(token);
-    return { userId: decoded.userId, role: decoded.role };
-  } catch (e) {
-    return null;
-  }
-}
+const rateLimiter = require('../services/rateLimiter.service');
 
 router.post('/error', async (req, res) => {
   try {
-    const ip = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
-    const user = extractUserFromToken(req);
-    const isAuthenticated = !!user;
-
-    const rateCheck = await checkRateLimit(ip, isAuthenticated);
-    res.setHeader('X-RateLimit-Limit', rateCheck.limit);
-    res.setHeader('X-RateLimit-Remaining', Math.max(0, rateCheck.remaining));
-
-    if (!rateCheck.allowed) {
-      return res.status(429).json({ error: 'Too many error reports. Please try again later.' });
+    // Determine if user is authenticated
+    const authHeader = req.headers.authorization;
+    const isAuthenticated = authHeader && authHeader.startsWith('Bearer ');
+    
+    // Choose appropriate limiter based on authentication status
+    const limiterId = isAuthenticated ? 'errorReportingAuthLimiter' : 'errorReportingAnonLimiter';
+    
+    // Perform rate limit check
+    let rateCheck;
+    try {
+      rateCheck = await rateLimiter.check(limiterId, { req });
+      
+      // Set rate limit headers to match current behavior
+      res.setHeader('X-RateLimit-Limit', rateCheck.limit.max);
+      res.setHeader('X-RateLimit-Remaining', Math.max(0, rateCheck.remaining));
+      
+      if (!rateCheck.allowed) {
+        return res.status(429).json({ 
+          error: 'Too many error reports. Please try again later.' 
+        });
+      }
+    } catch (rateLimitError) {
+      // If rate limiter fails, allow the request (fail open behavior)
+      console.error('[RateLimiter] Error checking rate limit:', rateLimitError);
+      // Continue with error logging without rate limiting
     }
 
     const config = await getConfig();
@@ -69,6 +38,20 @@ router.post('/error', async (req, res) => {
     }
 
     const body = req.body || {};
+    
+    // Extract user info for attribution (same as before)
+    let user = null;
+    if (isAuthenticated) {
+      try {
+        const token = authHeader.slice(7).trim();
+        const { verifyAccessToken } = require('../utils/jwt');
+        const decoded = verifyAccessToken(token);
+        user = { userId: decoded.userId, role: decoded.role };
+      } catch (e) {
+        // Invalid token, proceed as anonymous
+        console.error('[LogRoutes] Invalid token:', e.message);
+      }
+    }
 
     const event = {
       source: 'frontend',
@@ -78,9 +61,9 @@ router.post('/error', async (req, res) => {
       message: String(body.message || '').slice(0, 2000),
       stack: String(body.stack || '').slice(0, 5000),
       actor: {
-        userId: user?.userId,
-        role: user?.role,
-        ip,
+        userId: user?.userId || null,
+        role: user?.role || null,
+        ip: req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown',
         userAgent: req.headers['user-agent'],
       },
       request: {
