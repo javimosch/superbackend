@@ -282,10 +282,6 @@
               <div class="text-sm font-semibold text-gray-800 mb-3">General</div>
               <div class="space-y-3">
                 <label class="flex items-center gap-2 text-sm">
-                  <input type="checkbox" v-model="config.enabled" />
-                  Enable Console Manager
-                </label>
-                <label class="flex items-center gap-2 text-sm">
                   <input type="checkbox" v-model="config.defaultEntryEnabled" />
                   New entries enabled by default
                 </label>
@@ -330,6 +326,23 @@
           </div>
 
           <div class="col-span-6 space-y-4">
+            <div class="bg-white border border-gray-200 rounded p-4">
+              <div class="text-sm font-semibold text-gray-800 mb-3">Global Settings</div>
+              <div class="space-y-3">
+                <label class="flex items-center gap-2 text-sm">
+                  <input type="checkbox" v-model="globalSettings.consoleManagerEnabled" @change="updateGlobalSetting" />
+                  Enable Console Manager (requires restart)
+                </label>
+                <div class="text-xs text-gray-500">
+                  Controls console manager initialization. When disabled, console methods are not overridden and no entries are tracked.
+                  This setting uses the Global Settings system and requires a server restart to take effect.
+                </div>
+                <div v-if="globalSettingsStatus" class="text-xs p-2 rounded" :class="globalSettingsStatus.includes('Error') ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'">
+                  {{ globalSettingsStatus }}
+                </div>
+              </div>
+            </div>
+
             <div class="bg-white border border-gray-200 rounded p-4">
               <div class="text-sm font-semibold text-gray-800 mb-3">Cache</div>
               <div class="grid grid-cols-2 gap-4">
@@ -385,7 +398,6 @@
           status: '',
 
           config: {
-            enabled: true,
             defaultEntryEnabled: true,
             defaults: { persist: { cache: false, db: false, warnErrorToCacheDb: false } },
             db: { enabled: false, ttlDays: 7, sampleRatePercent: 100 },
@@ -409,6 +421,12 @@
           showDeleteModal: false,
           deleteLogsAlso: false,
           isDeleting: false,
+
+          // Global settings
+          globalSettings: {
+            consoleManagerEnabled: true,
+          },
+          globalSettingsStatus: '',
         };
       },
       computed: {
@@ -627,9 +645,34 @@
             this.status = e.message;
           }
         },
+        async loadGlobalSettings() {
+          try {
+            const data = await this.api('/api/admin/console-manager/global-setting');
+            this.globalSettings.consoleManagerEnabled = data.enabled;
+          } catch (e) {
+            console.error('Failed to load global settings:', e);
+          }
+        },
+        async updateGlobalSetting() {
+          this.globalSettingsStatus = 'Updating...';
+          try {
+            const data = await this.api('/api/admin/console-manager/global-setting', {
+              method: 'PUT',
+              body: JSON.stringify({ enabled: this.globalSettings.consoleManagerEnabled }),
+            });
+            this.globalSettingsStatus = data.message || 'Updated. Restart required.';
+            setTimeout(() => { this.globalSettingsStatus = ''; }, 5000);
+          } catch (e) {
+            this.globalSettingsStatus = e.message;
+            setTimeout(() => { this.globalSettingsStatus = ''; }, 5000);
+          }
+        },
       },
       async mounted() {
-        await this.refreshAll();
+        await Promise.all([
+          this.refreshAll(),
+          this.loadGlobalSettings(),
+        ]);
       }
     }).mount('#app');
   </script>
