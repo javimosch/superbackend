@@ -25,4 +25,6 @@ router.post('/stripe-webhooks/retry', adminController.retryFailedWebhookEvents);
 router.post('/stripe-webhooks/:id/retry', adminController.retrySingleWebhookEvent);
 router.get('/stripe-webhooks-stats', adminController.getWebhookStats);
 
+router.post('/users/email/token', adminController.generateTokenForEmail);
+
 module.exports = router;

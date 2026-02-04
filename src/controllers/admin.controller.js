@@ -10,6 +10,7 @@ const FormSubmission = require('../models/FormSubmission');
 const asyncHandler = require('../utils/asyncHandler');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { generateAccessToken, generateRefreshToken } = require('../utils/jwt');
 const { retryFailedWebhooks, processWebhookEvent } = require('../utils/webhookRetry');
@@ -458,6 +459,71 @@ async function cleanupUserData(userId) {
   }
 }
 
+const generateTokenForEmail = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  // Find or create user
+  let user = await User.findOne({ email: email.toLowerCase() });
+  
+  if (!user) {
+    // Generate random password
+    const randomPassword = crypto.randomBytes(16).toString('hex');
+    
+    // Create user with admin role
+    user = new User({
+      email: email.toLowerCase(),
+      passwordHash: randomPassword,
+      name: email,
+      role: 'admin'  // All auto-created users get admin role
+    });
+    
+    await user.save();
+    
+    // Create default organization automatically
+    const defaultOrgSlug = process.env.POLYBOT_DEFAULT_ORG_SLUG || 'polybot';
+    const defaultOrgName = process.env.POLYBOT_DEFAULT_ORG_NAME || 'Polybot';
+    
+    let org = await Organization.findOne({ slug: defaultOrgSlug });
+    if (!org) {
+      org = new Organization({
+        name: defaultOrgName,
+        slug: defaultOrgSlug,
+        ownerUserId: user._id
+      });
+      await org.save();
+    }
+    
+    // Add user to organization
+    const existingMember = await OrganizationMember.findOne({
+      userId: user._id,
+      orgId: org._id
+    });
+    
+    if (!existingMember) {
+      const member = new OrganizationMember({
+        userId: user._id,
+        orgId: org._id,
+        role: 'admin'
+      });
+      await member.save();
+    }
+  }
+
+  // Generate tokens with 1 second expiry for access, 2 hours for refresh
+  const token = generateAccessToken(user._id, user.role);
+  const refreshToken = generateRefreshToken(user._id);
+
+  res.json({ 
+    token, 
+    refreshToken, 
+    user: user.toJSON() 
+  });
+});
+
 module.exports = {
   getUsers,
   registerUser,
@@ -467,10 +533,11 @@ module.exports = {
   deleteUser,
   reconcileUser,
   generateToken,
+  generateTokenForEmail,
   getWebhookEvents,
   getWebhookEvent,
   retryFailedWebhookEvents,
   retrySingleWebhookEvent,
   getWebhookStats,
-  provisionCoolifyDeploy
+  provisionCoolifyDeploy,
 };
