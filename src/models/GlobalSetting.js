@@ -4,8 +4,7 @@ const globalSettingSchema = new mongoose.Schema({
   key: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   value: {
     type: String,
