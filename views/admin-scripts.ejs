@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Scripts</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .search-highlight {
+      background-color: #fef3c7;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+  </style>
 </head>
 <body class="bg-gray-50">
   <div class="max-w-7xl mx-auto px-6 py-6">
@@ -18,6 +25,434 @@
         <button id="btn-save" class="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black">Save</button>
         <button id="btn-delete" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Delete</button>
         <button id="btn-run" class="px-3 py-2 rounded bg-emerald-600 text-white text-sm hover:bg-emerald-700">Run</button>
+      </div>
+    </div>
+
+    <!-- Documentation Section -->
+    <div class="mb-6">
+      <div class="bg-white border border-gray-200 rounded-lg">
+        <div class="p-3 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-50" id="docs-toggle">
+          <div class="text-sm font-medium text-gray-800">📚 Documentation</div>
+          <div id="docs-chevron" class="text-gray-400 transition-transform duration-200">▼</div>
+        </div>
+        <div id="docs-content" class="hidden">
+          <div class="border-b border-gray-200">
+            <div class="px-4 py-3 flex items-center justify-between">
+              <nav class="flex space-x-8" aria-label="Tabs">
+                <button class="docs-tab py-3 px-1 border-b-2 border-blue-500 font-medium text-sm text-blue-600" data-tab="quick-start">
+                  Quick Start
+                </button>
+                <button class="docs-tab py-3 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="script-types">
+                  Script Types
+                </button>
+                <button class="docs-tab py-3 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="api-reference">
+                  API Reference
+                </button>
+                <button class="docs-tab py-3 px-1 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="examples">
+                  Examples
+                </button>
+              </nav>
+              <div class="flex items-center space-x-2">
+                <input type="text" id="docs-search" placeholder="Search documentation..." class="text-sm border rounded px-2 py-1 w-48" />
+                <button id="clear-search" class="text-xs text-gray-500 hover:text-gray-700">Clear</button>
+              </div>
+            </div>
+          </div>
+          <div class="p-4">
+            <!-- Quick Start Tab -->
+            <div id="tab-quick-start" class="docs-tab-content">
+              <div class="prose prose-sm max-w-none">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Start Guide</h3>
+                
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Creating Your First Script</h4>
+                <ol class="list-decimal list-inside space-y-2 text-sm text-gray-600">
+                  <li>Click the "New" button to create a new script</li>
+                  <li>Fill in the basic information:
+                    <ul class="list-disc list-inside ml-4 mt-1">
+                      <li><strong>Name</strong>: Human-readable name for your script</li>
+                      <li><strong>Code</strong>: Unique identifier (auto-normalized)</li>
+                      <li><strong>Type</strong>: Choose between bash, node, or browser</li>
+                      <li><strong>Runner</strong>: Execution environment (host, vm2, browser)</li>
+                    </ul>
+                  </li>
+                  <li>Write your script code in the script editor</li>
+                  <li>Configure environment variables if needed</li>
+                  <li>Set timeout and working directory options</li>
+                  <li>Click "Save" to save your script</li>
+                  <li>Click "Run" to execute the script</li>
+                </ol>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Common Use Cases</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                  <div class="bg-gray-50 p-3 rounded">
+                    <h5 class="font-medium text-gray-800 mb-1">🔧 System Administration</h5>
+                    <p class="text-sm text-gray-600">Deployments, backups, log rotation, system updates</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <h5 class="font-medium text-gray-800 mb-1">📊 Data Processing</h5>
+                    <p class="text-sm text-gray-600">Database migrations, data imports, report generation</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <h5 class="font-medium text-gray-800 mb-1">🔍 Health Checks</h5>
+                    <p class="text-sm text-gray-600">Service monitoring, connectivity tests, performance checks</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <h5 class="font-medium text-gray-800 mb-1">🚀 Automation</h5>
+                    <p class="text-sm text-gray-600">Scheduled tasks, cleanup operations, notifications</p>
+                  </div>
+                </div>
+
+                <div class="bg-amber-50 border border-amber-200 rounded p-3 mt-4">
+                  <h5 class="font-medium text-amber-800 mb-1">⚠️ Security Considerations</h5>
+                  <ul class="list-disc list-inside text-sm text-amber-700 space-y-1">
+                    <li>Host runner scripts have full system access</li>
+                    <li>VM2 runner provides sandboxing but has limitations</li>
+                    <li>Never expose sensitive data in script code</li>
+                    <li>Use environment variables for configuration</li>
+                    <li>Set appropriate timeouts to prevent hanging</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Script Types Tab -->
+            <div id="tab-script-types" class="docs-tab-content hidden">
+              <div class="prose prose-sm max-w-none">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Script Types & Runners</h3>
+                
+                <div class="space-y-4">
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h4 class="text-md font-medium text-gray-800">🐚 Bash + Host Runner</h4>
+                      <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full System Access</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Execute bash scripts directly on the server host with full system access.</p>
+                    <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
+                      <pre>#!/bin/bash
+echo "System uptime: $(uptime)"
+echo "Disk usage:"
+df -h | grep -E '^/dev/'
+echo "Memory usage:"
+free -h</pre>
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded text-xs font-mono">
+                      <div><strong>Use Case:</strong> System administration, file operations, deployments</div>
+                      <div><strong>Security:</strong> High - full system access</div>
+                      <div><strong>Limitations:</strong> None - can execute any bash command</div>
+                    </div>
+                  </div>
+
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h4 class="text-md font-medium text-gray-800">🟢 Node.js + Host Runner</h4>
+                      <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Full System Access</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Run Node.js scripts with full access to system resources and Node.js APIs.</p>
+                    <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
+                      <pre>const fs = require('fs');
+const path = require('path');
+
+// Read package.json and analyze dependencies
+const packagePath = path.join(process.cwd(), 'package.json');
+const packageData = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+
+const depCount = Object.keys(packageData.dependencies || {}).length;
+const devDepCount = Object.keys(packageData.devDependencies || {}).length;
+
+// Output results (captured in script output)
+console.log(`Dependencies: ${depCount}`);
+console.log(`Dev Dependencies: ${devDepCount}`);
+console.log(`Total: ${depCount + devDepCount}`);
+
+// Output structured data as JSON for parsing
+const result = {
+  dependencies: depCount,
+  devDependencies: devDepCount,
+  total: depCount + devDepCount,
+  name: packageData.name,
+  version: packageData.version
+};
+
+console.log(JSON.stringify(result));</pre>
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded text-xs font-mono">
+                      <div><strong>Use Case:</strong> Complex data processing, API integrations, database operations</div>
+                      <div><strong>Security:</strong> High - full system and Node.js API access</div>
+                      <div><strong>Limitations:</strong> None - can use any Node.js module/API</div>
+                    </div>
+                  </div>
+
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h4 class="text-md font-medium text-gray-800">🔒 Node.js + VM2 Runner</h4>
+                      <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Sandboxed</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Run Node.js scripts in a secure VM2 sandbox with limited API access.</p>
+                    <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
+                      <pre>// Safe data processing in sandbox
+const data = [
+  { name: 'Alice', score: 85 },
+  { name: 'Bob', score: 92 },
+  { name: 'Charlie', score: 78 }
+];
+
+// Calculate statistics
+const total = data.reduce((sum, item) => sum + item.score, 0);
+const average = total / data.length;
+const topStudent = data.reduce((max, item) => 
+  item.score > max.score ? item : max
+);
+
+// Output human-readable results
+console.log(`Average score: ${average.toFixed(2)}`);
+console.log(`Top student: ${topStudent.name} (${topStudent.score})`);
+
+// Output structured data as JSON for parsing
+const result = {
+  average: parseFloat(average.toFixed(2)),
+  topStudent: {
+    name: topStudent.name,
+    score: topStudent.score
+  },
+  totalStudents: data.length,
+  processed: new Date().toISOString()
+};
+
+console.log(JSON.stringify(result));</pre>
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded text-xs font-mono">
+                      <div><strong>Use Case:</strong> User-submitted code, untrusted scripts, testing</div>
+                      <div><strong>Security:</strong> Medium - sandboxed environment</div>
+                      <div><strong>Limitations:</strong> No file system, network, or most Node.js APIs</div>
+                    </div>
+                  </div>
+
+                  <div class="border border-gray-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <h4 class="text-md font-medium text-gray-800">🌐 Browser Scripts</h4>
+                      <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Client-side Only</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Execute JavaScript directly in the browser for UI interactions and client-side tasks.</p>
+                    <div class="bg-gray-900 text-gray-100 p-3 rounded text-xs font-mono mb-2 overflow-x-auto">
+                      <pre>// UI automation and form validation
+const forms = document.querySelectorAll('form');
+let totalForms = forms.length;
+
+// Count input fields across all forms
+let totalInputs = 0;
+forms.forEach(form => {
+  const inputs = form.querySelectorAll('input, select, textarea');
+  totalInputs += inputs.length;
+});
+
+// Check for required fields and validation
+let requiredFields = 0;
+let emptyRequiredFields = [];
+document.querySelectorAll('[required]').forEach(field => {
+  requiredFields++;
+  if (!field.value.trim()) {
+    emptyRequiredFields.push({
+      name: field.name || field.type || 'unnamed',
+      type: field.type,
+      id: field.id
+    });
+    field.style.borderColor = '#ef4444';
+  }
+});
+
+console.log(`Forms found: ${totalForms}`);
+console.log(`Total input fields: ${totalInputs}`);
+console.log(`Required fields: ${requiredFields}`);
+console.log(`Empty required fields: ${emptyRequiredFields.length}`);
+
+// Output structured data as JSON for parsing
+const result = {
+  forms: totalForms,
+  totalInputs: totalInputs,
+  requiredFields: requiredFields,
+  emptyRequiredFields: emptyRequiredFields,
+  validationPassed: emptyRequiredFields.length === 0,
+  timestamp: new Date().toISOString()
+};
+
+console.log(JSON.stringify(result));</pre>
+                    </div>
+                    <div class="bg-gray-50 p-2 rounded text-xs font-mono">
+                      <div><strong>Use Case:</strong> UI automation, form manipulation, client-side validation</div>
+                      <div><strong>Security:</strong> Low - browser sandbox</div>
+                      <div><strong>Limitations:</strong> No server access, browser APIs only</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-blue-50 border border-blue-200 rounded p-3 mt-4">
+                  <h5 class="font-medium text-blue-800 mb-1">💡 Recommendation</h5>
+                  <p class="text-sm text-blue-700">Use Host Runner for trusted system scripts, VM2 for untrusted code, and Browser for UI tasks.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- API Reference Tab -->
+            <div id="tab-api-reference" class="docs-tab-content hidden">
+              <div class="prose prose-sm max-w-none">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">API Reference</h3>
+                
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Script Management</h4>
+                <div class="space-y-2">
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">GET /api/admin/scripts</div>
+                    <p class="text-sm text-gray-600 mt-1">List all script definitions</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">POST /api/admin/scripts</div>
+                    <p class="text-sm text-gray-600 mt-1">Create a new script definition</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">GET /api/admin/scripts/:id</div>
+                    <p class="text-sm text-gray-600 mt-1">Get a specific script definition</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">PUT /api/admin/scripts/:id</div>
+                    <p class="text-sm text-gray-600 mt-1">Update a script definition</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">DELETE /api/admin/scripts/:id</div>
+                    <p class="text-sm text-gray-600 mt-1">Delete a script definition</p>
+                  </div>
+                </div>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Execution Control</h4>
+                <div class="space-y-2">
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">POST /api/admin/scripts/:id/run</div>
+                    <p class="text-sm text-gray-600 mt-1">Execute a script and return run ID</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">GET /api/admin/scripts/runs/:runId</div>
+                    <p class="text-sm text-gray-600 mt-1">Get execution results and status</p>
+                  </div>
+                  <div class="bg-gray-50 p-3 rounded">
+                    <div class="font-mono text-sm font-medium text-gray-800">GET /api/admin/scripts/runs</div>
+                    <p class="text-sm text-gray-600 mt-1">List all script runs (optional scriptId filter)</p>
+                  </div>
+                </div>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Real-time Streaming</h4>
+                <div class="bg-gray-50 p-3 rounded">
+                  <div class="font-mono text-sm font-medium text-gray-800">GET /api/admin/scripts/runs/:runId/stream</div>
+                  <p class="text-sm text-gray-600 mt-1">Server-Sent Events stream for live output</p>
+                  <div class="mt-2 text-xs text-gray-500">
+                    <div>Events: log, status, done, error</div>
+                    <div>Query: ?since=N to get events after sequence N</div>
+                  </div>
+                </div>
+
+                <div class="bg-green-50 border border-green-200 rounded p-3 mt-4">
+                  <h5 class="font-medium text-green-800 mb-1">✅ Authentication</h5>
+                  <p class="text-sm text-green-700">All endpoints require basic authentication with admin credentials.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Examples Tab -->
+            <div id="tab-examples" class="docs-tab-content hidden">
+              <div class="prose prose-sm max-w-none">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Programmatic Examples</h3>
+                
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Direct Service Call</h4>
+                <div class="relative">
+                  <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600" data-copy="service-call">📋 Copy</button>
+                  <div class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                    <pre class="text-sm"><code id="service-call">const { startRun } = require('./services/scriptsRunner.service');
+const ScriptDefinition = require('./models/ScriptDefinition');
+
+// Get script definition
+const script = await ScriptDefinition.findById(scriptId);
+if (!script || !script.enabled) throw new Error('Script not found or disabled');
+
+// Run script programmatically
+const runDoc = await startRun(script, { 
+  trigger: 'api', 
+  meta: { actorType: 'system', customData: '...' } 
+});
+
+console.log('Run ID:', runDoc._id);</code></pre>
+                  </div>
+                </div>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">HTTP API Call</h4>
+                <div class="relative">
+                  <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600" data-copy="http-api">📋 Copy</button>
+                  <div class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                    <pre class="text-sm"><code id="http-api">// Execute script via HTTP API
+const response = await fetch('/api/admin/scripts/scriptId/run', {
+  method: 'POST',
+  headers: { 
+    'Authorization': 'Basic ' + btoa('username:password'),
+    'Content-Type': 'application/json'
+  }
+});
+const { runId } = await response.json();
+
+// Get results
+const runResult = await fetch('/api/admin/scripts/runs/' + runId);
+const run = await runResult.json();
+console.log('Status:', run.status, 'Exit Code:', run.exitCode);</code></pre>
+                  </div>
+                </div>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Real-time Streaming</h4>
+                <div class="relative">
+                  <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600" data-copy="streaming">📋 Copy</button>
+                  <div class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                    <pre class="text-sm"><code id="streaming">const eventSource = new EventSource('/api/admin/scripts/runs/' + runId + '/stream');
+
+eventSource.addEventListener('log', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Output:', data.line);
+});
+
+eventSource.addEventListener('status', (e) => {
+  const data = JSON.parse(e.data);
+  console.log('Status changed:', data.status);
+});
+
+eventSource.addEventListener('done', (e) => {
+  console.log('Execution completed');
+  eventSource.close();
+});</code></pre>
+                  </div>
+                </div>
+
+                <h4 class="text-md font-medium text-gray-800 mt-4 mb-2">Database Query</h4>
+                <div class="relative">
+                  <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600" data-copy="database-query">📋 Copy</button>
+                  <div class="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                    <pre class="text-sm"><code id="database-query">const ScriptRun = require('./models/ScriptRun');
+
+// Get run status and results
+const run = await ScriptRun.findById(runId);
+console.log('Status:', run.status);
+console.log('Exit code:', run.exitCode);
+console.log('Output tail:', run.outputTail);
+
+// List recent runs
+const recentRuns = await ScriptRun.find()
+  .sort({ createdAt: -1 })
+  .limit(10)
+  .populate('scriptId')
+  .lean();</code></pre>
+                  </div>
+                </div>
+
+                <div class="bg-purple-50 border border-purple-200 rounded p-3 mt-4">
+                  <h5 class="font-medium text-purple-800 mb-1">🔗 Integration Examples</h5>
+                  <p class="text-sm text-purple-700">Scripts are used by Cron Scheduler, Health Checks, and can be integrated into any system component.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -214,6 +649,10 @@
         env.push({ key, value });
       });
 
+      // Encode script content as base64 to avoid JSON parsing issues
+      const scriptContent = qs('f-script').value;
+      const scriptBase64 = btoa(unescape(encodeURIComponent(scriptContent)));
+
       return {
         name: qs('f-name').value.trim(),
         codeIdentifier: qs('f-code').value.trim(),
@@ -224,7 +663,8 @@
         defaultWorkingDirectory: qs('f-cwd').value,
         enabled: !!qs('f-enabled').checked,
         env,
-        script: qs('f-script').value,
+        script: scriptBase64,
+        scriptFormat: 'base64',
       };
     }
 
@@ -274,7 +714,19 @@
       qs('f-timeout').value = String(s.timeoutMs || 300000);
       qs('f-cwd').value = s.defaultWorkingDirectory || '';
       qs('f-enabled').checked = !!s.enabled;
-      qs('f-script').value = s.script || '';
+      
+      // Decode script content if it's base64 encoded
+      let scriptContent = s.script || '';
+      if (s.scriptFormat === 'base64') {
+        try {
+          scriptContent = decodeURIComponent(escape(atob(scriptContent)));
+        } catch (err) {
+          console.error('Failed to decode base64 script content:', err);
+          scriptContent = s.script || ''; // Fallback to raw content
+        }
+      }
+      qs('f-script').value = scriptContent;
+      
       renderEnv(s.env || []);
       loadRuns();
     }
@@ -487,9 +939,151 @@
     });
     qs('f-runner').addEventListener('change', setRunnerWarning);
 
+    // Documentation section functionality
+    function initDocumentation() {
+      const docsToggle = qs('docs-toggle');
+      const docsContent = qs('docs-content');
+      const docsChevron = qs('docs-chevron');
+      const searchInput = qs('docs-search');
+      const clearSearchBtn = qs('clear-search');
+      
+      // Load saved state from localStorage
+      const docsExpanded = localStorage.getItem('admin-scripts-docs-expanded') === 'true';
+      if (docsExpanded) {
+        docsContent.classList.remove('hidden');
+        docsChevron.style.transform = 'rotate(180deg)';
+      }
+
+      // Toggle documentation section
+      docsToggle.addEventListener('click', () => {
+        const isHidden = docsContent.classList.contains('hidden');
+        if (isHidden) {
+          docsContent.classList.remove('hidden');
+          docsChevron.style.transform = 'rotate(180deg)';
+          localStorage.setItem('admin-scripts-docs-expanded', 'true');
+        } else {
+          docsContent.classList.add('hidden');
+          docsChevron.style.transform = 'rotate(0deg)';
+          localStorage.setItem('admin-scripts-docs-expanded', 'false');
+        }
+      });
+
+      // Tab switching functionality
+      const tabs = document.querySelectorAll('.docs-tab');
+      const tabContents = document.querySelectorAll('.docs-tab-content');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetTab = tab.dataset.tab;
+          
+          // Update tab styles
+          tabs.forEach(t => {
+            t.classList.remove('border-blue-500', 'text-blue-600');
+            t.classList.add('border-transparent', 'text-gray-500');
+          });
+          tab.classList.remove('border-transparent', 'text-gray-500');
+          tab.classList.add('border-blue-500', 'text-blue-600');
+          
+          // Show/hide content
+          tabContents.forEach(content => {
+            if (content.id === `tab-${targetTab}`) {
+              content.classList.remove('hidden');
+            } else {
+              content.classList.add('hidden');
+            }
+          });
+        });
+      });
+
+      // Search functionality
+      function performSearch(query) {
+        const searchTerm = query.toLowerCase().trim();
+        const allContent = document.querySelectorAll('.docs-tab-content');
+        
+        if (!searchTerm) {
+          // Reset all content visibility
+          allContent.forEach(content => {
+            const elements = content.querySelectorAll('h3, h4, h5, p, li, div, pre');
+            elements.forEach(el => {
+              el.style.display = '';
+              el.classList.remove('search-highlight');
+            });
+          });
+          return;
+        }
+
+        allContent.forEach(content => {
+          const elements = content.querySelectorAll('h3, h4, h5, p, li, div, pre');
+          let hasVisibleContent = false;
+          
+          elements.forEach(el => {
+            const text = el.textContent.toLowerCase();
+            if (text.includes(searchTerm)) {
+              el.style.display = '';
+              el.classList.add('search-highlight');
+              hasVisibleContent = true;
+            } else {
+              el.style.display = 'none';
+              el.classList.remove('search-highlight');
+            }
+          });
+        });
+      }
+
+      searchInput.addEventListener('input', (e) => {
+        performSearch(e.target.value);
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        performSearch('');
+      });
+
+      // Copy to clipboard functionality
+      const copyButtons = document.querySelectorAll('.copy-btn');
+      
+      copyButtons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const targetId = btn.dataset.copy;
+          const targetElement = document.getElementById(targetId);
+          
+          if (targetElement) {
+            try {
+              await navigator.clipboard.writeText(targetElement.textContent);
+              const originalText = btn.textContent;
+              btn.textContent = '✅ Copied!';
+              btn.classList.add('bg-green-600');
+              btn.classList.remove('bg-gray-700');
+              
+              setTimeout(() => {
+                btn.textContent = originalText;
+                btn.classList.remove('bg-green-600');
+                btn.classList.add('bg-gray-700');
+              }, 2000);
+            } catch (err) {
+              // Fallback for older browsers
+              const textArea = document.createElement('textarea');
+              textArea.value = targetElement.textContent;
+              document.body.appendChild(textArea);
+              textArea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textArea);
+              
+              const originalText = btn.textContent;
+              btn.textContent = '✅ Copied!';
+              setTimeout(() => {
+                btn.textContent = originalText;
+              }, 2000);
+            }
+          }
+        });
+      });
+    }
+
     (async function init() {
       clearForm();
       normalizeRunnerOptions();
+      initDocumentation();
       await loadScripts();
     })();
   </script>
