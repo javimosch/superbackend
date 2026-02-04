@@ -8,7 +8,7 @@ const rateLimitCounterSchema = new mongoose.Schema(
 
     count: { type: Number, default: 0 },
 
-    expiresAt: { type: Date, default: null, index: true },
+    expiresAt: { type: Date, default: null },
   },
   { timestamps: true, collection: 'rate_limit_counters' },
 );
