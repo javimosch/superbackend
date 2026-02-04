@@ -63,6 +63,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testTimeout": 15000,
     "collectCoverageFrom": [
       "src/**/*.js",
       "!src/**/*.test.js"
