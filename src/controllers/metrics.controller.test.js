@@ -94,14 +94,14 @@ describe('Metrics Controller', () => {
     });
 
     test('should reject requests with content-length too large', async () => {
+      const big = 'x'.repeat(1024 * 11);
       const response = await request(app)
         .post('/metrics/track')
-        .set('Content-Length', '15000') // > 10KB
-        .send({ action: 'test' });
+        .send({ action: 'test', meta: { big } });
 
       expect(response.status).toBe(413);
       expect(response.body.error).toBe('Request too large');
-    }, 10000); // Increase timeout for this test
+    }, 15000);
 
     test('should handle authenticated users', async () => {
       const mockUser = { _id: 'user123', email: 'test@example.com' };
