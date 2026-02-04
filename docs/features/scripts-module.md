@@ -136,6 +136,29 @@ Scripts actions are tracked by the built-in audit system:
 - Bash runs using `bash -lc <script>`.
 - Node runs using `node -e <script>`.
 
+#### Async/await
+
+Node scripts may use `await`.
+
+- If the script contains **top-level** `await`, the server may **auto-wrap** the script in an async IIFE before execution.
+- Auto-wrapping is enabled by default and can be disabled with `SCRIPT_AUTO_ASYNC_WRAP=false`.
+
+Example (top-level `await`):
+
+```js
+const count = await countCollectionDocuments('users');
+console.log('count:', count);
+```
+
+Equivalent manual form:
+
+```js
+(async () => {
+  const count = await countCollectionDocuments('users');
+  console.log('count:', count);
+})();
+```
+
 ### vm2 runner (node)
 
 - Executes script body in a restricted `vm2` sandbox.

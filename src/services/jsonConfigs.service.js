@@ -162,10 +162,10 @@ async function createJsonConfig({ title, jsonRaw, publicEnabled = false, cacheTt
     jsonHash: computeJsonHash(String(jsonRaw)),
   };
   
-  console.log('Creating document with data:', createData);
+  //console.log('Creating document with data:', createData);
 
   const doc = await JsonConfig.create(createData);
-  console.log('Created document:', doc.toObject());
+  //console.log('Created document:', doc.toObject());
 
   clearJsonConfigCache(slug);
   if (normalizedAlias) {

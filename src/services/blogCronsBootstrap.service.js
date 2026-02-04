@@ -64,9 +64,12 @@ async function ensureBlogImagesNamespace() {
   });
 }
 
-async function ensureCronJobs({ baseUrl, token }) {
+async function ensureCronJobs({ baseUrl }) {
   const automationUrl = `${baseUrl}/api/internal/blog/automation/run`;
   const publishUrl = `${baseUrl}/api/internal/blog/publish-scheduled/run`;
+
+  const internalCronUsername = process.env.INTERNAL_CRON_USERNAME || process.env.ADMIN_USERNAME || process.env.BASIC_AUTH_USERNAME || process.env.BASIC_AUTH_USER || 'admin';
+  const internalCronPassword = process.env.INTERNAL_CRON_PASSWORD || process.env.ADMIN_PASSWORD || process.env.BASIC_AUTH_PASSWORD || process.env.BASIC_AUTH_PASS || 'admin';
 
   // Reconcile per-config automation cron jobs
   const configs = await blogAutomationService.getBlogAutomationConfigs();
@@ -114,7 +117,7 @@ async function ensureCronJobs({ baseUrl, token }) {
       httpHeaders: [],
       httpBody: JSON.stringify({ trigger: 'scheduled', configId: id }),
       httpBodyType: 'json',
-      httpAuth: { type: 'bearer', token },
+      httpAuth: { type: 'basic', username: internalCronUsername, password: internalCronPassword },
       timeoutMs: 10 * 60 * 1000,
       createdBy: 'system',
     };
@@ -151,7 +154,7 @@ async function ensureCronJobs({ baseUrl, token }) {
       httpHeaders: [],
       httpBody: JSON.stringify({}),
       httpBodyType: 'json',
-      httpAuth: { type: 'bearer', token },
+      httpAuth: { type: 'basic', username: internalCronUsername, password: internalCronPassword },
       timeoutMs: 2 * 60 * 1000,
       createdBy: 'system',
     });
@@ -165,14 +168,12 @@ async function bootstrap() {
 
   await ensureBlogImagesNamespace();
 
-  const token = await ensureInternalTokenExists();
-
   // CronScheduler HTTP jobs need an absolute base URL.
   const baseUrl =
     String(process.env.SUPERBACKEND_BASE_URL || process.env.PUBLIC_URL || '').trim() ||
     'http://localhost:3000';
 
-  await ensureCronJobs({ baseUrl: baseUrl.replace(/\/+$/, ''), token });
+  await ensureCronJobs({ baseUrl: baseUrl.replace(/\/+$/, '') });
 }
 
 module.exports = {
