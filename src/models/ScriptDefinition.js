@@ -16,6 +16,7 @@ const scriptDefinitionSchema = new mongoose.Schema(
     type: { type: String, enum: ['bash', 'node', 'browser'], required: true },
     runner: { type: String, enum: ['host', 'vm2', 'browser'], required: true },
     script: { type: String, required: true },
+    scriptFormat: { type: String, enum: ['string', 'base64'], default: 'string' },
     defaultWorkingDirectory: { type: String, default: '' },
     env: { type: [envVarSchema], default: [] },
     timeoutMs: { type: Number, default: 5 * 60 * 1000 },

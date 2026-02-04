@@ -1,31 +1,25 @@
 require('dotenv').config();
-const { ScriptRunner } = require('../src/helpers/scriptRunner');
-const { ScriptBase } = require('../src/helpers/scriptBase');
-const { createJsonConfig, getJsonConfig, updateJsonConfig } = require('../src/services/jsonConfigs.service');
+const mongoose = require('mongoose');
+const { createJsonConfig, getJsonConfig } = require('../src/services/jsonConfigs.service');
 const JsonConfig = require('../src/models/JsonConfig');
 
-/**
- * Script to initialize error reporting rate limiters
- * Migrated to use the new script helper system
- */
-class ErrorRateLimiterInitializer extends ScriptBase {
-  constructor(options = {}) {
-    super({ 
-      name: 'ErrorRateLimiterInitializer',
-      timeout: 60000, // 1 minute timeout
-      ...options 
-    });
-  }
+async function initializeErrorReportingRateLimiters() {
+  try {
+    console.log('Connecting to database...');
+    
+    // Connect to MongoDB
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/myappdb';
+    await mongoose.connect(mongoUri);
+    console.log('✅ Database connected');
 
-  async execute({ mongoose }) {
-    this.log('info', 'Initializing error reporting rate limiters...');
+    console.log('Initializing error reporting rate limiters...');
 
     // Check if rate-limits config already exists
     let existingConfig;
     let configId;
     try {
       existingConfig = await getJsonConfig('rate-limits');
-      this.log('info', 'Existing rate-limits config found');
+      console.log('Existing rate-limits config found');
       
       // Get the full config document to get the ID
       const configDoc = await JsonConfig.findOne({ 
@@ -37,13 +31,13 @@ class ErrorRateLimiterInitializer extends ScriptBase {
       
       if (configDoc) {
         configId = configDoc._id;
-        this.log('info', `Config ID: ${configId}`);
+        console.log('Config ID:', configId);
       } else {
         throw new Error('Config document not found');
       }
     } catch (error) {
       if (error.code === 'NOT_FOUND' || error.message === 'Config document not found') {
-        this.log('info', 'No existing rate-limits config found, creating new one...');
+        console.log('No existing rate-limits config found, creating new one...');
         existingConfig = null;
       } else {
         throw error;
@@ -95,12 +89,12 @@ class ErrorRateLimiterInitializer extends ScriptBase {
       mergedConfig.limiters.errorReportingAuthLimiter = defaultConfig.limiters.errorReportingAuthLimiter;
       mergedConfig.limiters.errorReportingAnonLimiter = defaultConfig.limiters.errorReportingAnonLimiter;
       
-      this.log('info', 'Updating existing rate-limits config...');
-      await updateJsonConfig(configId, mergedConfig);
-      this.log('info', 'Rate limiters added to existing config');
+      console.log('Updating existing rate-limits config...');
+      await require('../src/services/jsonConfigs.service').updateJsonConfig(configId, mergedConfig);
+      console.log('Rate limiters added to existing config');
     } else {
       // Create new config
-      this.log('info', 'Creating new rate-limits config...');
+      console.log('Creating new rate-limits config...');
       await createJsonConfig({
         title: 'Rate Limits Configuration',
         alias: 'rate-limits',
@@ -108,45 +102,42 @@ class ErrorRateLimiterInitializer extends ScriptBase {
         cacheTtlSeconds: 300, // 5 minutes cache
         data: defaultConfig
       });
-      this.log('info', 'Rate limits config created successfully');
+      console.log('Rate limits config created successfully');
     }
 
-    this.log('info', '✅ Error reporting rate limiters initialized successfully');
-    this.log('info', '- errorReportingAuthLimiter: 30 requests/minute for authenticated users');
-    this.log('info', '- errorReportingAnonLimiter: 10 requests/minute for anonymous users');
-
-    return {
-      success: true,
-      message: 'Error reporting rate limiters initialized successfully',
-      limiters: {
-        auth: '30 requests/minute for authenticated users',
-        anon: '10 requests/minute for anonymous users'
-      }
-    };
-  }
-
-  async setup(context) {
-    this.log('debug', 'Setting up ErrorRateLimiterInitializer');
-    // Any setup logic can go here
-  }
-
-  async cleanup(context) {
-    this.log('debug', 'Cleaning up ErrorRateLimiterInitializer');
-    // Any cleanup logic can go here
+    console.log('✅ Error reporting rate limiters initialized successfully');
+    console.log('- errorReportingAuthLimiter: 30 requests/minute for authenticated users');
+    console.log('- errorReportingAnonLimiter: 10 requests/minute for anonymous users');
+    
+    // Close database connection
+    await mongoose.disconnect();
+    console.log('✅ Database connection closed');
+    
+  } catch (error) {
+    console.error('❌ Failed to initialize error reporting rate limiters:', error);
+    
+    // Ensure database connection is closed on error
+    try {
+      await mongoose.disconnect();
+    } catch (disconnectError) {
+      console.error('Failed to close database connection:', disconnectError);
+    }
+    
+    process.exit(1);
   }
 }
 
-// Create CLI wrapper
-const cliWrapper = ScriptRunner.createCli(ErrorRateLimiterInitializer);
-
-// Export for both CLI and module usage
-module.exports = { 
-  ErrorRateLimiterInitializer,
-  initializeErrorReportingRateLimiters: cliWrapper,
-  run: cliWrapper
-};
-
-// Run if called directly
+// Run the initialization
 if (require.main === module) {
-  cliWrapper();
+  initializeErrorReportingRateLimiters()
+    .then(() => {
+      console.log('Initialization completed');
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error('Initialization failed:', error);
+      process.exit(1);
+    });
 }
+
+module.exports = { initializeErrorReportingRateLimiters };
