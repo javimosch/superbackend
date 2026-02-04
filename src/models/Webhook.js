@@ -26,6 +26,8 @@ const webhookSchema = new mongoose.Schema({
       'organization.updated',
       'member.added',
       'form.submitted',
+      'experiment.winner_changed',
+      'experiment.status_changed',
       'audit.event'
     ]
   }],
