@@ -119,6 +119,11 @@ function createMiddleware(options = {}) {
       attachTerminalWebsocketServer,
     } = require("./services/terminalsWs.service");
     attachTerminalWebsocketServer(server, { basePathPrefix: adminPath });
+
+    const {
+      attachExperimentsWebsocketServer,
+    } = require("./services/experimentsWs.service");
+    attachExperimentsWebsocketServer(server);
   };
 
   if (!errorCaptureInitialized) {
@@ -156,6 +161,7 @@ function createMiddleware(options = {}) {
         await healthChecksScheduler.start();
         await healthChecksBootstrap.bootstrap();
         await blogCronsBootstrap.bootstrap();
+        await require("./services/experimentsCronsBootstrap.service").bootstrap();
         
         // Initialize console manager AFTER database is connected
         if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
@@ -254,6 +260,12 @@ function createMiddleware(options = {}) {
     blogCronsBootstrap.bootstrap().catch((err) => {
       console.error("Failed to bootstrap blog crons:", err);
     });
+
+    require("./services/experimentsCronsBootstrap.service")
+      .bootstrap()
+      .catch((err) => {
+        console.error("Failed to bootstrap experiments crons:", err);
+      });
     
     // Initialize console manager AFTER database is already connected
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
@@ -458,6 +470,37 @@ function createMiddleware(options = {}) {
           template,
           { baseUrl: req.baseUrl, adminPath },
           { filename: templatePath },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  router.get(`${adminPath}/experiments`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-experiments.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
         );
         res.send(html);
       } catch (renderErr) {
@@ -677,6 +720,7 @@ function createMiddleware(options = {}) {
     require("./routes/adminDbBrowser.routes"),
   );
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
+  router.use("/api/admin/experiments", require("./routes/adminExperiments.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
   router.use(
     "/api/admin/upload-namespaces",
@@ -724,12 +768,16 @@ function createMiddleware(options = {}) {
   router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
+  router.use("/api/experiments", require("./routes/experiments.routes"));
 
   // Public blog APIs (headless)
   router.use("/api", require("./routes/blogPublic.routes"));
 
   // Internal blog endpoints (used by HTTP CronJobs)
   router.use("/api/internal", require("./routes/blogInternal.routes"));
+
+  // Internal experiments endpoints (used by HTTP CronJobs)
+  router.use("/api/internal", require("./routes/internalExperiments.routes"));
 
   // Public health checks status (gated by global setting)
   router.use(
