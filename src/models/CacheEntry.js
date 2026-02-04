@@ -10,7 +10,7 @@ const cacheEntrySchema = new mongoose.Schema(
 
     sizeBytes: { type: Number, default: 0 },
 
-    expiresAt: { type: Date, default: null, index: true },
+    expiresAt: { type: Date, default: null },
 
     hits: { type: Number, default: 0 },
     lastAccessAt: { type: Date, default: null },

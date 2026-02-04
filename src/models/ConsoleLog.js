@@ -12,7 +12,7 @@ const consoleLogSchema = new mongoose.Schema(
     requestId: { type: String, default: '', index: true },
 
     createdAt: { type: Date, default: Date.now, index: true },
-    expiresAt: { type: Date, default: null, index: true },
+    expiresAt: { type: Date, default: null },
   },
   { timestamps: false, collection: 'console_logs' },
 );
