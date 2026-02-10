@@ -1,10 +1,20 @@
 const consoleOverride = require("./services/consoleOverride.service");
-const consoleManager = require("./services/consoleManager.service");
+const { consoleManager } = require("./services/consoleManager.service");
 
 // Initialize console override service early to capture all logs
 // Avoid keeping timers/streams alive during Jest runs.
 if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
   consoleOverride.init()
+  
+  // Initialize console manager after a short delay to ensure consoleOverride is fully set up
+  setTimeout(() => {
+    // Set module prefix for this middleware
+    consoleManager.setModulePrefix('middleware');
+    
+    // Initialize console manager early to enable prefixing for all subsequent logs
+    consoleManager.init();
+    console.log("[Console Manager] Initialized - prefixing enabled");
+  }, 20);
 }
 
 const express = require("express");
@@ -163,16 +173,8 @@ function createMiddleware(options = {}) {
         await blogCronsBootstrap.bootstrap();
         await require("./services/experimentsCronsBootstrap.service").bootstrap();
         
-        // Initialize console manager AFTER database is connected
-        if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
-          const consoleManagerEnabled = await isConsoleManagerEnabled();
-          if (consoleManagerEnabled) {
-            consoleManager.init();
-            console.log("[Console Manager] Initialized");
-          } else {
-            console.log("[Console Manager] Disabled - console methods not overridden");
-          }
-        }
+        // Console manager is already initialized early in the middleware
+        console.log("[Console Manager] MongoDB connection established");
         
         return true;
       })
@@ -272,6 +274,8 @@ function createMiddleware(options = {}) {
       isConsoleManagerEnabled().then(consoleManagerEnabled => {
         if (consoleManagerEnabled) {
           consoleManager.init();
+          // Set module prefix after initialization
+          consoleManager.setModulePrefix('middleware');
           console.log("[Console Manager] Initialized");
         } else {
           console.log("[Console Manager] Disabled - console methods not overridden");
@@ -280,6 +284,8 @@ function createMiddleware(options = {}) {
         console.error("[Console Manager] Error checking enabled status:", error);
         console.log("[Console Manager] Fallback to enabled due to error");
         consoleManager.init();
+        // Set module prefix after initialization
+        consoleManager.setModulePrefix('middleware');
         console.log("[Console Manager] Initialized (fallback)");
       });
     }
