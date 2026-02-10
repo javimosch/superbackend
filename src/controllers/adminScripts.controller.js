@@ -2,6 +2,7 @@ const ScriptDefinition = require('../models/ScriptDefinition');
 const ScriptRun = require('../models/ScriptRun');
 const { basicAuth } = require('../middleware/auth');
 const { startRun, getRunBus } = require('../services/scriptsRunner.service');
+const { logAuditSync } = require('../services/auditLogger');
 
 function toSafeJsonError(error) {
   const msg = error?.message || 'Operation failed';
@@ -123,6 +124,15 @@ exports.createScript = async (req, res) => {
     created = doc.toObject();
     console.log('[createScript] About to create audit entry...');
     console.log('[createScript] Script created successfully:', { name: created.name, id: created._id });
+    
+    logAuditSync({
+      req,
+      action: 'scripts.create',
+      outcome: 'success',
+      entityType: 'ScriptDefinition',
+      entityId: created._id,
+      data: { name: created.name },
+    });
     
     console.log('[createScript] About to send response...');
     res.status(201).json({ item: doc.toObject() });

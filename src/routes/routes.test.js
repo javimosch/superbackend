@@ -28,6 +28,7 @@ const mockAdminController = {
   deleteUser: jest.fn((req, res) => res.json({ message: 'user deleted' })),
   reconcileUser: jest.fn((req, res) => res.json({ message: 'user reconciled' })),
   generateToken: jest.fn((req, res) => res.json({ message: 'token generated' })),
+  generateTokenForEmail: jest.fn((req, res) => res.json({ message: 'token for email generated' })),
   getWebhookEvents: jest.fn((req, res) => res.json({ message: 'webhook events' })),
   getWebhookEvent: jest.fn((req, res) => res.json({ message: 'webhook event' })),
   retryFailedWebhookEvents: jest.fn((req, res) => res.json({ message: 'webhooks retried' })),

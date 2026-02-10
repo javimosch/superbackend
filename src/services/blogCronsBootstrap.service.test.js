@@ -64,7 +64,7 @@ describe('blogCronsBootstrap.service', () => {
       expect(uploadNamespacesService.upsertNamespace).toHaveBeenCalledWith('blog-images', expect.any(Object));
       expect(CronJob.create).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Blog: Automation (cfg1)',
-        httpAuth: { type: 'bearer', token: 'token123' }
+        httpAuth: { type: 'basic', username: 'admin', password: 'admin' }
       }));
       expect(CronJob.create).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Blog: Publish scheduled posts'
