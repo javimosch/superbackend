@@ -13,6 +13,21 @@ const { logErrorSync } = require("./errorLogger");
 const CronJob = require("../models/CronJob");
 const ScriptDefinition = require("../models/ScriptDefinition");
 
+// Import consoleOverride to access the truly original console
+const consoleOverride = require("./consoleOverride.service");
+
+// Simplified module prefix tracking
+let currentModulePrefix = '';
+
+// Module prefix mapping based on module name
+const MODULE_PREFIXES = {
+  'cronScheduler.service.js': '[SuperBackend][Cron]',
+  'healthChecksScheduler.service.js': '[SuperBackend][Health]',
+  'consoleManager.service.js': '[SuperBackend][Console]',
+  'middleware': '[SuperBackend][Core]',
+  'middleware.js': '[SuperBackend][Core]'
+};
+
 let isActive = false;
 let previousConsole = null;
 let isHandling = false;
@@ -41,19 +56,9 @@ function normalizeMessage(message) {
     .slice(0, 500);
 }
 
-function extractTopFrame(stack) {
-  if (!stack) return "";
-  // Skip: Error, console wrapper, handleConsoleCall
-  const lines = String(stack).split("\n").slice(3, 6);
-  for (const line of lines) {
-    const match = line.match(/at\s+(?:(.+?)\s+)?\(?(.+?):(\d+):(\d+)\)?/);
-    if (match) {
-      const fn = match[1] || "<anonymous>";
-      const file = match[2].split("/").pop();
-      return `${fn}@${file}:${match[3]}`;
-    }
-  }
-  return "";
+// Simplified approach - no stack trace parsing needed
+function getModulePrefix() {
+  return currentModulePrefix;
 }
 
 function computeHash({ method, messageTemplate, topFrame }) {
@@ -377,8 +382,18 @@ let configFromMemory = null;
 function handleConsoleCall(method, args, stack) {
   const message = buildMessageFromArgs(args);
   const messageTemplate = normalizeMessage(message);
-  const topFrame = extractTopFrame(stack);
+  // Use empty string for topFrame since we're not using stack trace parsing
+  const topFrame = ""; 
   const hash = computeHash({ method, messageTemplate, topFrame });
+
+  // Get the current module prefix (simplified approach)
+  const prefix = getModulePrefix();
+
+  // Add prefix to args if prefix exists
+  let prefixedArgs = args;
+  if (prefix) {
+    prefixedArgs = [prefix, ...args];
+  }
 
   let entryFromMemory = memoryEntries.get(hash);
 
@@ -386,7 +401,7 @@ function handleConsoleCall(method, args, stack) {
 
   if (!configFromMemory && !entryFromMemory) {
     // First pass - always log and wait for async update to complete
-    previousConsole[method](...args);
+    previousConsole[method](...prefixedArgs);
     return;
   } 
 
@@ -396,7 +411,7 @@ function handleConsoleCall(method, args, stack) {
     : configFromMemory?.defaultEntryEnabled !== false;
     
   if (isEnabled) {
-    previousConsole[method](...args);
+    previousConsole[method](...prefixedArgs);
   } else {
     // Entry is disabled - suppress stdout but still capture error aggregation for errors
     if (method === "error") {
@@ -568,11 +583,30 @@ async function ensureRetentionCron() {
 
 const consoleManager = {
   getConsole:()=>console,
+  
+  // New method to set module prefix
+  setModulePrefix(moduleName) {
+    // If moduleName is already a prefix, use it directly
+    if (moduleName.startsWith('[') && moduleName.endsWith(']')) {
+      currentModulePrefix = moduleName;
+    } else {
+      // Otherwise look it up in the mapping
+      currentModulePrefix = MODULE_PREFIXES[moduleName] || '';
+    }
+  },
+  
+  // Get current module prefix
+  getModulePrefix() {
+    return currentModulePrefix;
+  },
+  
   init() {
     if (isActive) return;
     if (isHandling) return;
 
-    previousConsole = { ...console };
+    // Use the truly original console from consoleOverride if available
+    // Otherwise fall back to current console
+    previousConsole = consoleOverride.TRULY_ORIGINAL_CONSOLE || { ...console };
 
     METHODS.forEach((method) => {
       console[method] = (...args) => {
@@ -697,4 +731,8 @@ const consoleManager = {
   },
 };
 
-module.exports = consoleManager;
+module.exports = {
+  consoleManager,
+  MODULE_PREFIXES,
+  handleConsoleCall
+};
