@@ -5,7 +5,7 @@ const { basicAuth } = require('../middleware/auth');
 const ConsoleEntry = require('../models/ConsoleEntry');
 const ConsoleLog = require('../models/ConsoleLog');
 const GlobalSetting = require('../models/GlobalSetting');
-const consoleManager = require('../services/consoleManager.service');
+const { consoleManager } = require('../services/consoleManager.service');
 
 function normalizeTags(val) {
   if (!val) return [];
