@@ -39,11 +39,26 @@ async function getSettingValue(key, defaultValue = null) {
   }
 }
 
+async function deleteSetting(key) {
+  try {
+    const setting = await GlobalSetting.findOneAndDelete({ key });
+    
+    // Clear cache for this key
+    settingsCache.delete(key);
+    
+    return setting;
+  } catch (error) {
+    console.error(`Error deleting setting ${key}:`, error);
+    throw error;
+  }
+}
+
 function clearSettingsCache() {
   settingsCache.clear();
 }
 
 module.exports = {
   getSettingValue,
+  deleteSetting,
   clearSettingsCache,
 };
