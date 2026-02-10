@@ -294,3 +294,4 @@ process.on('SIGTERM', () => {
 });
 
 module.exports = consoleOverride;
+module.exports.TRULY_ORIGINAL_CONSOLE = TRULY_ORIGINAL_CONSOLE;
