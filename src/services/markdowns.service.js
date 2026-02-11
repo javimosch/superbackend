@@ -472,6 +472,35 @@ async function searchMarkdowns(query, options = {}) {
     .lean();
 }
 
+async function upsertMarkdown({ title, category, group_code, slug, markdownRaw, publicEnabled = false, status = 'published', ownerUserId, orgId }) {
+  const normalizedCategory = normalizeCategory(category);
+  const normalizedGroupCode = normalizeGroupCode(group_code);
+  const normalizedSlug = slug || normalizeSlugBase(title);
+
+  const query = {
+    category: normalizedCategory,
+    group_code: normalizedGroupCode,
+    slug: normalizedSlug,
+  };
+
+  const update = {
+    title: String(title || '').trim(),
+    markdownRaw: validateMarkdownContent(markdownRaw),
+    publicEnabled: Boolean(publicEnabled),
+    status,
+    ownerUserId,
+    orgId,
+  };
+
+  const doc = await Markdown.findOneAndUpdate(query, update, {
+    new: true,
+    upsert: true,
+    setDefaultsOnInsert: true,
+  });
+
+  return doc.toObject();
+}
+
 module.exports = {
   ERROR_CODES,
   normalizeGroupCode,
@@ -481,6 +510,7 @@ module.exports = {
   validatePathUniqueness,
   getMarkdownByPath,
   createMarkdown,
+  upsertMarkdown,
   getMarkdownById,
   updateMarkdown,
   deleteMarkdown,
