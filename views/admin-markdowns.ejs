@@ -74,7 +74,7 @@
                 <button @click="loadData" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 flex items-center">
                   Refresh
                 </button>
-                <button @click="showCreateModal = true" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center">
+                <button @click="openCreateModal" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center">
                   New Markdown
                 </button>
               </div>
@@ -239,7 +239,7 @@
                       </span>
                     </div>
                   </div>
-                  <button @click="showCreateModal = true" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
+                  <button @click="openCreateModal" class="bg-green-500 text-white px-3 py-1 rounded text-sm hover:bg-green-600">
                     New Markdown
                   </button>
                 </div>
@@ -404,7 +404,7 @@
     <script>
       const { createApp } = Vue;
 
-      createApp({
+      const app = createApp({
         data() {
           return {
             activeTab: 'list',
@@ -429,6 +429,7 @@
             saving: false,
             zenMode: false,
             showFloatingFooter: false,
+            initialFormData: '',
             toasts: [],
             debounceTimer: null
           };
@@ -447,6 +448,9 @@
             } catch (e) {
               return '<p class="text-red-500">Error parsing markdown</p>';
             }
+          },
+          isDirty() {
+            return this.initialFormData !== JSON.stringify(this.formData);
           }
         },
         methods: {
@@ -481,6 +485,19 @@
           extractCategories() {
             const cats = new Set(this.data.items.map(item => item.category));
             this.categories = Array.from(cats).sort();
+          },
+          openCreateModal() {
+            this.formData = {
+              title: '',
+              category: '',
+              group_code: '',
+              markdownRaw: '',
+              status: 'draft',
+              publicEnabled: false,
+              cacheTtlSeconds: 0
+            };
+            this.initialFormData = JSON.stringify(this.formData);
+            this.showCreateModal = true;
           },
           async loadTree() {
             if (!this.selectedCategory) return;
@@ -596,6 +613,7 @@
               publicEnabled: item.publicEnabled,
               cacheTtlSeconds: item.cacheTtlSeconds || 0
             };
+            this.initialFormData = JSON.stringify(this.formData);
           },
           async deleteItem(item) {
             if (!confirm(`Are you sure you want to delete "${item.title}"?`)) return;
@@ -735,6 +753,21 @@
             if (!this.zenMode) return;
             // Show footer if mouse is in the bottom 100px of the screen
             this.showFloatingFooter = (window.innerHeight - e.clientY) < 100;
+          },
+          handleEscKey() {
+            if (this.showCreateModal || this.editingItem) {
+              if (this.isDirty) {
+                if (confirm('Save before closing?')) {
+                  this.saveItem();
+                } else {
+                  this.closeModal();
+                }
+              } else {
+                this.closeModal();
+              }
+              return true; // Handled
+            }
+            return false; // Not handled
           }
         },
         mounted() {
@@ -793,7 +826,9 @@
             this.$emit('select', this.node, [...this.path, this.name]);
           }
         }
-      }).mount('#app');
+      });
+      
+      window.app = app.mount('#app');
     </script>
     <script>
       window.addEventListener("keydown", (e) => {
@@ -802,6 +837,9 @@
           window.parent.postMessage({ type: "keydown", ctrlK: true }, "*");
         }
         if (e.key === "Escape") {
+          if (window.app && window.app.handleEscKey()) {
+            return;
+          }
           window.parent.postMessage({ type: "keydown", key: "Escape" }, "*");
         }
       });
