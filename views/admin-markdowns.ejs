@@ -276,20 +276,34 @@
 
       <!-- Create/Edit Modal -->
       <div v-if="showCreateModal || editingItem" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-          <div class="px-6 py-4 border-b flex justify-between items-center">
-            <h3 class="text-lg font-semibold text-gray-900">
-              {{ editingItem ? 'Edit Markdown' : 'Create Markdown' }}
-            </h3>
-            <div class="flex gap-2">
+        <div :class="['bg-white shadow-xl flex flex-col transition-all duration-300', 
+          zenMode ? 'w-screen h-screen rounded-none' : 'w-full mx-4 max-w-7xl h-[90vh] rounded-lg']">
+          
+          <!-- Modal Header -->
+          <div :class="['px-6 py-4 border-b flex justify-between items-center bg-white', zenMode ? '' : 'rounded-t-lg']">
+            <div class="flex items-center gap-4 flex-1">
+              <h3 class="text-lg font-semibold text-gray-900 whitespace-nowrap">
+                {{ editingItem ? 'Edit Markdown' : 'Create Markdown' }}
+              </h3>
+              <input v-if="zenMode" v-model="formData.title" type="text" placeholder="Title..."
+                class="flex-1 max-w-md px-3 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex gap-2 ml-4">
+              <button @click="zenMode = !zenMode" class="text-gray-500 hover:text-blue-600 p-2 rounded border border-gray-200" :title="zenMode ? 'Exit Zen Mode' : 'Zen Mode'">
+                <svg v-if="!zenMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path></svg>
+                <svg v-else class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
               <button @click="copyToClipboard" class="text-gray-500 hover:text-blue-600 p-2 rounded border border-gray-200" title="Copy Markdown to Clipboard">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
               </button>
             </div>
           </div>
-          <div class="px-6 py-4">
-            <div class="grid grid-cols-1 gap-4">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+          <!-- Modal Body -->
+          <div class="flex-1 min-h-0 p-6">
+            <div class="h-full flex flex-col gap-4">
+              <!-- Meta fields (Hidden in Zen Mode) -->
+              <div v-if="!zenMode" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-none">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                   <input v-model="formData.title" type="text" required
@@ -309,23 +323,25 @@
                 </div>
               </div>
 
-              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <div class="flex justify-between items-center mb-1">
+              <!-- Editor/Preview Area -->
+              <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
+                <div class="flex flex-col h-full min-h-0">
+                  <div class="flex justify-between items-center mb-1 flex-none">
                     <label class="block text-sm font-medium text-gray-700">Content *</label>
                     <span class="text-xs text-gray-500">Markdown supported</span>
                   </div>
-                  <textarea v-model="formData.markdownRaw" rows="15" required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+                  <textarea v-model="formData.markdownRaw" required
+                    class="flex-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none overflow-y-auto"></textarea>
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Preview</label>
-                  <div class="border border-gray-200 rounded-md p-4 bg-gray-50 overflow-y-auto h-[calc(15*1.5rem+1rem)] prose prose-sm max-w-none" v-html="previewHtml">
+                <div class="flex flex-col h-full min-h-0">
+                  <label class="block text-sm font-medium text-gray-700 mb-1 flex-none">Preview</label>
+                  <div class="flex-1 border border-gray-200 rounded-md p-4 bg-gray-50 overflow-y-auto prose prose-sm max-w-none" v-html="previewHtml">
                   </div>
                 </div>
               </div>
 
-              <div class="grid grid-cols-3 gap-4">
+              <!-- Extra fields (Hidden in Zen Mode) -->
+              <div v-if="!zenMode" class="grid grid-cols-3 gap-4 flex-none">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
                   <select v-model="formData.status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -349,7 +365,9 @@
               </div>
             </div>
           </div>
-          <div class="px-6 py-4 border-t flex justify-end gap-3">
+
+          <!-- Modal Footer -->
+          <div :class="['px-6 py-4 border-t flex justify-end gap-3 bg-white', zenMode ? '' : 'rounded-b-lg']">
             <button @click="closeModal" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
               Cancel
             </button>
@@ -396,6 +414,7 @@
               cacheTtlSeconds: 0
             },
             saving: false,
+            zenMode: false,
             toasts: [],
             debounceTimer: null
           };
@@ -626,6 +645,7 @@
           closeModal() {
             this.showCreateModal = false;
             this.editingItem = null;
+            this.zenMode = false;
             this.formData = {
               title: '',
               category: '',
@@ -700,6 +720,16 @@
         },
         mounted() {
           this.loadData();
+        },
+        watch: {
+          showCreateModal(val) {
+            if (val) document.body.style.overflow = 'hidden';
+            else if (!this.editingItem) document.body.style.overflow = '';
+          },
+          editingItem(val) {
+            if (val) document.body.style.overflow = 'hidden';
+            else if (!this.showCreateModal) document.body.style.overflow = '';
+          }
         }
       }).component('tree-item', {
         props: ['name', 'node', 'path'],
