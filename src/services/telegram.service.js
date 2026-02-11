@@ -55,7 +55,7 @@ async function startBot(botId) {
             }
         });
         
-        await bot.sendMessage(msg.chat.id, response);
+        await bot.sendMessage(msg.chat.id, response.text || response);
       } catch (err) {
         console.error('Error processing message:', err);
         await bot.sendMessage(msg.chat.id, 'Sorry, I encountered an error processing your request.');
