@@ -21,9 +21,9 @@ describe('markdowns.controller', () => {
   });
 
   describe('getByPath', () => {
-    test('returns markdown content', async () => {
-      const mockContent = '# Test Markdown Content';
-      markdownsService.getMarkdownByPath.mockResolvedValue(mockContent);
+    test('returns raw markdown by default', async () => {
+      const mockDoc = { markdownRaw: '# Test Markdown Content', slug: 'endpoints' };
+      markdownsService.getMarkdownByPath.mockResolvedValue(mockDoc);
 
       const mockReq = {
         params: {
@@ -31,7 +31,8 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'endpoints'
         },
-        query: {}
+        query: {},
+        path: '/api/markdowns/docs/api/endpoints'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
@@ -39,16 +40,16 @@ describe('markdowns.controller', () => {
       expect(markdownsService.getMarkdownByPath).toHaveBeenCalledWith(
         'docs',
         'api',
-        'endpoints',
-        {}
+        'endpoints'
       );
 
-      expect(mockRes.json).toHaveBeenCalledWith({ content: mockContent });
+      expect(mockRes.type).toHaveBeenCalledWith('text/markdown');
+      expect(mockRes.send).toHaveBeenCalledWith(mockDoc.markdownRaw);
     });
 
-    test('returns raw content when requested', async () => {
-      const mockContent = '# Test Markdown Content';
-      markdownsService.getMarkdownByPath.mockResolvedValue(mockContent);
+    test('returns JSON when /json suffix is used', async () => {
+      const mockDoc = { markdownRaw: '# Test Markdown Content', slug: 'endpoints' };
+      markdownsService.getMarkdownByPath.mockResolvedValue(mockDoc);
 
       const mockReq = {
         params: {
@@ -56,25 +57,18 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'endpoints'
         },
-        query: { raw: 'true' }
+        query: {},
+        path: '/api/markdowns/docs/api/endpoints/json'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
 
-      expect(markdownsService.getMarkdownByPath).toHaveBeenCalledWith(
-        'docs',
-        'api',
-        'endpoints',
-        { bypassCache: false }
-      );
-
-      expect(mockRes.type).toHaveBeenCalledWith('text/plain');
-      expect(mockRes.send).toHaveBeenCalledWith(mockContent);
+      expect(mockRes.json).toHaveBeenCalledWith({ item: mockDoc });
     });
 
-    test('handles raw = 1 parameter', async () => {
-      const mockContent = '# Test Markdown Content';
-      markdownsService.getMarkdownByPath.mockResolvedValue(mockContent);
+    test('returns JSON when json=1 parameter is used', async () => {
+      const mockDoc = { markdownRaw: '# Test Markdown Content', slug: 'endpoints' };
+      markdownsService.getMarkdownByPath.mockResolvedValue(mockDoc);
 
       const mockReq = {
         params: {
@@ -82,25 +76,26 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'endpoints'
         },
-        query: { raw: '1' }
+        query: { json: '1' },
+        path: '/api/markdowns/docs/api/endpoints'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
 
-      expect(mockRes.type).toHaveBeenCalledWith('text/plain');
-      expect(mockRes.send).toHaveBeenCalledWith(mockContent);
+      expect(mockRes.json).toHaveBeenCalledWith({ item: mockDoc });
     });
 
     test('handles missing group code', async () => {
-      const mockContent = '# Test Markdown Content';
-      markdownsService.getMarkdownByPath.mockResolvedValue(mockContent);
+      const mockDoc = { markdownRaw: '# Test Markdown Content', slug: 'overview' };
+      markdownsService.getMarkdownByPath.mockResolvedValue(mockDoc);
 
       const mockReq = {
         params: {
           category: 'docs',
           slug: 'overview'
         },
-        query: {}
+        query: {},
+        path: '/api/markdowns/docs/overview'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
@@ -108,11 +103,10 @@ describe('markdowns.controller', () => {
       expect(markdownsService.getMarkdownByPath).toHaveBeenCalledWith(
         'docs',
         undefined,
-        'overview',
-        {}
+        'overview'
       );
 
-      expect(mockRes.json).toHaveBeenCalledWith({ content: mockContent });
+      expect(mockRes.send).toHaveBeenCalledWith(mockDoc.markdownRaw);
     });
 
     test('handles not found error', async () => {
@@ -126,7 +120,8 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'nonexistent'
         },
-        query: {}
+        query: {},
+        path: '/api/markdowns/docs/api/nonexistent'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
@@ -145,7 +140,8 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'endpoints'
         },
-        query: {}
+        query: {},
+        path: '/api/markdowns/docs/api/endpoints'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);
@@ -164,7 +160,8 @@ describe('markdowns.controller', () => {
           group_code: 'api',
           slug: 'endpoints'
         },
-        query: {}
+        query: {},
+        path: '/api/markdowns/docs/api/endpoints'
       };
 
       await markdownsController.getByPath(mockReq, mockRes);

@@ -128,7 +128,7 @@ async function getMarkdownByPath(category, group_code, slug) {
     throw err;
   }
   
-  return doc.markdownRaw;
+  return doc;
 }
 
 async function createMarkdown({ title, category, group_code, markdownRaw, publicEnabled = false, cacheTtlSeconds = 0, ownerUserId, orgId }) {

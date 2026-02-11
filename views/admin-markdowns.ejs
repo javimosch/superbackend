@@ -172,6 +172,9 @@
                       </td>
                       <td class="px-4 py-3 text-sm text-gray-500">{{ formatDate(item.updatedAt) }}</td>
                       <td class="px-4 py-3 text-sm">
+                        <button v-if="item.publicEnabled" @click="copyPublicUrl(item)" class="text-green-600 hover:text-green-900 mr-3" title="Copy Public URL">
+                          <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                        </button>
                         <button @click="editItem(item)" class="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
                         <button @click="deleteItem(item)" class="text-red-600 hover:text-red-900">Delete</button>
                       </td>
@@ -262,19 +265,25 @@
                   <!-- Files List (Windows Explorer style) -->
                   <div v-for="item in folderContents.items" 
                        :key="item._id"
-                       @click="selectFileFromContent(item)"
-                       class="flex items-center p-3 hover:bg-gray-100 rounded cursor-pointer border">
-                    <div class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center mr-3">
-                      <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
-                      </svg>
+                       class="flex items-center p-3 hover:bg-gray-100 rounded cursor-pointer border group">
+                    <div @click="selectFileFromContent(item)" class="flex items-center flex-1">
+                      <div class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center mr-3">
+                        <svg class="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"></path>
+                        </svg>
+                      </div>
+                      <div class="flex-1">
+                        <div class="font-medium">{{ item.title }}</div>
+                        <div class="text-sm text-gray-500">{{ item.slug }} • {{ item.status }}</div>
+                      </div>
                     </div>
-                    <div class="flex-1">
-                      <div class="font-medium">{{ item.title }}</div>
-                      <div class="text-sm text-gray-500">{{ item.slug }} • {{ item.status }}</div>
-                    </div>
-                    <div class="text-sm text-gray-400">
-                      {{ formatDate(item.updatedAt) }}
+                    <div class="flex items-center gap-2">
+                      <button v-if="item.publicEnabled" @click.stop="copyPublicUrl(item)" class="p-1 text-gray-400 hover:text-green-600 rounded border border-transparent hover:border-green-200" title="Copy Public URL">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"></path></svg>
+                      </button>
+                      <div class="text-sm text-gray-400">
+                        {{ formatDate(item.updatedAt) }}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -441,6 +450,7 @@
             zenMode: false,
             showFloatingFooter: false,
             initialFormData: '',
+            baseUrl: '<%= baseUrl %>',
             toasts: [],
             debounceTimer: null
           };
@@ -781,6 +791,19 @@
               this.showToast('Markdown copied to clipboard', 'success');
             } catch (err) {
               this.showToast('Failed to copy to clipboard', 'error');
+            }
+          },
+          async copyPublicUrl(item) {
+            if (!item.publicEnabled) return;
+            
+            const groupCodePart = item.group_code ? `${item.group_code}/` : '';
+            const publicUrl = `${window.location.origin}${this.baseUrl}/api/markdowns/${item.category}/${groupCodePart}${item.slug}`;
+            
+            try {
+              await navigator.clipboard.writeText(publicUrl);
+              this.showToast('Public URL copied to clipboard', 'success');
+            } catch (err) {
+              this.showToast('Failed to copy URL', 'error');
             }
           },
           handleMouseMove(e) {

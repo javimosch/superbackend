@@ -276,7 +276,7 @@ describe('markdowns.service', () => {
       mockFindOneLeanOnly(mockDoc);
 
       const result = await markdownsService.getMarkdownByPath('docs', 'api', 'endpoints');
-      expect(result).toBe('# API Endpoints');
+      expect(result).toEqual(mockDoc);
       expect(Markdown.findOne).toHaveBeenCalledWith({
         category: 'docs',
         group_code: 'api',
@@ -305,7 +305,7 @@ describe('markdowns.service', () => {
       mockFindOneLeanOnly(mockDoc);
 
       const result = await markdownsService.getMarkdownByPath('docs', '', 'overview');
-      expect(result).toBe('# Overview');
+      expect(result).toEqual(mockDoc);
       expect(Markdown.findOne).toHaveBeenCalledWith({
         category: 'docs',
         group_code: '',
