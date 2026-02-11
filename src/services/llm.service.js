@@ -294,6 +294,8 @@ async function call(promptKey, variables = {}, runtimeOptions = {}) {
     "stop",
     "n",
     "stream",
+    "tools",
+    "tool_choice",
   ];
 
   for (const key of allowedOptions) {
@@ -456,6 +458,8 @@ async function callAdhoc(
     "stop",
     "n",
     "stream",
+    "tools",
+    "tool_choice",
   ];
 
   for (const key of allowedOptions) {
@@ -467,6 +471,7 @@ async function callAdhoc(
   let response;
   let text = "";
   let usage = null;
+  let toolCalls = null;
 
   try {
     // Debug: log curl equivalent
@@ -495,6 +500,10 @@ async function callAdhoc(
       choice && choice.message && typeof choice.message.content === "string"
         ? choice.message.content
         : "";
+    
+    toolCalls = choice && choice.message && Array.isArray(choice.message.tool_calls)
+        ? choice.message.tool_calls
+        : null;
 
     const rawUsage = data.usage || null;
     const normalized = normalizeUsage(rawUsage);
@@ -550,6 +559,7 @@ async function callAdhoc(
 
   return {
     content: text,
+    toolCalls,
     model: resolvedModel,
     providerKey: provider.key,
     usage,

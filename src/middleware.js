@@ -161,6 +161,8 @@ function createMiddleware(options = {}) {
       maxPoolSize: 10,
     };
 
+const telegramService = require("./services/telegram.service");
+
     // Return a promise that resolves when connection is established
     const connectionPromise = mongoose
       .connect(mongoUri, connectionOptions)
@@ -173,6 +175,9 @@ function createMiddleware(options = {}) {
         await blogCronsBootstrap.bootstrap();
         await require("./services/experimentsCronsBootstrap.service").bootstrap();
         
+        // Initialize Telegram bots
+        await telegramService.init();
+
         // Console manager is already initialized early in the middleware
         console.log("[Console Manager] MongoDB connection established");
         
@@ -658,36 +663,98 @@ function createMiddleware(options = {}) {
     });
   });
 
-  router.get(`${adminPath}/db-browser`, basicAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-db-browser.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
+    router.get(`${adminPath}/db-browser`, basicAuth, (req, res) => {
+      const templatePath = path.join(
+        __dirname,
+        "..",
+        "views",
+        "admin-db-browser.ejs",
+      );
+      fs.readFile(templatePath, "utf8", (err, template) => {
+        if (err) {
+          console.error("Error reading template:", err);
+          return res.status(500).send("Error loading page");
+        }
+        try {
+          const html = ejs.render(
+            template,
+            {
+              baseUrl: req.baseUrl,
+              adminPath,
+            },
+            {
+              filename: templatePath,
+            },
+          );
+          res.send(html);
+        } catch (renderErr) {
+          console.error("Error rendering template:", renderErr);
+          res.status(500).send("Error rendering page");
+        }
+      });
     });
-  });
+
+    router.get(`${adminPath}/telegram`, basicAuth, (req, res) => {
+      const templatePath = path.join(
+        __dirname,
+        "..",
+        "views",
+        "admin-telegram.ejs",
+      );
+      fs.readFile(templatePath, "utf8", (err, template) => {
+        if (err) {
+          console.error("Error reading template:", err);
+          return res.status(500).send("Error loading page");
+        }
+        try {
+          const html = ejs.render(
+            template,
+            {
+              baseUrl: req.baseUrl,
+              adminPath,
+            },
+            {
+              filename: templatePath,
+            },
+          );
+          res.send(html);
+        } catch (renderErr) {
+          console.error("Error rendering template:", renderErr);
+          res.status(500).send("Error rendering page");
+        }
+      });
+    });
+
+    router.get(`${adminPath}/agents`, basicAuth, (req, res) => {
+      const templatePath = path.join(
+        __dirname,
+        "..",
+        "views",
+        "admin-agents.ejs",
+      );
+      fs.readFile(templatePath, "utf8", (err, template) => {
+        if (err) {
+          console.error("Error reading template:", err);
+          return res.status(500).send("Error loading page");
+        }
+        try {
+          const html = ejs.render(
+            template,
+            {
+              baseUrl: req.baseUrl,
+              adminPath,
+            },
+            {
+              filename: templatePath,
+            },
+          );
+          res.send(html);
+        } catch (renderErr) {
+          console.error("Error rendering template:", renderErr);
+          res.status(500).send("Error rendering page");
+        }
+      });
+    });
 
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
@@ -752,6 +819,8 @@ function createMiddleware(options = {}) {
     require("./routes/adminAudit.routes"),
   );
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
+  router.use("/api/admin/telegram", require("./routes/adminTelegram.routes"));
+  router.use("/api/admin/agents", require("./routes/adminAgents.routes"));
   router.use(
     "/api/admin/ejs-virtual",
     require("./routes/adminEjsVirtual.routes"),

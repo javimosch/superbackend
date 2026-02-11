@@ -387,6 +387,24 @@ async function listCosts(req, res) {
   }
 }
 
+async function listProviders(req, res) {
+  try {
+    const providers = await getJsonSetting(PROVIDERS_KEY, {});
+    const safeProviders = {};
+    if (providers && typeof providers === "object") {
+      for (const [key, value] of Object.entries(providers)) {
+        if (!value || typeof value !== "object") continue;
+        const { apiKey, ...rest } = value;
+        safeProviders[key] = rest;
+      }
+    }
+    res.json({ providers: safeProviders });
+  } catch (error) {
+    console.error("[adminLlm] listProviders error", error);
+    res.status(500).json({ error: "Failed to load providers" });
+  }
+}
+
 module.exports = {
   getConfig,
   saveConfig,
@@ -394,4 +412,5 @@ module.exports = {
   listAudit,
   listCosts,
   listOpenRouterModels,
+  listProviders,
 };

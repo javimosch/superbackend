@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Agents - SuperBackend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app" class="p-6 max-w-6xl mx-auto" v-cloak>
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">AI Agents</h1>
+                <p class="text-gray-500">Configure your intelligent agent gateway</p>
+            </div>
+            <button @click="openCreateModal" class="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition">
+                <i class="ti ti-plus"></i>
+                Create Agent
+            </button>
+        </div>
+
+        <!-- Agent List -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div v-for="agent in agents" :key="agent._id" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
+                <div class="p-6">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center text-xl">
+                                <i class="ti ti-robot"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">{{ agent.name }}</h3>
+                                <p class="text-xs text-gray-400">{{ agent.model }}</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-1">
+                            <button @click="editAgent(agent)" class="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition">
+                                <i class="ti ti-edit"></i>
+                            </button>
+                            <button @click="confirmDelete(agent)" class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition">
+                                <i class="ti ti-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 text-sm">
+                        <p class="text-gray-600 line-clamp-2 italic">"{{ agent.systemPrompt }}"</p>
+                        
+                        <div class="flex flex-wrap gap-1 mt-4">
+                            <span v-for="tool in agent.tools" :key="tool" class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs border border-gray-200">
+                                {{ tool }}
+                            </span>
+                            <span v-if="!agent.tools?.length" class="text-xs text-gray-400">No tools enabled</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="agents.length === 0" class="bg-white rounded-xl border-2 border-dashed border-gray-200 p-12 text-center">
+            <i class="ti ti-robot text-6xl text-gray-200 mb-4 inline-block"></i>
+            <h3 class="text-lg font-medium text-gray-800">No agents found</h3>
+            <p class="text-gray-500 mb-6">Create your first AI agent to start automating</p>
+            <button @click="openCreateModal" class="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition">
+                Create Agent
+            </button>
+        </div>
+
+        <!-- Modal -->
+        <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center shrink-0">
+                    <h3 class="font-bold text-gray-800">{{ editingAgent ? 'Edit Agent' : 'Create Agent' }}</h3>
+                    <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                        <i class="ti ti-x"></i>
+                    </button>
+                </div>
+                <form @submit.prevent="saveAgent" class="p-6 space-y-4 overflow-y-auto">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Agent Name</label>
+                            <input v-model="formData.name" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Customer Support AI">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">LLM Provider</label>
+                            <select v-model="formData.providerKey" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="">Select Provider</option>
+                                <option v-for="(p, key) in providers" :key="key" :value="key">{{ p.label || key }}</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Model</label>
+                            <input v-model="formData.model" type="text" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="gpt-4o, claude-3-5-sonnet...">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">System Prompt / Instructions</label>
+                        <textarea v-model="formData.systemPrompt" rows="6" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm" placeholder="You are a helpful assistant that..."></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Enabled Tools</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label v-for="tool in availableTools" :key="tool" class="flex items-center gap-2 p-2 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                                <input type="checkbox" :value="tool" v-model="formData.tools" class="w-4 h-4 text-indigo-600 rounded">
+                                <span class="text-sm font-medium text-gray-700">{{ tool }}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Temperature ({{ formData.temperature }})</label>
+                            <input v-model.number="formData.temperature" type="range" min="0" max="2" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4 shrink-0">
+                        <button type="button" @click="showModal = false" class="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
+                            Cancel
+                        </button>
+                        <button type="submit" :disabled="saving" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                            {{ saving ? 'Saving...' : (editingAgent ? 'Update' : 'Create') }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        createApp({
+            setup() {
+                const agents = ref([]);
+                const providers = ref({});
+                const showModal = ref(false);
+                const editingAgent = ref(null);
+                const saving = ref(false);
+                
+                const availableTools = ['query_database', 'get_system_stats']; // Hardcoded for now
+                
+                const formData = ref({
+                    name: '',
+                    systemPrompt: 'You are a helpful assistant.',
+                    providerKey: '',
+                    model: '',
+                    tools: [],
+                    temperature: 0.7
+                });
+
+                const baseUrl = '<%= baseUrl %>';
+
+                const fetchAgents = async () => {
+                    const res = await fetch(`${baseUrl}/api/admin/agents`);
+                    const data = await res.json();
+                    agents.value = data.items;
+                };
+
+                const fetchLLMConfig = async () => {
+                    // We need an endpoint to get LLM providers. 
+                    // For now, let's try to get it from the LLM admin API if it exists
+                    try {
+                        const res = await fetch(`${baseUrl}/api/admin/llm/providers`);
+                        if (res.ok) {
+                            const data = await res.json();
+                            providers.value = data.providers || {};
+                        }
+                    } catch (e) {
+                        console.warn('Failed to fetch LLM providers');
+                    }
+                };
+
+                const openCreateModal = () => {
+                    editingAgent.value = null;
+                    formData.value = {
+                        name: '',
+                        systemPrompt: 'You are a helpful assistant.',
+                        providerKey: Object.keys(providers.value)[0] || '',
+                        model: '',
+                        tools: [],
+                        temperature: 0.7
+                    };
+                    showModal.value = true;
+                };
+
+                const editAgent = (agent) => {
+                    editingAgent.value = agent;
+                    formData.value = {
+                        name: agent.name,
+                        systemPrompt: agent.systemPrompt,
+                        providerKey: agent.providerKey,
+                        model: agent.model,
+                        tools: agent.tools || [],
+                        temperature: agent.temperature || 0.7
+                    };
+                    showModal.value = true;
+                };
+
+                const confirmDelete = async (agent) => {
+                    if (confirm(`Are you sure you want to delete agent ${agent.name}?`)) {
+                        await fetch(`${baseUrl}/api/admin/agents/${agent._id}`, { method: 'DELETE' });
+                        fetchAgents();
+                    }
+                };
+
+                const saveAgent = async () => {
+                    saving.value = true;
+                    try {
+                        const url = editingAgent.value 
+                            ? `${baseUrl}/api/admin/agents/${editingAgent.value._id}`
+                            : `${baseUrl}/api/admin/agents`;
+                        
+                        const method = editingAgent.value ? 'PUT' : 'POST';
+
+                        const res = await fetch(url, {
+                            method,
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(formData.value)
+                        });
+
+                        if (res.ok) {
+                            showModal.value = false;
+                            fetchAgents();
+                        } else {
+                            const data = await res.json();
+                            alert(data.error || 'Failed to save agent');
+                        }
+                    } catch (err) {
+                        alert(err.message);
+                    } finally {
+                        saving.value = false;
+                    }
+                };
+
+                onMounted(() => {
+                    fetchAgents();
+                    fetchLLMConfig();
+                });
+
+                return {
+                    agents,
+                    providers,
+                    showModal,
+                    editingAgent,
+                    formData,
+                    saving,
+                    availableTools,
+                    openCreateModal,
+                    editAgent,
+                    confirmDelete,
+                    saveAgent
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
