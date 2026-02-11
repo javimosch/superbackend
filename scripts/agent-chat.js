@@ -2,6 +2,7 @@ require('dotenv').config(process.env.MODE ? { path: `.env.${process.env.MODE}` }
 const { ScriptBase } = require('../src/helpers/scriptBase');
 const readline = require('readline');
 const agentService = require('../src/services/agent.service');
+const llmService = require('../src/services/llm.service');
 const Agent = require('../src/models/Agent');
 
 class AgentChatTUI extends ScriptBase {
@@ -79,7 +80,18 @@ class AgentChatTUI extends ScriptBase {
           chatId
         });
         
-        console.log(response + '\n');
+        const { text, usage } = response;
+        console.log(text + '\n');
+
+        if (usage) {
+          const contextLength = await llmService.getModelContextLength(selectedAgent.model, selectedAgent.providerKey);
+          const currentTokens = usage.total_tokens || (usage.prompt_tokens + usage.completion_tokens);
+          const percentage = contextLength > 0 ? ((currentTokens / contextLength) * 100).toFixed(1) : 0;
+          
+          const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
+          
+          console.log(`\x1b[90m[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\x1b[0m\n`);
+        }
       } catch (err) {
         console.log(`\n❌ Error: ${err.message}\n`);
       }

@@ -396,6 +396,40 @@ async function call(promptKey, variables = {}, runtimeOptions = {}) {
   };
 }
 
+let modelMetadataCache = {
+  data: {},
+  ts: 0
+};
+const MODEL_CACHE_TTL = 3600000;
+
+async function getModelContextLength(modelId, providerKey) {
+  if (modelMetadataCache.ts && Date.now() - modelMetadataCache.ts < MODEL_CACHE_TTL) {
+    if (modelMetadataCache.data[modelId]) return modelMetadataCache.data[modelId];
+  }
+
+  if (providerKey !== 'openrouter') return 200000;
+
+  try {
+    const { providers } = await loadConfig();
+    const provider = providers[providerKey];
+    if (!provider || !provider.apiKey) return 200000;
+
+    const res = await axios.get(`https://openrouter.ai/api/v1/models/${modelId}`, {
+      headers: { 'Authorization': `Bearer ${provider.apiKey}` }
+    });
+
+    const contextLength = res?.data?.data?.context_length || 200000;
+    
+    modelMetadataCache.data[modelId] = contextLength;
+    modelMetadataCache.ts = Date.now();
+    
+    return contextLength;
+  } catch (e) {
+    console.warn(`[llm.service] Failed to fetch context length for ${modelId}:`, e.message);
+    return 200000;
+  }
+}
+
 async function callAdhoc(
   {
     providerKey,
@@ -756,4 +790,5 @@ module.exports = {
   testPrompt,
   callAdhoc,
   stream,
+  getModelContextLength
 };

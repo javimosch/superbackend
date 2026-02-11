@@ -194,6 +194,7 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
     let iterations = 0;
     const maxIterations = agent.maxIterations || 10;
     let assistantContent = '';
+    let lastUsage = null;
 
     while (iterations < maxIterations) {
       iterations++;
@@ -224,7 +225,8 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
         tools: isLastChance ? [] : agentTools.getToolDefinitions()
       });
 
-      const { content: text, toolCalls } = response;
+      const { content: text, toolCalls, usage } = response;
+      if (usage) lastUsage = usage;
 
       if (toolCalls && toolCalls.length > 0 && !isLastChance) {
         // Add assistant tool call to history
@@ -290,10 +292,16 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
     });
 
     if (!assistantContent || typeof assistantContent !== 'string' || assistantContent.trim() === '') {
-      return 'I processed your request but have no specific response. The tool results are available in the system.';
+      return {
+        text: 'I processed your request but have no specific response. The tool results are available in the system.',
+        usage: lastUsage
+      };
     }
 
-    return assistantContent;
+    return {
+      text: assistantContent,
+      usage: lastUsage
+    };
   } catch (err) {
     console.error('Agent processMessage error:', err);
     throw err;
