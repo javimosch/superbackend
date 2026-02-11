@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const jsonConfigsService = require('./jsonConfigs.service');
 const llmService = require('./llm.service');
 const cacheLayer = require('./cacheLayer.service');
 const agentTools = require('./agentTools.service');
@@ -6,6 +8,128 @@ const Markdown = require('../models/Markdown');
 
 const HISTORY_NAMESPACE = 'agent:history';
 const MAX_HISTORY = 20;
+const COMPACTION_THRESHOLD = 0.5;
+
+async function getOrCreateSession(agentId, chatId) {
+  const slug = `agent-session-${chatId}`;
+  try {
+    return await jsonConfigsService.getJsonConfig(slug);
+  } catch (err) {
+    if (err.code === 'NOT_FOUND') {
+      const sessionData = {
+        id: chatId,
+        agentId,
+        status: 'active',
+        lastSnapshotId: null,
+        totalTokens: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      await jsonConfigsService.createJsonConfig({
+        title: `Agent Session: ${chatId}`,
+        alias: slug,
+        jsonRaw: JSON.stringify(sessionData)
+      });
+      
+      return sessionData;
+    }
+    throw err;
+  }
+}
+
+async function updateSessionMetadata(chatId, patch) {
+  const slug = `agent-session-${chatId}`;
+  const config = await Markdown.model('JsonConfig').findOne({ 
+    $or: [{ slug }, { alias: slug }] 
+  });
+  
+  if (!config) return;
+  
+  const current = JSON.parse(config.jsonRaw);
+  const updated = { ...current, ...patch, updatedAt: new Date().toISOString() };
+  
+  await jsonConfigsService.updateJsonConfig(config._id, {
+    jsonRaw: JSON.stringify(updated)
+  });
+  
+  return updated;
+}
+
+async function generateSnapshot(agent, chatId, history) {
+  const sessionUuid = chatId;
+  const timestamp = new Date().toISOString();
+  const CATEGORY = 'agents_memory';
+  const agentPrefix = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  const snapshotGroupCode = `${agentPrefix}__snapshots__${sessionUuid}`;
+  const markdownsService = require('./markdowns.service');
+
+  const systemPrompt = `You are a memory compaction system. 
+Analyze the following conversation history and extract a structured snapshot.
+Return ONLY a markdown document in this exact format:
+
+# SNAPSHOT - ${timestamp}
+Session: ${sessionUuid}
+Active Goals:
+- (list current active goals)
+
+Current Tasks:
+- (list current tasks from history)
+
+Decisions:
+- (list significant decisions made)
+
+Observations / Learnings:
+- (list new patterns or facts learned about the user/system)
+
+Constraints:
+- (list any new constraints identified)`;
+
+  const response = await llmService.callAdhoc({
+    providerKey: agent.providerKey,
+    model: agent.model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      ...history
+    ]
+  });
+
+  const snapshotContent = response.content;
+  const slug = `snapshot-${Date.now()}`;
+
+  await markdownsService.upsertMarkdown({
+    title: `Snapshot ${timestamp}`,
+    category: CATEGORY,
+    group_code: snapshotGroupCode,
+    slug,
+    markdownRaw: snapshotContent,
+    status: 'published'
+  });
+
+  const indexSlug = 'index';
+  const indexGroupCode = `${agentPrefix}__snapshots`;
+  const existingIndex = await Markdown.findOne({
+    category: CATEGORY,
+    group_code: indexGroupCode,
+    slug: indexSlug
+  }).lean();
+
+  const indexEntry = `- [${timestamp}] Snapshot: ${slug} (Session: ${sessionUuid})`;
+  const newIndexContent = existingIndex 
+    ? `${existingIndex.markdownRaw}\n${indexEntry}`
+    : `# Session Snapshots Index\n\n${indexEntry}`;
+
+  await markdownsService.upsertMarkdown({
+    title: 'Snapshots Index',
+    category: CATEGORY,
+    group_code: indexGroupCode,
+    slug: indexSlug,
+    markdownRaw: newIndexContent,
+    status: 'published'
+  });
+
+  return { slug, content: snapshotContent };
+}
 
 /**
  * Get the system prompt for an agent
@@ -13,7 +137,7 @@ const MAX_HISTORY = 20;
  * Appends global rules if any are marked as always_on
  * Injects mongo-memory workspace context
  */
-async function getSystemPrompt(agent) {
+async function getSystemPrompt(agent, chatId) {
   let basePrompt = 'You are a helpful assistant.';
 
   if (agent.systemPrompt) {
@@ -36,7 +160,7 @@ async function getSystemPrompt(agent) {
   }
 
   // Inject memory context
-  const memoryContext = await getMemoryContext(agent);
+  const memoryContext = await getMemoryContext(agent, chatId);
   
   // Inject global rules
   const globalRules = await getGlobalRules();
@@ -52,7 +176,7 @@ async function getSystemPrompt(agent) {
 /**
  * Builds the virtual cognitive space context for the agent
  */
-async function getMemoryContext(agent) {
+async function getMemoryContext(agent, chatId) {
   try {
     const agentPrefix = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
     const CATEGORY = 'agents_memory';
@@ -76,25 +200,46 @@ async function getMemoryContext(agent) {
     const fileList = rootFiles.map(f => `- ${f.slug}.md`).join('\n');
     const folderList = subfolders.map(s => `- ${s}/`).join('\n');
 
+    // 3. Load latest session snapshot if exists
+    let sessionSnapshotInfo = '';
+    if (chatId) {
+        const snapshotGroupCode = `${agentPrefix}__snapshots__${chatId}`;
+        const latestSnapshot = await Markdown.findOne({
+            category: CATEGORY,
+            group_code: snapshotGroupCode
+        }).sort({ createdAt: -1 }).lean();
+
+        if (latestSnapshot) {
+            sessionSnapshotInfo = `
+## Current Session Snapshot
+You are continuing a session. Here is the latest state summary:
+\`\`\`md
+${latestSnapshot.markdownRaw}
+\`\`\`
+`;
+        }
+    }
+
     return `
 # VIRTUAL COGNITIVE SPACE (mongo-memory)
 
 You have a persistent virtual workspace built on top of MongoDB. 
 Use the \`mongo-memory\` tool to read, write, and manage your long-term memory and identity.
 
-## Workspace Structure
+## Shared Workspace Structure
 - **Root Files**:
 ${fileList || '- (No files yet)'}
 
 - **Subdirectories**:
 ${folderList || '- (No subdirectories yet)'}
-
+${sessionSnapshotInfo}
 ## Instructions
 1. **Always read USER.md** at the start of a conversation to understand your human.
 2. **Keep NOW.md updated** with active goals and recent context.
 3. **Record significant decisions** in DECISIONS.md.
 4. **Promote stable knowledge** from short-term context to long-term memory files.
 5. Treat this space as your brain, execution layer, and identity anchor.
+6. **Context Management**: If your conversation gets too long, you might be compacted. Refer to the "Current Session Snapshot" to maintain continuity.
 `;
   } catch (err) {
     console.error('Error building memory context:', err);
@@ -169,24 +314,24 @@ async function getGlobalRules() {
 /**
  * Process a message through the agent gateway
  */
-async function processMessage(agentId, { content, senderId, chatId, metadata = {} }) {
+async function processMessage(agentId, { content, senderId, chatId: inputChatId, metadata = {} }) {
   try {
     const agent = await Agent.findById(agentId);
     if (!agent) throw new Error('Agent not found');
 
-    // Ensure memory is initialized
+    const chatId = inputChatId || crypto.randomUUID();
+    
     await ensureAgentMemory(agent);
+    const session = await getOrCreateSession(agentId, chatId);
 
-    const systemPrompt = await getSystemPrompt(agent);
+    const contextLength = await llmService.getModelContextLength(agent.model, agent.providerKey);
+    const systemPrompt = await getSystemPrompt(agent, chatId);
 
-    // Load history
     const historyKey = `${agentId}:${chatId}`;
     let history = await cacheLayer.get(historyKey, { namespace: HISTORY_NAMESPACE }) || [];
 
-    // Add user message
     history.push({ role: 'user', content });
 
-    // Trim history
     if (history.length > MAX_HISTORY) {
       history = history.slice(-MAX_HISTORY);
     }
@@ -199,7 +344,6 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
     while (iterations < maxIterations) {
       iterations++;
 
-      // Build messages for LLM
       const messages = [
         { role: 'system', content: systemPrompt },
         ...history
@@ -207,7 +351,6 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
 
       const isLastChance = iterations === maxIterations;
 
-      // Call LLM
       const response = await llmService.callAdhoc({
         providerKey: agent.providerKey,
         model: agent.model,
@@ -216,7 +359,7 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
               ...messages,
               {
                 role: 'system',
-                content: 'IMPORTANT: This is your last turn. You have used many tool calls. Please provide a final answer now based on the gathered information. DO NOT call any more tools.'
+                content: 'IMPORTANT: This is your last turn. Provide a final answer now. DO NOT call any more tools.'
               }
             ]
           : messages
@@ -229,14 +372,12 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
       if (usage) lastUsage = usage;
 
       if (toolCalls && toolCalls.length > 0 && !isLastChance) {
-        // Add assistant tool call to history
         history.push({ 
           role: 'assistant', 
           content: text || null,
           tool_calls: toolCalls 
         });
 
-        // Execute tools
         for (const toolCall of toolCalls) {
           const { name, arguments: argsString } = toolCall.function;
           let args = {};
@@ -251,10 +392,7 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
           let isError = false;
           try {
             const parsed = JSON.parse(result);
-            if (parsed && parsed.error) {
-              isError = true;
-              console.log(`Tool ${name} returned error:`, parsed.error.message);
-            }
+            if (parsed && parsed.error) isError = true;
           } catch (e) {
             isError = true;
           }
@@ -268,40 +406,49 @@ async function processMessage(agentId, { content, senderId, chatId, metadata = {
           if (isError) {
             history.push({
               role: 'system',
-              content: 'IMPORTANT: The tool returned an error. You MUST provide a friendly, conversational response to the user about this error. Do NOT show the raw error JSON to the user. Use the error details to explain what went wrong and suggest next steps.'
+              content: 'IMPORTANT: The tool returned an error. Provide a friendly conversational response about this error.'
             });
           }
         }
-        // Continue loop to let LLM process tool results
       } else {
-        // No more tool calls, we have the final answer
         assistantContent = text;
         history.push({ role: 'assistant', content: assistantContent });
         break;
       }
     }
 
-    if (iterations >= maxIterations && !assistantContent) {
-        console.warn(`Agent ${agentId} reached max iterations (${maxIterations})`);
+    if (lastUsage) {
+      const currentTokens = lastUsage.total_tokens || (lastUsage.prompt_tokens + lastUsage.completion_tokens);
+      await updateSessionMetadata(chatId, { totalTokens: currentTokens });
+
+      if (currentTokens / contextLength > COMPACTION_THRESHOLD) {
+        console.log(`[agent.service] Auto-compaction triggered for session ${chatId} (${currentTokens}/${contextLength})`);
+        const snapshot = await generateSnapshot(agent, chatId, history);
+        
+        await updateSessionMetadata(chatId, { 
+          lastSnapshotId: snapshot.slug,
+          totalTokens: 0
+        });
+
+        history = [{
+          role: 'assistant',
+          content: `Conversation summary at T=${new Date().toISOString()}`
+        }];
+      }
     }
 
-    // Save history
     await cacheLayer.set(historyKey, history, { 
       namespace: HISTORY_NAMESPACE,
-      ttlSeconds: 3600 // 1 hour
+      ttlSeconds: 3600
     });
 
-    if (!assistantContent || typeof assistantContent !== 'string' || assistantContent.trim() === '') {
-      return {
-        text: 'I processed your request but have no specific response. The tool results are available in the system.',
-        usage: lastUsage
-      };
-    }
-
-    return {
-      text: assistantContent,
-      usage: lastUsage
+    const finalResponse = {
+      text: assistantContent || 'I processed your request but have no specific response.',
+      usage: lastUsage,
+      chatId
     };
+
+    return finalResponse;
   } catch (err) {
     console.error('Agent processMessage error:', err);
     throw err;

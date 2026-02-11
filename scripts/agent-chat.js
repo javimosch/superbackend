@@ -4,6 +4,7 @@ const readline = require('readline');
 const agentService = require('../src/services/agent.service');
 const llmService = require('../src/services/llm.service');
 const Agent = require('../src/models/Agent');
+const JsonConfig = require('../src/models/JsonConfig');
 
 class AgentChatTUI extends ScriptBase {
   constructor() {
@@ -50,22 +51,55 @@ class AgentChatTUI extends ScriptBase {
     }
 
     const selectedAgent = agents[index];
-    const chatId = `tui-${Date.now()}`;
+    let chatId = `tui-${Date.now()}`;
     const senderId = 'cli-user';
 
     console.log(`\n--- Chatting with: ${selectedAgent.name} ---`);
-    console.log(`(Type 'exit' or 'quit' to stop, 'clear' to reset history)\n`);
+    console.log(`(Commands: '/new' = new session, '/sessions' = list sessions, 'exit' = quit, 'clear' = local reset)\n`);
 
     while (true) {
-      const input = await this.question('You: ');
+      const input = await this.question(`[${chatId.slice(-8)}] You: `);
       
-      if (['exit', 'quit', '\\q'].includes(input.toLowerCase().trim())) {
+      const cmd = input.toLowerCase().trim();
+      if (['exit', 'quit', '\\q'].includes(cmd)) {
         console.log('\nEnding session...');
         break;
       }
 
-      if (input.toLowerCase().trim() === 'clear') {
-        console.log('🧹 History cleared locally (using new session ID)');
+      if (cmd === '/new') {
+        chatId = `tui-${Date.now()}`;
+        console.log(`\n🆕 Started new session: ${chatId}\n`);
+        continue;
+      }
+
+      if (cmd === '/sessions') {
+        const sessionConfigs = await JsonConfig.find({
+          alias: { $regex: /^agent-session-tui-/ }
+        }).lean();
+
+        console.log('\n--- Recent TUI Sessions ---');
+        sessionConfigs.slice(-10).forEach((c, i) => {
+          const data = JSON.parse(c.jsonRaw);
+          console.log(`${i + 1}. ${data.id} (Tokens: ${data.totalTokens}, Last Snapshot: ${data.lastSnapshotId || 'None'})`);
+        });
+        
+        const sessionChoice = await this.question('\nSelect a session number to switch (or Enter to cancel): ');
+        if (sessionChoice.trim()) {
+          const sIndex = parseInt(sessionChoice, 10) - 1;
+          if (!isNaN(sIndex) && sIndex >= 0 && sIndex < sessionConfigs.length) {
+            const selectedSession = JSON.parse(sessionConfigs[sIndex].jsonRaw);
+            chatId = selectedSession.id;
+            console.log(`\n🔄 Switched to session: ${chatId}\n`);
+          } else {
+            console.log('Invalid selection.');
+          }
+        }
+        continue;
+      }
+
+      if (cmd === 'clear') {
+        console.log('🧹 History cleared locally (starting new session ID)');
+        chatId = `tui-${Date.now()}`;
         continue;
       }
 
@@ -80,7 +114,8 @@ class AgentChatTUI extends ScriptBase {
           chatId
         });
         
-        const { text, usage } = response;
+        const { text, usage, chatId: sessionChatId } = response;
+        chatId = sessionChatId;
         console.log(text + '\n');
 
         if (usage) {
@@ -90,7 +125,7 @@ class AgentChatTUI extends ScriptBase {
           
           const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
           
-          console.log(`\x1b[90m[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\x1b[0m\n`);
+          process.stdout.write(`\x1b[90m[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\x1b[0m\n\n`);
         }
       } catch (err) {
         console.log(`\n❌ Error: ${err.message}\n`);
