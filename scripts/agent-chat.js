@@ -1,4 +1,5 @@
 require('dotenv').config(process.env.MODE ? { path: `.env.${process.env.MODE}` } : {});
+process.env.TUI_MODE = 'true';
 const { ScriptBase } = require('../src/helpers/scriptBase');
 const agentService = require('../src/services/agent.service');
 const llmService = require('../src/services/llm.service');
@@ -198,7 +199,8 @@ class AgentChatTUI extends ScriptBase {
 
       if (!input.trim()) continue;
 
-      term.bold.magenta(`${selectedAgent.name} ^.is thinking...`);
+      term.bold.magenta(`${selectedAgent.name}: `);
+      const thinkingSpinner = await term.spinner('dots');
       
       this.isProcessing = true;
       this.abortController = new AbortController();
@@ -209,12 +211,31 @@ class AgentChatTUI extends ScriptBase {
           senderId,
           chatId: this.chatId
         }, {
-          abortSignal: this.abortController.signal
+          abortSignal: this.abortController.signal,
+          onProgress: (p) => {
+            term.saveCursor();
+            term.column(1).eraseLine();
+            term.bold.magenta(`${selectedAgent.name}: `);
+            
+            if (p.status === 'initializing') {
+                term.gray(p.message);
+            } else if (p.status === 'thinking') {
+                term.bold.magenta(`loop ${p.iteration}/${p.maxIterations}...`);
+            } else if (p.status === 'executing_tools') {
+                term.bold.yellow(`preparing tools...`);
+            } else if (p.status === 'executing_tool') {
+                term.bold.yellow(`executing ${p.tool}...`);
+            } else {
+                term.bold.magenta('thinking...');
+            }
+            term.restoreCursor();
+          }
         });
         
         const { text, usage, chatId: sessionChatId } = response;
         this.chatId = sessionChatId;
         
+        if (thinkingSpinner) thinkingSpinner.animate(false);
         term.column(1).eraseLine();
         term.bold.magenta(`${selectedAgent.name}: `).white(text + '\n');
 
@@ -224,6 +245,7 @@ class AgentChatTUI extends ScriptBase {
           this.drawStatusBar(null, null, null, { tokens: currentTokens, max: contextLength });
         }
       } catch (err) {
+        if (thinkingSpinner) thinkingSpinner.animate(false);
         term.column(1).eraseLine();
         if (err.message === 'Operation aborted' || err.message.includes('aborted')) {
           term.bold.yellow('⚠️ Operation cancelled by user.\n');

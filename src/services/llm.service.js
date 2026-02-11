@@ -15,6 +15,22 @@ let cache = {
 const CACHE_TTL = 60000;
 
 
+const logger = {
+  log: (...args) => {
+    if (process.env.DEBUG_LLM === 'true' && process.env.NODE_ENV !== 'test') {
+       if (!process.env.TUI_MODE) console.log(...args);
+    }
+  },
+  warn: (...args) => {
+    if (process.env.DEBUG_LLM === 'true' && process.env.NODE_ENV !== 'test') {
+       if (!process.env.TUI_MODE) console.warn(...args);
+    }
+  },
+  error: (...args) => {
+    console.error(...args);
+  }
+};
+
 function computeCompletionURL(baseUrl) {
   const trimmed = baseUrl.replace(/\/$/, "");
 
@@ -315,7 +331,7 @@ async function call(promptKey, variables = {}, runtimeOptions = {}) {
       `-H "Content-Type: application/json"`,
       ...Object.entries(provider.extraHeaders || {}).map(([k, v]) => `-H "${k}: ${v}"`),
     ].join(' ');
-    console.log(`[llm.service] curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
+    logger.log(`[llm.service] curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
 
     response = await axios.post(url, body, {
       headers: {
@@ -425,7 +441,7 @@ async function getModelContextLength(modelId, providerKey) {
     
     return contextLength;
   } catch (e) {
-    console.warn(`[llm.service] Failed to fetch context length for ${modelId}:`, e.message);
+    logger.warn(`[llm.service] Failed to fetch context length for ${modelId}:`, e.message);
     return 200000;
   }
 }
@@ -445,9 +461,9 @@ async function callAdhoc(
   const key = String(providerKey || "").trim();
   let provider = providers[key];
   
-  console.log('[llm.service] callAdhoc providerKey:', key);
-  console.log('[llm.service] callAdhoc available provider keys:', Object.keys(providers));
-  console.log('[llm.service] callAdhoc found provider:', !!provider, provider ? { enabled: provider.enabled, hasApiKey: !!provider.apiKey } : null);
+  logger.log('[llm.service] callAdhoc providerKey:', key);
+  logger.log('[llm.service] callAdhoc available provider keys:', Object.keys(providers));
+  logger.log('[llm.service] callAdhoc found provider:', !!provider, provider ? { enabled: provider.enabled, hasApiKey: !!provider.apiKey } : null);
   
   // Apply runtime overrides for provider if possible
   if (runtimeOptions.apiKey || runtimeOptions.baseUrl) {
@@ -514,7 +530,7 @@ async function callAdhoc(
       `-H "Content-Type: application/json"`,
       ...Object.entries(provider.extraHeaders || {}).map(([k, v]) => `-H "${k}: ${v}"`),
     ].join(' ');
-    console.log(`[llm.service] adhoc curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
+    logger.log(`[llm.service] adhoc curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
 
     response = await axios.post(url, body, {
       headers: {
@@ -678,7 +694,7 @@ async function stream(promptKey, variables = {}, runtimeOptions = {}, { onToken 
       `-H "Content-Type: application/json"`,
       ...Object.entries(provider.extraHeaders || {}).map(([k, v]) => `-H "${k}: ${v}"`),
     ].join(' ');
-    console.log(`[llm.service] streaming curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
+    logger.log(`[llm.service] streaming curl equivalent:\n  curl -X POST ${url} ${curlHeaders} -d '${JSON.stringify(body)}'\n`);
 
     const response = await axios.post(url, body, {
       headers: {

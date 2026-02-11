@@ -2,6 +2,19 @@ const mongoose = require('mongoose');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
+
+const logger = {
+  log: (...args) => {
+    if (process.env.DEBUG_AGENT_TOOLS === 'true' && !process.env.TUI_MODE) console.log(...args);
+  },
+  warn: (...args) => {
+    if (process.env.DEBUG_AGENT_TOOLS === 'true' && !process.env.TUI_MODE) console.warn(...args);
+  },
+  error: (...args) => {
+    console.error(...args);
+  }
+};
+
 function hasTimeoutInCommand(command) {
   return /^\s*timeout\s+/.test(command) ||
          /\btimeout\s+\d+/.test(command) ||
@@ -12,10 +25,10 @@ function hasTimeoutInCommand(command) {
 async function execWithTimeout(command) {
   const timeoutInCommand = hasTimeoutInCommand(command);
   if (timeoutInCommand) {
-    console.log(`[exec] Command already has timeout, using as-is: ${command}`);
+    logger.log(`[exec] Command already has timeout, using as-is: ${command}`);
     return await execAsync(command);
   }
-  console.log(`[exec] Adding 15-second timeout to command: ${command}`);
+  logger.log(`[exec] Adding 15-second timeout to command: ${command}`);
   const wrappedCommand = `timeout 15s ${command}`;
   try {
     const { stdout, stderr } = await execAsync(wrappedCommand);
@@ -161,7 +174,7 @@ const tools = {
 
             // Simple content length check for verification log
             const bytes = Buffer.byteLength(verifiedDoc.markdownRaw, 'utf8');
-            console.log(`[mongo-memory] Successfully wrote ${filename} (${bytes} bytes) to ${targetGroupCode}. Doc ID: ${verifiedDoc._id}`);
+            logger.log(`[mongo-memory] Successfully wrote ${filename} (${bytes} bytes) to ${targetGroupCode}. Doc ID: ${verifiedDoc._id}`);
             
             return `File ${filename} written successfully to ${targetGroupCode} (Verified: ${bytes} bytes)`;
           }
@@ -204,9 +217,9 @@ const tools = {
             const newBytes = Buffer.byteLength(verifiedDoc.markdownRaw, 'utf8');
             
             if (newBytes <= oldBytes && content.length > 0) {
-               console.warn(`[mongo-memory] Warning: Append might have failed for ${filename}. Size did not increase (Old: ${oldBytes}, New: ${newBytes})`);
+               logger.warn(`[mongo-memory] Warning: Append might have failed for ${filename}. Size did not increase (Old: ${oldBytes}, New: ${newBytes})`);
             } else {
-               console.log(`[mongo-memory] Successfully appended to ${filename} (New size: ${newBytes} bytes) in ${targetGroupCode}`);
+               logger.log(`[mongo-memory] Successfully appended to ${filename} (New size: ${newBytes} bytes) in ${targetGroupCode}`);
             }
 
             return `Content appended to ${filename} in ${targetGroupCode} (Verified new size: ${newBytes} bytes)`;
@@ -546,7 +559,7 @@ async function executeTool(name, args, context = {}) {
       ]
     });
   }
-  console.log(`Executing tool ${name} with args:`, args);
+  logger.log(`Executing tool ${name} with args:`, args);
   return await tool.execute(args, context);
 }
 function getToolDefinitions() {

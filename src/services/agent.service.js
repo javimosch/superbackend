@@ -5,6 +5,18 @@ const agentTools = require('./agentTools.service');
 const Agent = require('../models/Agent');
 const Markdown = require('../models/Markdown');
 const agentHistoryService = require('./agentHistory.service');
+const logger = {
+  log: (...args) => {
+    if (process.env.DEBUG_AGENT === 'true' && !process.env.TUI_MODE) console.log(...args);
+  },
+  warn: (...args) => {
+    if (process.env.DEBUG_AGENT === 'true' && !process.env.TUI_MODE) console.warn(...args);
+  },
+  error: (...args) => {
+    console.error(...args);
+  }
+};
+
 const MAX_HISTORY = 20;
 const COMPACTION_THRESHOLD = 0.5;
 
@@ -265,7 +277,7 @@ async function ensureAgentMemory(agent) {
         markdownRaw: content,
         status: 'published'
       });
-      console.log(`Initialized memory file: ${slug}.md for agent ${agent.name}`);
+      logger.log(`Initialized memory file: ${slug}.md for agent ${agent.name}`);
     }
   }
 }
@@ -325,7 +337,7 @@ async function compactSession(agentId, chatId) {
     }).sort({ createdAt: -1 }).lean();
 
     if (existingSnapshot) {
-      console.log(`[agent.service] Manual compaction triggered for session ${chatId} (using existing snapshot)`);
+      logger.log(`[agent.service] Manual compaction triggered for session ${chatId} (using existing snapshot)`);
       history = [{ role: 'system', content: existingSnapshot.markdownRaw }];
     } else if (sessionMetadata.lastSnapshotId) {
       return { success: false, message: 'This session was previously compacted. No additional history to compact.' };
@@ -335,7 +347,7 @@ async function compactSession(agentId, chatId) {
       return { success: false, message: 'History is empty and no existing snapshot found for this session' };
     }
   } else {
-    console.log(`[agent.service] Manual compaction triggered for session ${chatId}`);
+    logger.log(`[agent.service] Manual compaction triggered for session ${chatId}`);
   }
 
   const snapshot = await generateSnapshot(agent, chatId, history);
@@ -361,15 +373,17 @@ async function compactSession(agentId, chatId) {
  */
 async function processMessage(agentId, { content, senderId, chatId: inputChatId, metadata = {} }, options = {}) {
   try {
-    const { abortSignal } = options;
+    const { abortSignal, onProgress } = options;
     const agent = await Agent.findById(agentId);
     if (!agent) throw new Error('Agent not found');
 
     const chatId = inputChatId || crypto.randomUUID();
     
+    if (onProgress) onProgress({ status: 'initializing', message: 'Checking memory...' });
     await ensureAgentMemory(agent);
     await getOrCreateSession(agentId, chatId);
 
+    if (onProgress) onProgress({ status: 'initializing', message: 'Loading context...' });
     const contextLength = await llmService.getModelContextLength(agent.model, agent.providerKey);
     const systemPrompt = await getSystemPrompt(agent, chatId);
 
@@ -395,6 +409,8 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
         throw new Error('Operation aborted');
       }
       iterations++;
+
+      if (onProgress) onProgress({ status: 'thinking', iteration: iterations, maxIterations });
 
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -428,6 +444,8 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       if (usage) lastUsage = usage;
 
       if (toolCalls && toolCalls.length > 0 && !isLastChance) {
+        if (onProgress) onProgress({ status: 'executing_tools', toolCalls });
+        
         const assistantMsg = { 
           role: 'assistant', 
           content: text || null,
@@ -448,6 +466,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
             console.error('Failed to parse tool arguments:', argsString);
           }
 
+          if (onProgress) onProgress({ status: 'executing_tool', tool: name, args });
           const result = await agentTools.executeTool(name, args, { agent });
           
           let isError = false;
@@ -484,6 +503,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       }
     }
 
+    if (onProgress) onProgress({ status: 'finalizing' });
     if (lastUsage) {
       const currentTokens = lastUsage.total_tokens || (lastUsage.prompt_tokens + lastUsage.completion_tokens);
       await updateSessionMetadata(chatId, { totalTokens: currentTokens });
@@ -504,7 +524,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     return finalResponse;
   } catch (err) {
     if (err.message !== 'Operation aborted' && !err.message.includes('aborted')) {
-      console.error('Agent processMessage error:', err);
+      logger.error('Agent processMessage error:', err);
     }
     throw err;
   }

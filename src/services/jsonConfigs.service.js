@@ -2,6 +2,18 @@ const crypto = require('crypto');
 
 const JsonConfig = require('../models/JsonConfig');
 
+const logger = {
+  log: (...args) => {
+    if (process.env.DEBUG_JSON_CONFIGS === 'true' && !process.env.TUI_MODE) console.log(...args);
+  },
+  warn: (...args) => {
+    if (process.env.DEBUG_JSON_CONFIGS === 'true' && !process.env.TUI_MODE) console.warn(...args);
+  },
+  error: (...args) => {
+    console.error(...args);
+  }
+};
+
 const cache = new Map();
 
 function normalizeSlugBase(title) {
@@ -122,7 +134,7 @@ async function getJsonConfigById(id) {
 }
 
 async function createJsonConfig({ title, jsonRaw, publicEnabled = false, cacheTtlSeconds = 0, alias }) {
-  console.log('createJsonConfig called with:', { title, jsonRaw, publicEnabled, cacheTtlSeconds, alias });
+  logger.log('createJsonConfig called with:', { title, jsonRaw, publicEnabled, cacheTtlSeconds, alias });
   
   const normalizedTitle = String(title || '').trim();
   if (!normalizedTitle) {
@@ -142,7 +154,7 @@ async function createJsonConfig({ title, jsonRaw, publicEnabled = false, cacheTt
   let normalizedAlias = null;
   if (alias !== undefined && alias !== null) {
     normalizedAlias = normalizeAlias(alias);
-    console.log('Normalized alias:', normalizedAlias);
+    logger.log('Normalized alias:', normalizedAlias);
     if (normalizedAlias && !(await validateAliasUniqueness(normalizedAlias))) {
       const err = new Error('Alias must be unique and not conflict with existing slugs or aliases');
       err.code = 'ALIAS_NOT_UNIQUE';
@@ -175,7 +187,7 @@ async function createJsonConfig({ title, jsonRaw, publicEnabled = false, cacheTt
 }
 
 async function updateJsonConfig(id, patch) {
-  console.log('updateJsonConfig called with id:', id, 'patch:', patch);
+  logger.log('updateJsonConfig called with id:', id, 'patch:', patch);
   
   const doc = await JsonConfig.findById(id);
   if (!doc) {
@@ -184,7 +196,7 @@ async function updateJsonConfig(id, patch) {
     throw err;
   }
 
-  console.log('Found document:', doc.toObject());
+  logger.log('Found document:', doc.toObject());
 
   const oldSlug = doc.slug;
   const oldAlias = doc.alias;
@@ -222,14 +234,14 @@ async function updateJsonConfig(id, patch) {
 
   if (patch && Object.prototype.hasOwnProperty.call(patch, 'alias')) {
     const newAlias = patch.alias;
-    console.log('Processing alias update. newAlias:', newAlias);
+    logger.log('Processing alias update. newAlias:', newAlias);
     
     if (newAlias === null || newAlias === undefined || newAlias === '') {
       doc.alias = undefined;
-      console.log('Setting alias to undefined');
+      logger.log('Setting alias to undefined');
     } else {
       const normalizedAlias = normalizeAlias(newAlias);
-      console.log('Normalized alias for update:', normalizedAlias);
+      logger.log('Normalized alias for update:', normalizedAlias);
       
       if (!normalizedAlias) {
         const err = new Error('Invalid alias format');
@@ -244,7 +256,7 @@ async function updateJsonConfig(id, patch) {
       }
       
       doc.alias = normalizedAlias;
-      console.log('Setting alias to:', normalizedAlias);
+      logger.log('Setting alias to:', normalizedAlias);
     }
   }
 
@@ -252,9 +264,9 @@ async function updateJsonConfig(id, patch) {
     doc.slug = await generateUniqueSlugFromTitle(doc.title);
   }
 
-  console.log('Document before save:', doc.toObject());
+  logger.log('Document before save:', doc.toObject());
   await doc.save();
-  console.log('Document after save:', doc.toObject());
+  logger.log('Document after save:', doc.toObject());
 
   clearJsonConfigCache(oldSlug);
   clearJsonConfigCache(doc.slug);
