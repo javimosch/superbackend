@@ -119,6 +119,11 @@
                             <label class="block text-sm font-medium text-gray-700 mb-1">Temperature ({{ formData.temperature }})</label>
                             <input v-model.number="formData.temperature" type="range" min="0" max="2" step="0.1" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Max Tool Iterations</label>
+                            <input v-model.number="formData.maxIterations" type="number" min="1" max="50" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="10">
+                            <p class="text-[10px] text-gray-400 mt-1">Maximum number of tool call loops allowed per message. Default is 10.</p>
+                        </div>
                     </div>
                     
                     <div class="flex gap-3 pt-4 shrink-0">
@@ -145,7 +150,7 @@
                 const editingAgent = ref(null);
                 const saving = ref(false);
                 
-                const availableTools = ['query_database', 'get_system_stats']; // Hardcoded for now
+                const availableTools = ['query_database', 'get_system_stats', 'raw_db_query', 'exec'];
                 
                 const formData = ref({
                     name: '',
@@ -153,7 +158,8 @@
                     providerKey: '',
                     model: '',
                     tools: [],
-                    temperature: 0.7
+                    temperature: 0.7,
+                    maxIterations: 10
                 });
 
                 const baseUrl = '<%= baseUrl %>';
@@ -186,7 +192,8 @@
                         providerKey: Object.keys(providers.value)[0] || '',
                         model: '',
                         tools: [],
-                        temperature: 0.7
+                        temperature: 0.7,
+                        maxIterations: 10
                     };
                     showModal.value = true;
                 };
@@ -199,7 +206,8 @@
                         providerKey: agent.providerKey,
                         model: agent.model,
                         tools: agent.tools || [],
-                        temperature: agent.temperature || 0.7
+                        temperature: agent.temperature || 0.7,
+                        maxIterations: agent.maxIterations || 10
                     };
                     showModal.value = true;
                 };
