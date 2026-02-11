@@ -503,7 +503,9 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
 
     return finalResponse;
   } catch (err) {
-    console.error('Agent processMessage error:', err);
+    if (err.message !== 'Operation aborted' && !err.message.includes('aborted')) {
+      console.error('Agent processMessage error:', err);
+    }
     throw err;
   }
 }
