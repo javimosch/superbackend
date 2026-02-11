@@ -148,7 +148,22 @@ const tools = {
               status: 'published'
             });
             
-            return `File ${filename} written successfully to ${targetGroupCode}`;
+            // Verify write success by reading it back immediately
+            const verifiedDoc = await Markdown.findOne({
+              category: CATEGORY,
+              group_code: targetGroupCode,
+              slug
+            }).lean();
+
+            if (!verifiedDoc) {
+              throw new Error(`Write failed: Document ${filename} could not be found after write operation`);
+            }
+
+            // Simple content length check for verification log
+            const bytes = Buffer.byteLength(verifiedDoc.markdownRaw, 'utf8');
+            console.log(`[mongo-memory] Successfully wrote ${filename} (${bytes} bytes) to ${targetGroupCode}. Doc ID: ${verifiedDoc._id}`);
+            
+            return `File ${filename} written successfully to ${targetGroupCode} (Verified: ${bytes} bytes)`;
           }
           case 'append': {
             if (!filename) throw new Error('filename is required for append');
@@ -174,7 +189,27 @@ const tools = {
               status: 'published'
             });
             
-            return `Content appended to ${filename} in ${targetGroupCode}`;
+            // Verify append success
+            const verifiedDoc = await Markdown.findOne({
+              category: CATEGORY,
+              group_code: targetGroupCode,
+              slug
+            }).lean();
+
+            if (!verifiedDoc) {
+              throw new Error(`Append failed: Document ${filename} could not be found after append operation`);
+            }
+
+            const oldBytes = Buffer.byteLength(existingContent, 'utf8');
+            const newBytes = Buffer.byteLength(verifiedDoc.markdownRaw, 'utf8');
+            
+            if (newBytes <= oldBytes && content.length > 0) {
+               console.warn(`[mongo-memory] Warning: Append might have failed for ${filename}. Size did not increase (Old: ${oldBytes}, New: ${newBytes})`);
+            } else {
+               console.log(`[mongo-memory] Successfully appended to ${filename} (New size: ${newBytes} bytes) in ${targetGroupCode}`);
+            }
+
+            return `Content appended to ${filename} in ${targetGroupCode} (Verified new size: ${newBytes} bytes)`;
           }
           case 'search': {
             if (!query) throw new Error('query is required for search');

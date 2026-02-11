@@ -7,6 +7,7 @@ const Markdown = require('../models/Markdown');
 const agentHistoryService = require('./agentHistory.service');
 const MAX_HISTORY = 20;
 const COMPACTION_THRESHOLD = 0.5;
+
 async function getOrCreateSession(agentId, chatId) {
   const slug = `agent-session-${chatId}`;
   try {
@@ -398,6 +399,13 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
 
       const isLastChance = iterations === maxIterations;
 
+      const tools = isLastChance ? [] : agentTools.getToolDefinitions();
+      
+      let runtimeOptions = {
+        temperature: agent.temperature,
+        tools
+      };
+
       const response = await llmService.callAdhoc({
         providerKey: agent.providerKey,
         model: agent.model,
@@ -410,10 +418,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
               }
             ]
           : messages
-      }, {
-        temperature: agent.temperature,
-        tools: isLastChance ? [] : agentTools.getToolDefinitions()
-      });
+      }, runtimeOptions);
 
       const { content: text, toolCalls, usage } = response;
       if (usage) lastUsage = usage;
@@ -422,10 +427,9 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
         const assistantMsg = { 
           role: 'assistant', 
           content: text || null,
-          toolCalls: toolCalls // Store as camelCase for AgentMessage
+          tool_calls: toolCalls
         };
-        // Keep snake_case for LLM context
-        history.push({ ...assistantMsg, tool_calls: toolCalls });
+        history.push(assistantMsg);
         newMessages.push(assistantMsg);
 
         for (const toolCall of toolCalls) {
@@ -449,10 +453,10 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
 
           const toolMsg = {
             role: 'tool',
-            toolCallId: toolCall.id,
+            tool_call_id: toolCall.id,
             content: result
           };
-          history.push({ ...toolMsg, tool_call_id: toolCall.id });
+          history.push(toolMsg);
           newMessages.push(toolMsg);
 
           if (isError) {

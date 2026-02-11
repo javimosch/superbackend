@@ -102,8 +102,8 @@ async function migrateSessionHistory(agentId, chatId) {
       chatId,
       role: msg.role,
       content: msg.content,
-      toolCalls: msg.toolCalls || [],
-      toolCallId: msg.toolCallId,
+      toolCalls: transformOpenAIToolCallsToSchema(msg.toolCalls || msg.tool_calls || []),
+      toolCallId: msg.toolCallId || msg.tool_call_id,
       metadata: msg.metadata || {
         tokens: msg.tokens || 0,
         timestamp: config.createdAt || new Date()
@@ -143,9 +143,8 @@ async function appendMessages(agentId, chatId, messages) {
       chatId,
       role: msg.role,
       content: msg.content,
-      // Ensure toolCalls are transformed to Schema format
-      toolCalls: transformOpenAIToolCallsToSchema(msg.toolCalls || []),
-      toolCallId: msg.toolCallId,
+      toolCalls: transformOpenAIToolCallsToSchema(msg.toolCalls || msg.tool_calls || []),
+      toolCallId: msg.toolCallId || msg.tool_call_id,
       metadata: msg.metadata || {},
       createdAt: new Date(),
       updatedAt: new Date()
@@ -193,16 +192,26 @@ async function getHistory(agentId, chatId, limit = 20) {
     const startIndex = Math.max(0, messages.length - limit);
     messages = messages.slice(startIndex);
 
-    return messages.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      // Transform Schema format back to OpenAI format
-      tool_calls: transformSchemaToolCallsToOpenAI(msg.toolCalls),
-      toolCalls: transformSchemaToolCallsToOpenAI(msg.toolCalls),
-      tool_call_id: msg.toolCallId,
-      toolCallId: msg.toolCallId,
-      metadata: msg.metadata
-    }));
+    return messages.map(msg => {
+      const out = {
+        role: msg.role,
+        content: msg.content || (msg.role === 'assistant' && msg.toolCalls?.length ? null : '')
+      };
+
+      if (msg.role === 'assistant' && msg.toolCalls?.length > 0) {
+        out.tool_calls = transformSchemaToolCallsToOpenAI(msg.toolCalls);
+      }
+
+      if (msg.role === 'tool') {
+        out.tool_call_id = msg.toolCallId;
+      }
+
+      if (msg.metadata) {
+        out.metadata = msg.metadata;
+      }
+
+      return out;
+    });
   } catch (err) {
     console.error('Error loading history:', err);
     return [];
