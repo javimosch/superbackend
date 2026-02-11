@@ -101,7 +101,15 @@ class AgentChatTUI extends ScriptBase {
     });
 
     term.grabInput(true);
+    
+    term.scrollingRegion(1, term.height - 1);
+    
     this.drawStatusBar();
+
+    term.on('resize', (width, height) => {
+        term.scrollingRegion(1, height - 1);
+        this.drawStatusBar();
+    });
 
     while (true) {
       term.bold.cyan(`\n[${this.chatId.slice(-8)}] You: `);
@@ -199,36 +207,71 @@ class AgentChatTUI extends ScriptBase {
 
       if (!input.trim()) continue;
 
-      term.bold.magenta(`${selectedAgent.name}: `);
-      const thinkingSpinner = await term.spinner('dots');
-      
       this.isProcessing = true;
       this.abortController = new AbortController();
       
+      let thinkingSpinner = null;
+      let hasErasedInitialThinking = false;
+
       try {
+        let hasStartedContent = false;
+        let hasStartedReasoning = false;
+        
+        this.drawStatusBar(` ⏳ Starting Loop... `, 'bgYellow', 'black');
+
         const response = await agentService.processMessage(selectedAgent._id, {
           content: input,
           senderId,
           chatId: this.chatId
         }, {
           abortSignal: this.abortController.signal,
-          onProgress: (p) => {
-            term.saveCursor();
-            term.column(1).eraseLine();
-            term.bold.magenta(`${selectedAgent.name}: `);
-            
-            if (p.status === 'initializing') {
-                term.gray(p.message);
+          onProgress: async (p) => {
+            if (p.status === 'reasoning') {
+                if (thinkingSpinner) {
+                    thinkingSpinner.animate(false);
+                    thinkingSpinner = null;
+                }
+                if (!hasStartedReasoning) {
+                    hasStartedReasoning = true;
+                    this.drawStatusBar(` 🧠 Loop ${p.iteration || '?'} | thinking... `);
+                    term.column(1).eraseLine();
+                    hasErasedInitialThinking = true;
+                    term.bold.magenta(`${selectedAgent.name} (thinking): `).gray.italic('...\n');
+                }
+                term.gray.italic(p.token);
+            } else if (p.status === 'streaming_content') {
+                if (thinkingSpinner) {
+                    thinkingSpinner.animate(false);
+                    thinkingSpinner = null;
+                }
+                if (!hasStartedContent) {
+                    hasStartedContent = true;
+                    this.drawStatusBar(` ✍️ Loop ${p.iteration || '?'} | responding... `);
+                    if (hasStartedReasoning) {
+                        term('\n\n');
+                    } else {
+                        term.column(1).eraseLine();
+                        hasErasedInitialThinking = true;
+                    }
+                    term.bold.magenta(`${selectedAgent.name}: `);
+                }
+                term.white(p.token);
             } else if (p.status === 'thinking') {
-                term.bold.magenta(`loop ${p.iteration}/${p.maxIterations}...`);
+                hasStartedContent = false;
+                hasStartedReasoning = false;
+                this.drawStatusBar(` ⏳ Loop ${p.iteration}/${p.maxIterations} | thinking... `, 'bgYellow', 'black');
+                
+                if (!hasErasedInitialThinking && !thinkingSpinner) {
+                    term.bold.magenta(`${selectedAgent.name}: `);
+                    thinkingSpinner = await term.spinner('dots');
+                }
             } else if (p.status === 'executing_tools') {
-                term.bold.yellow(`preparing tools...`);
+                this.drawStatusBar(` 🛠️  Loop ${p.iteration || '?'} | preparing tools... `, 'bgCyan', 'black');
             } else if (p.status === 'executing_tool') {
-                term.bold.yellow(`executing ${p.tool}...`);
-            } else {
-                term.bold.magenta('thinking...');
+                this.drawStatusBar(` ⚙️  Loop ${p.iteration || '?'} | ${p.tool}... `, 'bgCyan', 'black');
+            } else if (p.status === 'initializing') {
+                this.drawStatusBar(` 🚀 ${p.message} `, 'bgBlue', 'white');
             }
-            term.restoreCursor();
           }
         });
         
@@ -236,15 +279,18 @@ class AgentChatTUI extends ScriptBase {
         this.chatId = sessionChatId;
         
         if (thinkingSpinner) thinkingSpinner.animate(false);
+        this.drawStatusBar();
         
         if (this.abortController.signal.aborted) {
             throw new Error('Operation aborted');
         }
 
-        await new Promise(r => setTimeout(r, 400));
-        
-        term.column(1).eraseLine();
-        term.bold.magenta(`${selectedAgent.name}: `).white(text + '\n');
+        if (!hasStartedContent) {
+            if (!hasErasedInitialThinking) term.column(1).eraseLine();
+            term.bold.magenta(`${selectedAgent.name}: `).white(text + '\n');
+        } else {
+            term('\n');
+        }
 
         if (usage) {
           const contextLength = await llmService.getModelContextLength(selectedAgent.model, selectedAgent.providerKey);
@@ -273,7 +319,7 @@ class AgentChatTUI extends ScriptBase {
     term.eraseLine();
     
     if (message) {
-      term[bgColor][textColor](` ${message} `);
+      term[bgColor][textColor](` ${message.trim()} `);
     } else {
       const id = this.chatId.slice(-8);
       const agent = this.selectedAgent ? this.selectedAgent.name : 'No Agent';
@@ -283,11 +329,16 @@ class AgentChatTUI extends ScriptBase {
       term.bgBlue.white(` 🤖 ${agent} `);
       term.bgBlack.gray(` 🧠 ${model} `);
       
-      if (meta.tokens) {
+      if (meta.tokens || this.lastTokens) {
+        const tokens = meta.tokens || this.lastTokens;
+        const max = meta.max || this.lastMax;
+        this.lastTokens = tokens;
+        this.lastMax = max;
+
         const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
-        const formattedTokens = formatNum(meta.tokens);
-        const formattedMax = formatNum(meta.max);
-        const perc = meta.max > 0 ? ((meta.tokens / meta.max) * 100).toFixed(1) : 0;
+        const formattedTokens = formatNum(tokens);
+        const formattedMax = formatNum(max);
+        const perc = max > 0 ? ((tokens / max) * 100).toFixed(1) : 0;
         const color = perc > 80 ? 'bgRed' : perc > 50 ? 'bgYellow' : 'bgGreen';
         term[color].black(` 📊 ${formattedTokens}/${formattedMax} (${perc}%) `);
       }
@@ -298,6 +349,7 @@ class AgentChatTUI extends ScriptBase {
 
   async cleanup() {
     term.grabInput(false);
+    term.scrollingRegion(1, term.height);
     term.moveTo(1, term.height).eraseLine();
     await new Promise(r => setTimeout(r, 100));
   }

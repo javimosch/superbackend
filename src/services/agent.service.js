@@ -426,7 +426,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
         tools
       };
 
-      const response = await llmService.callAdhoc({
+      const response = await llmService.streamAdhoc({
         providerKey: agent.providerKey,
         model: agent.model,
         messages: isLastChance
@@ -438,13 +438,20 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
               }
             ]
           : messages
-      }, runtimeOptions);
+      }, runtimeOptions, {
+        onToken: (token) => {
+          if (onProgress) onProgress({ status: 'streaming_content', token, iteration: iterations });
+        },
+        onReasoning: (reasoning) => {
+          if (onProgress) onProgress({ status: 'reasoning', token: reasoning, iteration: iterations });
+        }
+      });
 
       const { content: text, toolCalls, usage } = response;
       if (usage) lastUsage = usage;
 
       if (toolCalls && toolCalls.length > 0 && !isLastChance) {
-        if (onProgress) onProgress({ status: 'executing_tools', toolCalls });
+        if (onProgress) onProgress({ status: 'executing_tools', toolCalls, iteration: iterations });
         
         const assistantMsg = { 
           role: 'assistant', 
@@ -466,7 +473,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
             console.error('Failed to parse tool arguments:', argsString);
           }
 
-          if (onProgress) onProgress({ status: 'executing_tool', tool: name, args });
+          if (onProgress) onProgress({ status: 'executing_tool', tool: name, args, iteration: iterations });
           const result = await agentTools.executeTool(name, args, { agent });
           
           let isError = false;
