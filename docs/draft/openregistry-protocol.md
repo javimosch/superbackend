@@ -21,9 +21,49 @@ A registry is a collection of named items accessible via HTTP endpoints. Registr
 
 An item represents a single entry in a registry. Items contain a standardized core structure plus an extensible metadata field for type-specific data.
 
+**Item Schema:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier for the item |
+| `name` | string | Human-readable name |
+| `category` | string | Category the item belongs to |
+| `version` | integer | Latest version number (highest in versions array) |
+| `versions` | integer[] | Array of available version numbers (integers) |
+| `description` | string | Brief description of the item |
+| `public` | boolean | Whether item is visible to unauthenticated requests |
+| `tags` | string[] | Array of tags for discovery |
+| `created_at` | ISO8601 | Creation timestamp |
+| `updated_at` | ISO8601 | Last update timestamp |
+| `metadata` | object | Dynamic field for type-specific data |
+
 ### Category
 
 A category is a logical grouping of items within a registry. A single OpenRegistry implementation can support multiple categories (e.g., plugins, services, templates, connectors), allowing clients to filter and discover items by type.
+
+### Registry Metadata
+
+The registry itself includes metadata in responses:
+
+```json
+{
+  "registry": {
+    "name": "string",
+    "version": "string",
+    "description": "string",
+    "categories": ["string", ...],
+    "protocol_version": "1.1.0"
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Registry name |
+| `version` | string | Registry implementation version |
+| `description` | string | Brief description |
+| `categories` | string[] | Available categories |
+| `protocol_version` | string | OpenRegistry protocol version supported |
 
 ---
 
@@ -91,12 +131,12 @@ GET /{registry-path}/auth
 
 ### 2. List Endpoint
 
-Retrieves items from the registry with optional filtering, category selection, and pagination.
+Retrieves items from the registry with optional filtering, category selection, version filtering, and pagination.
 
 **Endpoint Pattern:**
 ```
 GET /{registry-path}/list
-GET /{registry-path}/list?category={name}&page={number}&limit={number}&filter={query}
+GET /{registry-path}/list?category={name}&version={number}&minimal={boolean}&page={number}&limit={number}&filter={query}
 ```
 
 **Query Parameters:**
@@ -104,11 +144,13 @@ GET /{registry-path}/list?category={name}&page={number}&limit={number}&filter={q
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `category` | string | No | Filter items by category (default: all categories) |
+| `version` | integer or "latest" | No | Filter by specific version. Use integer for exact match, or "latest" for the most recent version |
+| `minimal` | boolean | No | Return minimal response without `metadata` field (default: false) |
 | `page` | integer | No | Page number (1-based, default: 1) |
 | `limit` | integer | No | Items per page (default: 20, max: 100) |
 | `filter` | string | No | Filter expression for item search |
 
-**Response Format:**
+**Full Response Format (default, `minimal=false`):**
 
 ```json
 {
@@ -125,14 +167,16 @@ GET /{registry-path}/list?category={name}&page={number}&limit={number}&filter={q
     "total_pages": integer,
     "has_next": boolean,
     "has_prev": boolean,
-    "category": "string | null"
+    "category": "string | null",
+    "version": "integer | \"latest\" | null"
   },
   "items": [
     {
       "id": "string",
       "name": "string",
       "category": "string",
-      "version": "string",
+      "version": integer,
+      "versions": [integer, ...],
       "description": "string",
       "public": boolean,
       "tags": ["string", ...],
@@ -146,6 +190,67 @@ GET /{registry-path}/list?category={name}&page={number}&limit={number}&filter={q
   ]
 }
 ```
+
+**Minimal Response Format (`minimal=true`):**
+
+```json
+{
+  "registry": {
+    "name": "string",
+    "version": "string",
+    "description": "string",
+    "categories": ["string", ...]
+  },
+  "pagination": {
+    "page": integer,
+    "limit": integer,
+    "total_items": integer,
+    "total_pages": integer,
+    "has_next": boolean,
+    "has_prev": boolean,
+    "category": "string | null",
+    "version": "integer | \"latest\" | null"
+  },
+  "items": [
+    {
+      "id": "string",
+      "name": "string",
+      "category": "string",
+      "version": integer,
+      "versions": [integer, ...],
+      "description": "string",
+      "public": boolean,
+      "tags": ["string", ...],
+      "created_at": "ISO8601-timestamp",
+      "updated_at": "ISO8601-timestamp"
+    },
+    ...
+  ]
+}
+```
+
+**Key Differences - Full vs Minimal:**
+
+| Field | Full Response | Minimal Response |
+|-------|---------------|------------------|
+| `metadata` | ✅ Included | ❌ Excluded |
+| Use Case | Detailed item info, installation instructions | Quick discovery, version comparison |
+
+**Version Filtering Rules:**
+
+| Query | Behavior |
+|-------|----------|
+| `version=1` | Returns only items with version 1 available |
+| `version=latest` | Returns items with their latest version (highest version number) |
+| `version` omitted | Returns all versions available per item |
+
+**Integration Workflow:**
+
+1. **Initial Discovery**: Call `/list?minimal=true` to get all items with their available versions
+2. **Version Selection**: Review `versions` array, decide on versions needed
+3. **Full Details**: Call `/list?minimal=false&version=2` (or specific version) to get metadata for selected versions
+
+This workflow allows integrations to quickly discover available items and versions without downloading full metadata, then fetch detailed information for only the versions they need.
 
 **Item Visibility Rules:**
 
@@ -179,14 +284,16 @@ Items with `public: false` are filtered from the response when:
     "total_pages": 3,
     "has_next": true,
     "has_prev": false,
-    "category": null
+    "category": null,
+    "version": null
   },
   "items": [
     {
       "id": "plugin-auth-oauth2",
       "name": "oauth2-auth-plugin",
       "category": "plugins",
-      "version": "2.1.0",
+      "version": 2,
+      "versions": [1, 2],
       "description": "OAuth2 authentication provider with PKCE support",
       "public": true,
       "tags": ["auth", "oauth2", "security"],
@@ -218,7 +325,8 @@ Items with `public: false` are filtered from the response when:
       "id": "connector-postgres",
       "name": "postgres-connector",
       "category": "connectors",
-      "version": "3.0.2",
+      "version": 3,
+      "versions": [1, 2, 3],
       "description": "PostgreSQL database connection pool and query builder",
       "public": true,
       "tags": ["database", "postgres", "sql"],
@@ -251,7 +359,8 @@ Items with `public: false` are filtered from the response when:
       "id": "plugin-enterprise-sso",
       "name": "enterprise-sso-plugin",
       "category": "plugins",
-      "version": "1.0.0",
+      "version": 1,
+      "versions": [1],
       "description": "Enterprise SSO integration with SAML 2.0 and OIDC for large organizations",
       "public": false,
       "tags": ["auth", "sso", "enterprise", "saml", "oidc"],
@@ -286,7 +395,8 @@ Items with `public: false` are filtered from the response when:
       "id": "template-saas-starter",
       "name": "saas-starter-template",
       "category": "templates",
-      "version": "1.2.0",
+      "version": 1,
+      "versions": [1],
       "description": "Production-ready SaaS application template with auth, billing, and dashboard",
       "public": true,
       "tags": ["template", "saas", "starter", "boilerplate"],
@@ -328,14 +438,16 @@ Items with `public: false` are filtered from the response when:
     "total_pages": 1,
     "has_next": false,
     "has_prev": false,
-    "category": "plugins"
+    "category": "plugins",
+    "version": null
   },
   "items": [
     {
       "id": "plugin-auth-oauth2",
       "name": "oauth2-auth-plugin",
       "category": "plugins",
-      "version": "2.1.0",
+      "version": 2,
+      "versions": [1, 2],
       "description": "OAuth2 authentication provider with PKCE support",
       "public": true,
       "tags": ["auth", "oauth2", "security"],
@@ -347,7 +459,8 @@ Items with `public: false` are filtered from the response when:
       "id": "plugin-enterprise-sso",
       "name": "enterprise-sso-plugin",
       "category": "plugins",
-      "version": "1.0.0",
+      "version": 1,
+      "versions": [1],
       "description": "Enterprise SSO integration with SAML 2.0 and OIDC",
       "public": false,
       "tags": ["auth", "sso", "enterprise"],
@@ -358,6 +471,119 @@ Items with `public: false` are filtered from the response when:
   ]
 }
 ```
+
+**Version Filtering Example (Version: 1):**
+
+```json
+{
+  "registry": {
+    "name": "superbackend-extensions",
+    "version": "1.0.0",
+    "description": "Official extensions registry for Superbackend platform",
+    "categories": ["plugins", "connectors", "templates", "workflows"]
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total_items": 3,
+    "total_pages": 1,
+    "has_next": false,
+    "has_prev": false,
+    "category": null,
+    "version": 1
+  },
+  "items": [
+    {
+      "id": "plugin-auth-oauth2",
+      "name": "oauth2-auth-plugin",
+      "category": "plugins",
+      "version": 1,
+      "versions": [1, 2],
+      "description": "OAuth2 authentication provider with PKCE support",
+      "public": true,
+      "tags": ["auth", "oauth2", "security"],
+      "created_at": "2024-08-15T10:30:00Z",
+      "updated_at": "2025-01-20T14:45:00Z",
+      "metadata": {
+        "author": "Superbackend Team",
+        "license": "MIT",
+        "compatibility": {
+          "superbackend_min_version": "1.5.0",
+          "superbackend_max_version": "2.0.0"
+        },
+        "installation": {
+          "npm_package": "@superbackend/oauth2-auth@v1",
+          "entry_point": "OAuth2AuthPlugin"
+        }
+      }
+    },
+    {
+      "id": "connector-postgres",
+      "name": "postgres-connector",
+      "category": "connectors",
+      "version": 1,
+      "versions": [1, 2, 3],
+      "description": "PostgreSQL database connection pool",
+      "public": true,
+      "tags": ["database", "postgres"],
+      "created_at": "2024-06-01T08:00:00Z",
+      "updated_at": "2025-02-01T09:30:00Z",
+      "metadata": { ... }
+    }
+  ]
+}
+```
+
+**Minimal Response Example (`minimal=true`):**
+
+```json
+{
+  "registry": {
+    "name": "superbackend-extensions",
+    "version": "1.0.0",
+    "description": "Official extensions registry for Superbackend platform",
+    "categories": ["plugins", "connectors", "templates", "workflows"]
+  },
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total_items": 47,
+    "total_pages": 3,
+    "has_next": true,
+    "has_prev": false,
+    "category": null,
+    "version": null
+  },
+  "items": [
+    {
+      "id": "plugin-auth-oauth2",
+      "name": "oauth2-auth-plugin",
+      "category": "plugins",
+      "version": 2,
+      "versions": [1, 2],
+      "description": "OAuth2 authentication provider with PKCE support",
+      "public": true,
+      "tags": ["auth", "oauth2", "security"],
+      "created_at": "2024-08-15T10:30:00Z",
+      "updated_at": "2025-01-20T14:45:00Z"
+    },
+    {
+      "id": "connector-postgres",
+      "name": "postgres-connector",
+      "category": "connectors",
+      "version": 3,
+      "versions": [1, 2, 3],
+      "description": "PostgreSQL database connection pool and query builder",
+      "public": true,
+      "tags": ["database", "postgres", "sql"],
+      "created_at": "2024-06-01T08:00:00Z",
+      "updated_at": "2025-02-01T09:30:00Z"
+    }
+  ]
+}
+```
+
+**Note:** The `metadata` field is excluded in minimal responses, making it ideal for quick discovery and version comparison without downloading full item details.
 
 ---
 
@@ -454,10 +680,14 @@ The OpenRegistry protocol uses semantic versioning for the specification. Regist
 {
   "registry": {
     "name": "...",
-    "protocol_version": "1.0.0"
+    "protocol_version": "1.1.0"
   }
 }
 ```
+
+**Version History:**
+- `1.0.0` - Initial specification (version as string)
+- `1.1.0` - Added integer version support, `versions` array, `minimal` mode, and version filtering
 
 ---
 
@@ -469,6 +699,11 @@ The OpenRegistry protocol uses semantic versioning for the specification. Regist
 - [ ] Include `category` field on each item
 - [ ] Add `public` field to each item (default: `true` if omitted)
 - [ ] Filter items with `public: false` from unauthenticated requests
+- [ ] Add `version` field (integer, latest version number) to each item
+- [ ] Add `versions` field (integer array) to each item
+- [ ] Add `minimal` query parameter to return responses without `metadata`
+- [ ] Add `version` query parameter for filtering by specific version
+- [ ] Support `version=latest` to return latest version per item
 - [ ] Document available `categories` in registry response
 - [ ] Include `metadata` field for extensible item data
 - [ ] Add bearer token authentication where required
@@ -479,7 +714,7 @@ The OpenRegistry protocol uses semantic versioning for the specification. Regist
 
 ## Example: Superbackend Extensions Registry
 
-The Superbackend Extensions Registry demonstrates a complete multi-category implementation:
+The Superbackend Extensions Registry demonstrates a complete multi-category implementation with version support:
 
 - **Registry URL**: `https://extensions.superbackend.example`
 - **Auth Endpoint**: `https://extensions.superbackend.example/auth`
@@ -492,13 +727,35 @@ The Superbackend Extensions Registry demonstrates a complete multi-category impl
 - `templates` - Application starters and boilerplates
 - `workflows` - Pre-built automation workflows
 
-**Endpoints by Category:**
+**Endpoints:**
+
 ```
-GET /list                      # All items (all categories)
+GET /list                      # All items, full response with metadata
 GET /list?category=plugins    # Only plugins
-GET /list?category=connectors  # Only connectors
-GET /list?category=templates   # Only templates
-GET /list?category=workflows   # Only workflows
+GET /list?minimal=true        # Quick discovery, no metadata
+GET /list?version=1           # Only items with version 1 available
+GET /list?version=latest      # Latest versions only
+GET /list?minimal=true&version=latest  # Minimal, latest versions only
 ```
 
-Each item includes its category designation, allowing clients to filter and organize items appropriately. This flexible structure allows a single registry to serve multiple extension types while maintaining a consistent discovery experience.
+**Integration Example:**
+
+```bash
+# Step 1: Quick discovery - get all items with available versions
+curl https://extensions.superbackend.example/list?minimal=true
+
+# Response shows items with versions array:
+# {
+#   "items": [
+#     { "id": "plugin-auth", "version": 2, "versions": [1, 2], ... },
+#     { "id": "connector-pg", "version": 3, "versions": [1, 2, 3], ... }
+#   ]
+# }
+
+# Step 2: Fetch full metadata for specific version
+curl https://extensions.superbackend.example/list?version=1
+
+# Returns full metadata for version 1 of all items
+```
+
+This flexible structure allows a single registry to serve multiple extension types with full version support, enabling integrations to discover items efficiently and fetch only the details they need.
