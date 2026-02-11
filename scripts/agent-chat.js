@@ -23,6 +23,21 @@ class AgentChatTUI extends ScriptBase {
     return new Promise((resolve) => this.rl.question(query, resolve));
   }
 
+  getRelativeTime(date) {
+    const now = new Date();
+    const diff = now - new Date(date);
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (seconds < 60) return 'just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    if (days < 7) return `${days}d ago`;
+    return new Date(date).toLocaleDateString();
+  }
+
   async execute(context) {
     console.log('\n--- SuperBackend AI Agent TUI ---\n');
 
@@ -90,14 +105,24 @@ class AgentChatTUI extends ScriptBase {
       if (cmd === '/sessions') {
         const sessionConfigs = await JsonConfig.find({
           alias: { $regex: /^agent-session-tui-/ }
-        }).lean();
+        })
+        .sort({ updatedAt: -1 })
+        .limit(10)
+        .lean();
 
         console.log('\n--- Recent TUI Sessions ---');
-        sessionConfigs.slice(-10).forEach((c, i) => {
-          const data = JSON.parse(c.jsonRaw);
-          const labelDisplay = data.label ? `[${data.label}] ` : '';
-          console.log(`${i + 1}. ${labelDisplay}${data.id} (Tokens: ${data.totalTokens}, Last Snapshot: ${data.lastSnapshotId || 'None'})`);
-        });
+        if (sessionConfigs.length === 0) {
+          console.log('No recent sessions found.');
+        } else {
+          sessionConfigs.forEach((c, i) => {
+            const data = JSON.parse(c.jsonRaw);
+            const labelDisplay = data.label ? `\x1b[36m[${data.label}]\x1b[0m ` : '';
+            const timeAgo = this.getRelativeTime(c.updatedAt);
+            
+            console.log(`${i + 1}. ${labelDisplay}\x1b[1m${data.id}\x1b[0m \x1b[90m(${timeAgo})\x1b[0m`);
+            console.log(`   \x1b[90mTokens: ${data.totalTokens || 0} | Snapshot: ${data.lastSnapshotId || 'None'}\x1b[0m`);
+          });
+        }
         
         const sessionChoice = await this.question('\nSelect a session number to switch (or Enter to cancel): ');
         if (sessionChoice.trim()) {
