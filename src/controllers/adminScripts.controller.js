@@ -349,3 +349,141 @@ exports.streamRun = async (req, res) => {
     return res.end();
   }
 };
+
+// Get programmatic output (clean result for API consumption)
+async function getProgrammaticOutput(req, res) {
+  try {
+    const { runId } = req.params;
+    if (!runId) {
+      return res.status(400).json({ error: 'runId is required' });
+    }
+
+    const run = await ScriptRun.findById(runId).lean();
+    if (!run) {
+      return res.status(404).json({ error: 'Script run not found' });
+    }
+
+    // Parse programmatic output if it's JSON
+    let parsedResult = null;
+    let isJson = false;
+    
+    if (run.programmaticOutput) {
+      try {
+        parsedResult = JSON.parse(run.programmaticOutput);
+        isJson = true;
+      } catch {
+        // Not JSON, keep as string
+        parsedResult = null;
+        isJson = false;
+      }
+    }
+
+    res.json({
+      runId: run._id,
+      status: run.status,
+      exitCode: run.exitCode,
+      programmaticOutput: run.programmaticOutput || 'No output',
+      outputType: run.outputType || 'none',
+      isJson: isJson,
+      parsedResult: parsedResult,
+      returnResult: run.returnResult,
+      lastConsoleLog: run.lastConsoleLog,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt
+    });
+  } catch (err) {
+    console.error('Error getting programmatic output:', err);
+    res.status(500).json({ error: err?.message || 'Internal server error' });
+  }
+}
+
+// Get full script output
+async function getFullOutput(req, res) {
+  try {
+    const { runId } = req.params;
+    if (!runId) {
+      return res.status(400).json({ error: 'runId is required' });
+    }
+
+    const run = await ScriptRun.findById(runId).lean();
+    if (!run) {
+      return res.status(404).json({ error: 'Script run not found' });
+    }
+
+    res.json({
+      runId: run._id,
+      status: run.status,
+      exitCode: run.exitCode,
+      fullOutput: run.fullOutput || '',
+      outputSize: run.outputSize || 0,
+      lineCount: run.lineCount || 0,
+      lastOutputUpdate: run.lastOutputUpdate,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt
+    });
+  } catch (err) {
+    console.error('Error getting full output:', err);
+    res.status(500).json({ error: err?.message || 'Internal server error' });
+  }
+}
+
+// Download script output as file
+async function downloadOutput(req, res) {
+  try {
+    const { runId } = req.params;
+    if (!runId) {
+      return res.status(400).json({ error: 'runId is required' });
+    }
+
+    const run = await ScriptRun.findById(runId).lean();
+    if (!run) {
+      return res.status(404).json({ error: 'Script run not found' });
+    }
+
+    const filename = `script-output-${runId}-${run.createdAt.toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+    
+    res.setHeader('Content-Type', 'text/plain');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    // Include metadata at the top
+    const metadata = [
+      `Script Run ID: ${runId}`,
+      `Status: ${run.status}`,
+      `Exit Code: ${run.exitCode || 'N/A'}`,
+      `Started: ${run.startedAt || 'N/A'}`,
+      `Finished: ${run.finishedAt || 'N/A'}`,
+      `Output Size: ${run.outputSize || 0} characters`,
+      `Line Count: ${run.lineCount || 0}`,
+      `Created: ${run.createdAt}`,
+      '=' .repeat(50),
+      ''
+    ].join('\n');
+
+    res.send(metadata + (run.fullOutput || run.outputTail || 'No output available'));
+  } catch (err) {
+    console.error('Error downloading output:', err);
+    res.status(500).json({ error: err?.message || 'Internal server error' });
+  }
+}
+
+exports.getFullOutput = getFullOutput;
+exports.downloadOutput = downloadOutput;
+
+module.exports = {
+  listScripts: exports.listScripts,
+  getScript: exports.getScript,
+  createScript: exports.createScript,
+  updateScript: exports.updateScript,
+  deleteScript: exports.deleteScript,
+  runScript: exports.runScript,
+  listRuns: exports.listRuns,
+  getRun: exports.getRun,
+  streamRunLogs: exports.streamRun,
+  getProgrammaticOutput: getProgrammaticOutput,
+  getFullOutput: exports.getFullOutput,
+  downloadOutput: exports.downloadOutput,
+};

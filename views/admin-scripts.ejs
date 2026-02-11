@@ -549,11 +549,44 @@ const recentRuns = await ScriptRun.find()
         </div>
 
         <div class="mt-4 bg-white border border-gray-200 rounded-lg">
-          <div class="p-3 border-b border-gray-200 flex items-center justify-between">
-            <div class="text-sm font-medium text-gray-800">Output</div>
-            <button id="btn-clear-output" class="text-sm text-gray-600 hover:underline">Clear</button>
+          <div class="p-3 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+              <nav class="flex space-x-4">
+                <button class="output-tab active" data-tab="output">Output</button>
+                <button class="output-tab" data-tab="full-logs">Full Console Logs</button>
+              </nav>
+              <div class="flex items-center gap-2">
+                <button id="btn-download-logs" class="text-sm text-gray-600 hover:underline">Download</button>
+                <button id="btn-clear-output" class="text-sm text-gray-600 hover:underline">Clear</button>
+              </div>
+            </div>
           </div>
-          <pre id="output" class="p-3 text-xs font-mono whitespace-pre-wrap max-h-[40vh] overflow-auto"></pre>
+          
+          <!-- Output Tab (JSON Result) -->
+          <div id="output-tab-content" class="output-tab-content">
+            <pre id="output" class="p-3 text-xs font-mono whitespace-pre-wrap max-h-[40vh] overflow-auto"></pre>
+          </div>
+          
+          <!-- Full Console Logs Tab -->
+          <div id="full-logs-tab-content" class="output-tab-content hidden">
+            <!-- Search Bar -->
+            <div class="p-3 border-b border-gray-200">
+              <div class="flex items-center gap-2">
+                <input type="text" id="log-search" placeholder="Search logs..." class="flex-1 px-2 py-1 border rounded text-sm">
+                <select id="log-filter" class="px-2 py-1 border rounded text-sm">
+                  <option value="all">All Logs</option>
+                  <option value="stdout">Stdout</option>
+                  <option value="stderr">Stderr</option>
+                </select>
+                <button id="btn-auto-scroll" class="px-2 py-1 bg-gray-100 rounded text-sm">Auto-scroll</button>
+              </div>
+            </div>
+            
+            <!-- Full Logs Display -->
+            <div class="relative">
+              <pre id="full-logs-content" class="p-3 text-xs font-mono whitespace-pre-wrap" style="height: 60vh; overflow: auto;"></pre>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -570,6 +603,8 @@ const recentRuns = await ScriptRun.find()
       selectedId: null,
       es: null,
     };
+
+    let currentRunId = null;
 
     function qs(id) {
       return document.getElementById(id);
@@ -772,8 +807,12 @@ const recentRuns = await ScriptRun.find()
           <div class="text-xs text-gray-500 font-mono">${String(r._id || '').slice(0, 10)} · ${String(r.createdAt || '').replace(/</g,'&lt;')}</div>
         `;
         btn.addEventListener('click', () => {
+          currentRunId = r._id; // Set the current run ID when clicking on a previous run
           setOutput('');
           if (r.outputTail) setOutput(r.outputTail, true);
+          
+          // Load programmatic output for the selected run
+          loadProgrammaticOutput(r._id);
         });
         list.appendChild(btn);
       });
@@ -894,8 +933,16 @@ const recentRuns = await ScriptRun.find()
 
       setOutput('');
       const res = await api('/api/admin/scripts/' + encodeURIComponent(state.selectedId) + '/run', { method: 'POST' });
+      currentRunId = res.runId; // Set the current run ID
       startSse(res.runId);
       await loadRuns();
+      
+      // Load programmatic output after script starts
+      setTimeout(() => {
+        if (currentRunId) {
+          loadProgrammaticOutput(currentRunId);
+        }
+      }, 1000); // Wait a bit for the script to start producing output
     }
 
     qs('btn-refresh').addEventListener('click', loadScripts);
@@ -1079,6 +1126,176 @@ const recentRuns = await ScriptRun.find()
         });
       });
     }
+
+    // Tab switching functionality
+    function switchOutputTab(tabName) {
+      // Hide all tab contents
+      document.querySelectorAll('.output-tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      
+      // Remove active class from all tabs
+      document.querySelectorAll('.output-tab').forEach(tab => {
+        tab.classList.remove('active', 'border-blue-500', 'text-blue-600');
+        tab.classList.add('border-transparent', 'text-gray-500');
+      });
+      
+      // Show selected tab content
+      document.getElementById(`${tabName}-tab-content`).classList.remove('hidden');
+      
+      // Activate selected tab
+      const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
+      activeTab.classList.add('active', 'border-blue-500', 'text-blue-600');
+      activeTab.classList.remove('border-transparent', 'text-gray-500');
+      
+      // Load full logs if switching to full-logs tab
+      if (tabName === 'full-logs' && currentRunId) {
+        loadFullLogs(currentRunId);
+      }
+      
+      // Load programmatic output if switching to output tab
+      if (tabName === 'output' && currentRunId) {
+        loadProgrammaticOutput(currentRunId);
+      }
+    }
+
+    // Load programmatic output from API
+    async function loadProgrammaticOutput(runId) {
+      try {
+        const response = await fetch(`${window.BASE_URL}/api/admin/scripts/runs/${runId}/programmatic-output`);
+        const data = await response.json();
+        
+        displayProgrammaticOutput(data);
+      } catch (error) {
+        console.error('Failed to load programmatic output:', error);
+        document.getElementById('output').textContent = 'Error loading programmatic output';
+      }
+    }
+
+    // Display programmatic output with smart formatting
+    function displayProgrammaticOutput(data) {
+      const outputElement = document.getElementById('output');
+      
+      if (data.isJson && data.parsedResult) {
+        // Format JSON for clean display
+        outputElement.textContent = JSON.stringify(data.parsedResult, null, 2);
+        outputElement.className = 'p-3 text-xs font-mono whitespace-pre-wrap max-h-[40vh] overflow-auto json-output';
+      } else {
+        // Display as plain text
+        outputElement.textContent = data.programmaticOutput;
+        outputElement.className = 'p-3 text-xs font-mono whitespace-pre-wrap max-h-[40vh] overflow-auto';
+      }
+    }
+
+    // Load full logs from API
+    async function loadFullLogs(runId) {
+      try {
+        const response = await fetch(`${window.BASE_URL}/api/admin/scripts/runs/${runId}/full-output`);
+        const data = await response.json();
+        
+        if (data.fullOutput) {
+          displayFullLogs(data.fullOutput);
+        } else {
+          document.getElementById('full-logs-content').textContent = 'No full logs available';
+        }
+      } catch (error) {
+        console.error('Failed to load full logs:', error);
+        document.getElementById('full-logs-content').textContent = 'Error loading full logs';
+      }
+    }
+
+    // Display full logs with filtering
+    function displayFullLogs(logs) {
+      const content = document.getElementById('full-logs-content');
+      const searchTerm = document.getElementById('log-search').value.toLowerCase();
+      const filterType = document.getElementById('log-filter').value;
+      
+      let filteredLogs = logs;
+      
+      // Apply search filter
+      if (searchTerm) {
+        filteredLogs = logs.split('\n').filter(line => 
+          line.toLowerCase().includes(searchTerm)
+        ).join('\n');
+      }
+      
+      // Apply type filter
+      if (filterType !== 'all') {
+        const lines = filteredLogs.split('\n');
+        filteredLogs = lines.filter(line => {
+          // Simple heuristic to determine log type
+          if (filterType === 'stderr') {
+            return line.includes('❌') || line.includes('🚨') || line.includes('Error') || line.includes('error');
+          }
+          return true; // stdout
+        }).join('\n');
+      }
+      
+      content.textContent = filteredLogs || 'No logs match the current filters';
+      
+      // Auto-scroll if enabled
+      if (document.getElementById('btn-auto-scroll').classList.contains('bg-blue-500')) {
+        content.scrollTop = content.scrollHeight;
+      }
+    }
+
+    // Download logs functionality
+    async function downloadLogs() {
+      if (!currentRunId) {
+        alert('No script run selected');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${window.BASE_URL}/api/admin/scripts/runs/${currentRunId}/download`);
+        const blob = await response.blob();
+        
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = response.headers.get('Content-Disposition')?.split('filename=')[1]?.replace(/"/g, '') || 'script-output.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Failed to download logs:', error);
+        alert('Failed to download logs');
+      }
+    }
+
+    // Add event listeners for new functionality
+    document.querySelectorAll('.output-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchOutputTab(tab.dataset.tab);
+      });
+    });
+
+    document.getElementById('btn-download-logs').addEventListener('click', downloadLogs);
+
+    document.getElementById('log-search').addEventListener('input', () => {
+      if (document.getElementById('full-logs-tab-content').classList.contains('hidden') === false) {
+        const content = document.getElementById('full-logs-content');
+        const currentLogs = content.dataset.originalLogs || content.textContent;
+        content.dataset.originalLogs = currentLogs;
+        displayFullLogs(currentLogs);
+      }
+    });
+
+    document.getElementById('log-filter').addEventListener('change', () => {
+      if (document.getElementById('full-logs-tab-content').classList.contains('hidden') === false) {
+        const content = document.getElementById('full-logs-content');
+        const currentLogs = content.dataset.originalLogs || content.textContent;
+        content.dataset.originalLogs = currentLogs;
+        displayFullLogs(currentLogs);
+      }
+    });
+
+    document.getElementById('btn-auto-scroll').addEventListener('click', function() {
+      this.classList.toggle('bg-blue-500');
+      this.classList.toggle('bg-gray-100');
+      this.textContent = this.classList.contains('bg-blue-500') ? 'Auto-scroll ON' : 'Auto-scroll';
+    });
 
     (async function init() {
       clearForm();
