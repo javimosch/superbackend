@@ -300,7 +300,7 @@
           </div>
 
           <!-- Modal Body -->
-          <div class="flex-1 min-h-0 p-6">
+          <div :class="['flex-1 min-h-0', zenMode ? 'p-2' : 'p-6']">
             <div class="h-full flex flex-col gap-4">
               <!-- Meta fields (Hidden in Zen Mode) -->
               <div v-if="!zenMode" class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-none">
@@ -326,7 +326,7 @@
               <!-- Editor/Preview Area -->
               <div class="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
                 <div class="flex flex-col h-full min-h-0">
-                  <div class="flex justify-between items-center mb-1 flex-none">
+                  <div v-if="!zenMode" class="flex justify-between items-center mb-1 flex-none">
                     <label class="block text-sm font-medium text-gray-700">Content *</label>
                     <span class="text-xs text-gray-500">Markdown supported</span>
                   </div>
@@ -334,7 +334,7 @@
                     class="flex-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none overflow-y-auto"></textarea>
                 </div>
                 <div class="flex flex-col h-full min-h-0">
-                  <label class="block text-sm font-medium text-gray-700 mb-1 flex-none">Preview</label>
+                  <label v-if="!zenMode" class="block text-sm font-medium text-gray-700 mb-1 flex-none">Preview</label>
                   <div class="flex-1 border border-gray-200 rounded-md p-4 bg-gray-50 overflow-y-auto prose prose-sm max-w-none" v-html="previewHtml">
                   </div>
                 </div>
@@ -367,12 +367,25 @@
           </div>
 
           <!-- Modal Footer -->
-          <div :class="['px-6 py-4 border-t flex justify-end gap-3 bg-white', zenMode ? '' : 'rounded-b-lg']">
+          <div v-if="!zenMode" class="px-6 py-4 border-t flex justify-end gap-3 bg-white rounded-b-lg">
             <button @click="closeModal" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
               Cancel
             </button>
             <button @click="saveItem" :disabled="saving" 
               class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
+              {{ saving ? 'Saving...' : (editingItem ? 'Update' : 'Create') }}
+            </button>
+          </div>
+
+          <!-- Floating Zen Footer -->
+          <div v-if="zenMode" 
+            :class="['fixed bottom-8 left-1/2 -translate-x-1/2 flex gap-4 bg-white/90 backdrop-blur shadow-2xl border border-gray-200 p-4 rounded-full transition-all duration-300 z-50', 
+              showFloatingFooter ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10 pointer-events-none']">
+            <button @click="closeModal" class="px-6 py-2 border border-gray-300 rounded-full text-gray-700 hover:bg-gray-100 font-medium">
+              Cancel
+            </button>
+            <button @click="saveItem" :disabled="saving" 
+              class="px-8 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 font-bold shadow-lg shadow-blue-200">
               {{ saving ? 'Saving...' : (editingItem ? 'Update' : 'Create') }}
             </button>
           </div>
@@ -415,6 +428,7 @@
             },
             saving: false,
             zenMode: false,
+            showFloatingFooter: false,
             toasts: [],
             debounceTimer: null
           };
@@ -716,10 +730,19 @@
             } catch (err) {
               this.showToast('Failed to copy to clipboard', 'error');
             }
+          },
+          handleMouseMove(e) {
+            if (!this.zenMode) return;
+            // Show footer if mouse is in the bottom 100px of the screen
+            this.showFloatingFooter = (window.innerHeight - e.clientY) < 100;
           }
         },
         mounted() {
           this.loadData();
+          window.addEventListener('mousemove', this.handleMouseMove);
+        },
+        beforeUnmount() {
+          window.removeEventListener('mousemove', this.handleMouseMove);
         },
         watch: {
           showCreateModal(val) {
