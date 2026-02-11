@@ -1,10 +1,10 @@
 require('dotenv').config(process.env.MODE ? { path: `.env.${process.env.MODE}` } : {});
 const { ScriptBase } = require('../src/helpers/scriptBase');
-const readline = require('readline');
 const agentService = require('../src/services/agent.service');
 const llmService = require('../src/services/llm.service');
 const Agent = require('../src/models/Agent');
 const JsonConfig = require('../src/models/JsonConfig');
+const term = require('terminal-kit').terminal;
 
 class AgentChatTUI extends ScriptBase {
   constructor() {
@@ -13,14 +13,11 @@ class AgentChatTUI extends ScriptBase {
       autoDisconnect: true,
       timeout: 3600000
     });
-    this.rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
-  }
-
-  async question(query) {
-    return new Promise((resolve) => this.rl.question(query, resolve));
+    this.chatId = `tui-${Date.now()}`;
+    this.escCount = 0;
+    this.escTimer = null;
+    this.abortController = null;
+    this.isProcessing = false;
   }
 
   getRelativeTime(date) {
@@ -39,66 +36,113 @@ class AgentChatTUI extends ScriptBase {
   }
 
   async execute(context) {
-    console.log('\n--- SuperBackend AI Agent TUI ---\n');
+    term.clear();
+    term.bold.cyan('--- SuperBackend AI Agent TUI ---\n\n');
 
     const agents = await Agent.find().lean();
     if (agents.length === 0) {
-      console.log('❌ No agents found. Please create an agent in the admin UI first.');
+      term.red('❌ No agents found. Please create an agent in the admin UI first.\n');
       return;
     }
 
-    console.log('Available Agents:');
+    term.white('Available Agents:\n');
     agents.forEach((a, i) => {
-      console.log(`${i + 1}. ${a.name} (${a.model})`);
+      term.white(`${i + 1}. `).cyan(`${a.name} `).gray(`(${a.model})\n`);
     });
-    console.log(`${agents.length + 1}. Exit`);
+    term.white(`${agents.length + 1}. `).red('Exit\n');
 
-    const choice = await this.question('\nSelect an agent (number): ');
+    term.white('\nSelect an agent (number): ');
+    const choice = await term.inputField().promise;
     const index = parseInt(choice, 10) - 1;
 
     if (isNaN(index) || index < 0 || index >= agents.length) {
       if (index === agents.length) {
-          console.log('Goodbye!');
-          return;
+        term.green('\nGoodbye!\n');
+        return;
       }
-      console.log('Invalid selection.');
+      term.red('\nInvalid selection.\n');
       return;
     }
 
     const selectedAgent = agents[index];
-    let chatId = `tui-${Date.now()}`;
+    this.selectedAgent = selectedAgent;
     const senderId = 'cli-user';
 
-      console.log(`\n--- Chatting with: ${selectedAgent.name} ---`);
-      console.log(`(Commands: '/new' = new, '/sessions' = list, '/compact' = manual summary, '/rename [label]' = rename session, 'exit' = quit)\n`);
+    term.clear();
+    term.bold.cyan(`\n--- Chatting with: ${selectedAgent.name} ---\n`);
+    term.gray(`(Commands: '/new', '/sessions', '/compact', '/rename [label]', 'exit')\n\n`);
+
+    term.on('key', (name) => {
+      if (name === 'ESCAPE') {
+        if (!this.isProcessing) return;
+        
+        this.escCount++;
+        if (this.escCount === 1) {
+          term.saveCursor();
+          term.moveTo(1, term.height);
+          term.bgRed.white(' Press ESC again to stop operation ');
+          term.restoreCursor();
+          
+          this.escTimer = setTimeout(() => {
+            this.escCount = 0;
+            term.saveCursor();
+            term.moveTo(1, term.height);
+            term.eraseLine();
+            term.restoreCursor();
+          }, 2000);
+        } else if (this.escCount >= 2) {
+          if (this.abortController) {
+            this.abortController.abort();
+            term.saveCursor();
+            term.moveTo(1, term.height);
+            term.eraseLine();
+            term.bgYellow.black(' 🛑 Aborting... ');
+            setTimeout(() => {
+                term.moveTo(1, term.height);
+                term.eraseLine();
+                term.restoreCursor();
+            }, 1000);
+          }
+          this.escCount = 0;
+          if (this.escTimer) clearTimeout(this.escTimer);
+        }
+      } else if (name === 'CTRL_C') {
+        term.grabInput(false);
+        process.exit();
+      }
+    });
+
+    term.grabInput(true);
 
     while (true) {
-      const input = await this.question(`[${chatId.slice(-8)}] You: `);
+      term.white(`[${this.chatId.slice(-8)}] You: `);
+      const input = await term.inputField().promise;
+      term('\n');
       
       const cmd = input.toLowerCase().trim();
       if (['exit', 'quit', '\\q'].includes(cmd)) {
-        console.log('\nEnding session...');
+        term.green('\nEnding session...\n');
         break;
       }
 
       if (cmd === '/compact') {
-        process.stdout.write('✨ Compacting session... ');
+        term.yellow('✨ Compacting session... ');
         try {
-          const result = await agentService.compactSession(selectedAgent._id, chatId);
+          const result = await agentService.compactSession(selectedAgent._id, this.chatId);
           if (result.success) {
-            console.log(`Done! Created snapshot: ${result.snapshotId}\n`);
+            term.green(`Done! Created snapshot: ${result.snapshotId}\n\n`);
           } else {
-            console.log(`Failed: ${result.message}\n`);
+            term.red(`Failed: ${result.message}\n\n`);
           }
         } catch (err) {
-          console.log(`Error: ${err.message}\n`);
+          term.red(`Error: ${err.message}\n\n`);
         }
         continue;
       }
 
       if (cmd === '/new') {
-        chatId = `tui-${Date.now()}`;
-        console.log(`\n🆕 Started new session: ${chatId}\n`);
+        this.chatId = `tui-${Date.now()}`;
+        term.bold.green(`\n🆕 Started new session: ${this.chatId}\n\n`);
         continue;
       }
 
@@ -110,31 +154,33 @@ class AgentChatTUI extends ScriptBase {
         .limit(10)
         .lean();
 
-        console.log('\n--- Recent TUI Sessions ---');
+        term.bold.white('\n--- Recent TUI Sessions ---\n');
         if (sessionConfigs.length === 0) {
-          console.log('No recent sessions found.');
+          term.gray('No recent sessions found.\n');
         } else {
           sessionConfigs.forEach((c, i) => {
             const data = JSON.parse(c.jsonRaw);
-            const labelDisplay = data.label ? `\x1b[36m[${data.label}]\x1b[0m ` : '';
+            const labelDisplay = data.label ? `^c[${data.label}] ` : '';
             const timeAgo = this.getRelativeTime(c.updatedAt);
-            
-            console.log(`${i + 1}. ${labelDisplay}\x1b[1m${data.id}\x1b[0m \x1b[90m(${timeAgo})\x1b[0m`);
-            console.log(`   \x1b[90mTokens: ${data.totalTokens || 0} | Snapshot: ${data.lastSnapshotId || 'None'}\x1b[0m`);
+            term.white(`${i + 1}. `).cyan(`${labelDisplay}`).bold(`${data.id} `).gray(`(${timeAgo})\n`);
+            term.gray(`   Tokens: ${data.totalTokens || 0} | Snapshot: ${data.lastSnapshotId || 'None'}\n`);
           });
         }
         
-        const sessionChoice = await this.question('\nSelect a session number to switch (or Enter to cancel): ');
+        term.white('\nSelect session number (or Enter to cancel): ');
+        const sessionChoice = await term.inputField().promise;
         if (sessionChoice.trim()) {
           const sIndex = parseInt(sessionChoice, 10) - 1;
           if (!isNaN(sIndex) && sIndex >= 0 && sIndex < sessionConfigs.length) {
             const selectedSession = JSON.parse(sessionConfigs[sIndex].jsonRaw);
-            chatId = selectedSession.id;
+            this.chatId = selectedSession.id;
             const labelDisplay = selectedSession.label ? ` (${selectedSession.label})` : '';
-            console.log(`\n🔄 Switched to session: ${chatId}${labelDisplay}\n`);
+            term.bold.green(`\n🔄 Switched to session: ${this.chatId}${labelDisplay}\n\n`);
           } else {
-            console.log('Invalid selection.');
+            term.red('\nInvalid selection.\n');
           }
+        } else {
+            term('\n');
         }
         continue;
       }
@@ -142,64 +188,68 @@ class AgentChatTUI extends ScriptBase {
       if (cmd.startsWith('/rename')) {
         const newLabel = input.replace('/rename', '').trim();
         if (!newLabel) {
-          console.log('❌ Please provide a label: /rename My Session Label\n');
+          term.red('❌ Please provide a label: /rename My Session Label\n\n');
           continue;
         }
         
-        process.stdout.write('✨ Renaming session... ');
+        term.yellow('✨ Renaming session... ');
         try {
-          const result = await agentService.renameSession(chatId, newLabel);
+          const result = await agentService.renameSession(this.chatId, newLabel);
           if (result.success) {
-            console.log(`Done! Session renamed to: ${result.label}\n`);
+            term.green(`Done! Session renamed to: ${result.label}\n\n`);
           } else {
-            console.log(`Failed: ${result.message}\n`);
+            term.red(`Failed: ${result.message}\n\n`);
           }
         } catch (err) {
-          console.log(`Error: ${err.message}\n`);
+          term.red(`Error: ${err.message}\n\n`);
         }
-        continue;
-      }
-
-      if (cmd === 'clear') {
-        console.log('🧹 History cleared locally (starting new session ID)');
-        chatId = `tui-${Date.now()}`;
         continue;
       }
 
       if (!input.trim()) continue;
 
-      process.stdout.write(`${selectedAgent.name}: `);
+      term.bold.cyan(`${selectedAgent.name}: `);
+      
+      this.isProcessing = true;
+      this.abortController = new AbortController();
       
       try {
         const response = await agentService.processMessage(selectedAgent._id, {
           content: input,
           senderId,
-          chatId
+          chatId: this.chatId
+        }, {
+          abortSignal: this.abortController.signal
         });
         
         const { text, usage, chatId: sessionChatId } = response;
-        chatId = sessionChatId;
-        console.log(text + '\n');
+        this.chatId = sessionChatId;
+        term.white(text + '\n');
 
         if (usage) {
           const contextLength = await llmService.getModelContextLength(selectedAgent.model, selectedAgent.providerKey);
           const currentTokens = usage.total_tokens || (usage.prompt_tokens + usage.completion_tokens);
           const percentage = contextLength > 0 ? ((currentTokens / contextLength) * 100).toFixed(1) : 0;
-          
           const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
-          
-          process.stdout.write(`\x1b[90m[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\x1b[0m\n\n`);
+          term.gray(`[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\n\n`);
         }
       } catch (err) {
-        console.log(`\n❌ Error: ${err.message}\n`);
+        if (err.message === 'Operation aborted' || err.message.includes('aborted')) {
+          term.yellow('\n⚠️ Operation cancelled by user.\n\n');
+        } else {
+          term.red(`\n❌ Error: ${err.message}\n\n`);
+        }
+      } finally {
+        this.isProcessing = false;
+        this.abortController = null;
+        this.escCount = 0;
       }
     }
   }
 
   async cleanup() {
-    if (this.rl && !this.rl.closed) {
-      this.rl.close();
-    }
+    term.grabInput(false);
+    await new Promise(r => setTimeout(r, 100));
   }
 }
 

@@ -359,8 +359,9 @@ async function compactSession(agentId, chatId) {
 /**
  * Process a message through the agent gateway
  */
-async function processMessage(agentId, { content, senderId, chatId: inputChatId, metadata = {} }) {
+async function processMessage(agentId, { content, senderId, chatId: inputChatId, metadata = {} }, options = {}) {
   try {
+    const { abortSignal } = options;
     const agent = await Agent.findById(agentId);
     if (!agent) throw new Error('Agent not found');
 
@@ -390,6 +391,9 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     let lastUsage = null;
 
     while (iterations < maxIterations) {
+      if (abortSignal && abortSignal.aborted) {
+        throw new Error('Operation aborted');
+      }
       iterations++;
 
       const messages = [
@@ -433,6 +437,9 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
         newMessages.push(assistantMsg);
 
         for (const toolCall of toolCalls) {
+          if (abortSignal && abortSignal.aborted) {
+            throw new Error('Operation aborted during tool execution');
+          }
           const { name, arguments: argsString } = toolCall.function;
           let args = {};
           try {
