@@ -7,8 +7,163 @@ const Agent = require('../models/Agent');
 const Markdown = require('../models/Markdown');
 
 const HISTORY_NAMESPACE = 'agent:history';
+const HISTORY_JSON_CONFIG_PREFIX = 'agent-history-';
 const MAX_HISTORY = 20;
 const COMPACTION_THRESHOLD = 0.5;
+
+async function getHistoryJsonConfigKey(agentId, chatId) {
+  return `${HISTORY_JSON_CONFIG_PREFIX}${agentId}-${chatId}`;
+}
+
+async function saveHistoryToBothStorages(agentId, chatId, history) {
+  const historyKey = `${agentId}:${chatId}`;
+  
+  try {
+    await cacheLayer.set(historyKey, history, { 
+      namespace: HISTORY_NAMESPACE,
+      ttlSeconds: 3600
+    });
+    
+    const jsonConfigKey = await getHistoryJsonConfigKey(agentId, chatId);
+    const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const existingConfig = await jsonConfigsService.getJsonConfig(normalizedKey).catch(() => null);
+    
+    const historyData = {
+      agentId,
+      chatId,
+      history,
+      lastUpdated: new Date().toISOString(),
+      size: history.length
+    };
+    
+    if (existingConfig) {
+      await jsonConfigsService.updateJsonConfig(existingConfig._id, {
+        jsonRaw: JSON.stringify(historyData)
+      });
+    } else {
+      await jsonConfigsService.createJsonConfig({
+        title: `Agent History: ${chatId}`,
+        alias: jsonConfigKey,
+        jsonRaw: JSON.stringify(historyData)
+      });
+    }
+    
+    return { success: true };
+  } catch (err) {
+    console.error('Error saving history to both storages:', err);
+    throw err;
+  }
+}
+
+async function loadHistoryFromBothStorages(agentId, chatId) {
+  const historyKey = `${agentId}:${chatId}`;
+  
+  try {
+    const cachedHistory = await cacheLayer.get(historyKey, { namespace: HISTORY_NAMESPACE });
+    if (cachedHistory && Array.isArray(cachedHistory)) {
+      console.log(`[agent.service] Loaded history from cache for ${chatId}`);
+      return cachedHistory;
+    }
+    
+    const jsonConfigKey = await getHistoryJsonConfigKey(agentId, chatId);
+    const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    const config = await jsonConfigsService.getJsonConfig(normalizedKey).catch(() => null);
+    
+    if (config) {
+      try {
+        const historyData = JSON.parse(config.jsonRaw);
+        if (historyData.history && Array.isArray(historyData.history)) {
+          console.log(`[agent.service] Loaded history from JSON Config for ${chatId}`);
+          
+          await cacheLayer.set(historyKey, historyData.history, { 
+            namespace: HISTORY_NAMESPACE,
+            ttlSeconds: 3600
+          });
+          
+          return historyData.history;
+        }
+      } catch (parseErr) {
+        console.error('Error parsing history from JSON Config:', parseErr);
+      }
+    }
+    
+    console.log(`[agent.service] No history found for ${chatId} in cache or JSON Config`);
+    return [];
+  } catch (err) {
+    console.error('Error loading history from both storages:', err);
+    return [];
+  }
+}
+
+async function migrateCacheOnlyHistories() {
+  console.log('[agent.service] Starting migration of cache-only histories to JSON Config...');
+  
+  const cacheKeys = await cacheLayer.listKeys({ namespace: HISTORY_NAMESPACE });
+  console.log(`[agent.service] Found ${cacheKeys.length} cache entries to migrate`);
+  
+  let migrated = 0;
+  let failed = 0;
+  
+  for (const cacheKey of cacheKeys) {
+    try {
+      const match = cacheKey.match(/^(.+):(.+)$/);
+      if (!match) {
+        console.warn(`[agent.service] Invalid cache key format: ${cacheKey}`);
+        failed++;
+        continue;
+      }
+      
+      const [, agentId, chatId] = match;
+      
+      const history = await cacheLayer.get(cacheKey, { namespace: HISTORY_NAMESPACE });
+      if (!history || !Array.isArray(history)) {
+        console.warn(`[agent.service] No valid history found in cache for ${chatId}`);
+        failed++;
+        continue;
+      }
+      
+      const jsonConfigKey = await getHistoryJsonConfigKey(agentId, chatId);
+      const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const existingConfig = await jsonConfigsService.getJsonConfig(normalizedKey).catch(() => null);
+      
+      if (existingConfig) {
+        console.log(`[agent.service] JSON Config already exists for ${chatId}, skipping`);
+        migrated++;
+        continue;
+      }
+      
+      const historyData = {
+        agentId,
+        chatId,
+        history,
+        lastUpdated: new Date().toISOString(),
+        size: history.length,
+        migrated: true
+      };
+      
+      await jsonConfigsService.createJsonConfig({
+        title: `Agent History: ${chatId}`,
+        alias: jsonConfigKey,
+        jsonRaw: JSON.stringify(historyData)
+      });
+      
+      console.log(`[agent.service] Successfully migrated history for ${chatId}`);
+      migrated++;
+    } catch (err) {
+      console.error(`[agent.service] Failed to migrate cache entry ${cacheKey}:`, err);
+      failed++;
+    }
+  }
+  
+  console.log(`[agent.service] Migration complete: ${migrated} migrated, ${failed} failed`);
+  return { migrated, failed };
+}
+
+async function getOrCreateSession(agentId, chatId) {
+  
+  console.log(`[agent.service] Migration complete: ${migrated} migrated, ${failed} failed`);
+  return { migrated, failed };
+}
 
 async function getOrCreateSession(agentId, chatId) {
   const slug = `agent-session-${chatId}`;
@@ -316,11 +471,41 @@ async function compactSession(agentId, chatId) {
   if (!agent) throw new Error('Agent not found');
 
   const historyKey = `${agentId}:${chatId}`;
-  let history = await cacheLayer.get(historyKey, { namespace: HISTORY_NAMESPACE }) || [];
+  let history = await loadHistoryFromBothStorages(agentId, chatId);
 
-  if (history.length === 0) return { success: false, message: 'History is empty' };
+  // Check session metadata to see if there's any history at all
+  const sessionMetadata = await getOrCreateSession(agentId, chatId);
+  
+  if (history.length === 0) {
+    // Check if there's an existing session snapshot that could serve as history
+    const agentPrefix = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const snapshotGroupCode = `${agentPrefix}__snapshots__${chatId}`;
+    const existingSnapshot = await Markdown.findOne({
+      category: 'agents_memory',
+      group_code: snapshotGroupCode
+    }).sort({ createdAt: -1 }).lean();
 
-  console.log(`[agent.service] Manual compaction triggered for session ${chatId}`);
+    if (existingSnapshot) {
+      console.log(`[agent.service] Manual compaction triggered for session ${chatId} (using existing snapshot)`);
+      // Use the existing snapshot as history for generating a new snapshot
+      history = [{
+        role: 'system',
+        content: existingSnapshot.markdownRaw
+      }];
+    } else if (sessionMetadata.lastSnapshotId) {
+      // If session has a snapshot ID, it was previously compacted
+      return { success: false, message: 'This session was previously compacted. No additional history to compact.' };
+    } else if (sessionMetadata.totalTokens > 0) {
+      // Session has tokens but no history in cache and no snapshot
+      // This can happen when history expired from cache but session wasn't compacted
+      return { success: false, message: 'Session history has expired from cache. Use /new to start a fresh session.' };
+    } else {
+      return { success: false, message: 'History is empty and no existing snapshot found for this session' };
+    }
+  } else {
+    console.log(`[agent.service] Manual compaction triggered for session ${chatId}`);
+  }
+
   const snapshot = await generateSnapshot(agent, chatId, history);
   
   await updateSessionMetadata(chatId, { 
@@ -333,10 +518,7 @@ async function compactSession(agentId, chatId) {
     content: `Conversation summary at T=${new Date().toISOString()}`
   }];
 
-  await cacheLayer.set(historyKey, history, { 
-    namespace: HISTORY_NAMESPACE,
-    ttlSeconds: 3600
-  });
+    await saveHistoryToBothStorages(agentId, chatId, history);
 
   return { success: true, snapshotId: snapshot.slug };
 }
@@ -358,7 +540,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     const systemPrompt = await getSystemPrompt(agent, chatId);
 
     const historyKey = `${agentId}:${chatId}`;
-    let history = await cacheLayer.get(historyKey, { namespace: HISTORY_NAMESPACE }) || [];
+    let history = await loadHistoryFromBothStorages(agentId, chatId);
 
     history.push({ role: 'user', content });
 
@@ -456,10 +638,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       }
     }
 
-    await cacheLayer.set(historyKey, history, { 
-      namespace: HISTORY_NAMESPACE,
-      ttlSeconds: 3600
-    });
+    await saveHistoryToBothStorages(agentId, chatId, history);
 
     const finalResponse = {
       text: assistantContent || 'I processed your request but have no specific response.',
@@ -478,5 +657,9 @@ module.exports = {
   processMessage,
   getSystemPrompt,
   getGlobalRules,
-  compactSession
+  compactSession,
+  migrateCacheOnlyHistories,
+  saveHistoryToBothStorages,
+  loadHistoryFromBothStorages,
+  getHistoryJsonConfigKey
 };
