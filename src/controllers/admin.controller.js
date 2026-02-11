@@ -352,7 +352,7 @@ const getWebhookStats = asyncHandler(async (req, res) => {
 const provisionCoolifyDeploy = asyncHandler(async (req, res) => {
   try {
     const { overwrite } = req.body;
-    const managePath = path.join(process.cwd(), "manage.sh");
+    const managePath = path.join(process.cwd(), "manage.js");
     const exists = fs.existsSync(managePath);
 
     if (exists && !overwrite) {
@@ -363,13 +363,19 @@ const provisionCoolifyDeploy = asyncHandler(async (req, res) => {
       });
     }
 
-    // In ref-superbackend, manage.sh already exists in the root of the repository
-    // If it didn't, we would write it here. For this case, we'll just success.
+    // Copy the improved manage.js from polybot
+    const sourceManageJs = path.join(__dirname, "../../../manage.js");
+    if (fs.existsSync(sourceManageJs)) {
+      fs.copyFileSync(sourceManageJs, managePath);
+      // Make it executable
+      fs.chmodSync(managePath, '755');
+    }
+
     res.json({
       success: true,
       message: exists
-        ? "Coolify Headless Deploy script (manage.sh) was already there."
-        : "Coolify Headless Deploy script (manage.sh) is ready in the root directory.",
+        ? "Coolify Headless Deploy script (manage.js) was updated."
+        : "Coolify Headless Deploy script (manage.js) is ready in the root directory.",
       path: managePath,
     });
   } catch (error) {

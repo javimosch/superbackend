@@ -1,6 +1,6 @@
 # Coolify Headless Deploy (SaaSBackend)
 
-The `manage.sh` script in the root of the SaaSBackend repository is a specialized deployment tool. It facilitates an opinionated deployment workflow using SSH and rsync, specifically designed for remote servers running Traefik (common in Coolify or standalone Docker environments).
+The `manage.js` script in the root of the SaaSBackend repository is a specialized deployment tool. It facilitates an opinionated deployment workflow using SSH and rsync, specifically designed for remote servers running Traefik (common in Coolify or standalone Docker environments).
 
 ## Key Features
 
@@ -36,27 +36,27 @@ REMOTE_DOMAIN_CONFIG_FILENAME=superlandings.yml
 ## Commands
 
 ### 1. Provisioning
-The script is available as `manage.sh` in the repository root. You can also "provision" it (confirm its existence) via the SaaSBackend Admin UI.
+The script is available as `manage.js` in the repository root. You can also "provision" it (confirm its existence) via the SaaSBackend Admin UI.
 
 ### 2. Deploy Application
 ```bash
-./manage.sh deploy
+node manage.js deploy
 ```
 Syncs files and restarts the Docker containers on the remote host.
 
 ### 3. Generate Traefik Proxy
 ```bash
-./manage.sh proxy
+node manage.js proxy
 ```
 Creates the local Traefik YAML configuration based on your environment.
 
 ### 4. Deploy Traefik Config
 ```bash
-./manage.sh domain
+node manage.js domain
 ```
 Uploads the generated Traefik config to the gateway server.
 
 ## Dependencies
 
-- **Local**: `bash`, `ssh`, `rsync`.
-- **Remote**: `docker`, `docker-compose`, `ssh-server`.
+- **Local**: `node`, `ssh`, `rsync`.
+- **Remote**: `docker`, `docker-compose` (or `docker compose`), `ssh-server`.
