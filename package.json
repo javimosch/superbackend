@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon --verbose --ignore uploads --ignore '*.log' server.js",
+    "dev": "nodemon --verbose --ignore uploads --ignore stdout.log --ignore '*.log' server.js",
     "start:minio": "docker compose -f compose.standalone.yml --profile minio-only up -d minio",
     "minio:envs": "node -e \"console.log(['S3_ENDPOINT=http://localhost:9000','S3_REGION=us-east-1','S3_ACCESS_KEY_ID=minioadmin','S3_SECRET_ACCESS_KEY=minioadmin','S3_BUCKET=saasbackend','S3_FORCE_PATH_STYLE=true'].join('\\n'))\"",
     "build:sdk:error-tracking:browser": "esbuild sdk/error-tracking/browser/src/embed.js --bundle --format=iife --global-name=saasbackendErrorTrackingEmbed --outfile=sdk/error-tracking/browser/dist/embed.iife.js",

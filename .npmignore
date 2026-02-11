@@ -110,6 +110,7 @@ GEMINI*
 scripts/
 codebase_stats.sh
 manage.sh
+!manage.js
 
 # Docker
 Dockerfile*
