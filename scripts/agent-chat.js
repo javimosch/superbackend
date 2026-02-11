@@ -236,6 +236,13 @@ class AgentChatTUI extends ScriptBase {
         this.chatId = sessionChatId;
         
         if (thinkingSpinner) thinkingSpinner.animate(false);
+        
+        if (this.abortController.signal.aborted) {
+            throw new Error('Operation aborted');
+        }
+
+        await new Promise(r => setTimeout(r, 400));
+        
         term.column(1).eraseLine();
         term.bold.magenta(`${selectedAgent.name}: `).white(text + '\n');
 
@@ -277,9 +284,12 @@ class AgentChatTUI extends ScriptBase {
       term.bgBlack.gray(` 🧠 ${model} `);
       
       if (meta.tokens) {
+        const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
+        const formattedTokens = formatNum(meta.tokens);
+        const formattedMax = formatNum(meta.max);
         const perc = meta.max > 0 ? ((meta.tokens / meta.max) * 100).toFixed(1) : 0;
         const color = perc > 80 ? 'bgRed' : perc > 50 ? 'bgYellow' : 'bgGreen';
-        term[color].black(` 📊 ${meta.tokens}/${meta.max} (${perc}%) `);
+        term[color].black(` 📊 ${formattedTokens}/${formattedMax} (${perc}%) `);
       }
     }
     
