@@ -78,30 +78,17 @@ class AgentChatTUI extends ScriptBase {
         
         this.escCount++;
         if (this.escCount === 1) {
-          term.saveCursor();
-          term.moveTo(1, term.height);
-          term.bgRed.white(' Press ESC again to stop operation ');
-          term.restoreCursor();
+          this.drawStatusBar(' Press ESC again to stop operation ', 'bgRed');
           
           this.escTimer = setTimeout(() => {
             this.escCount = 0;
-            term.saveCursor();
-            term.moveTo(1, term.height);
-            term.eraseLine();
-            term.restoreCursor();
+            this.drawStatusBar();
           }, 2000);
         } else if (this.escCount >= 2) {
           if (this.abortController) {
             this.abortController.abort();
-            term.saveCursor();
-            term.moveTo(1, term.height);
-            term.eraseLine();
-            term.bgYellow.black(' 🛑 Aborting... ');
-            setTimeout(() => {
-                term.moveTo(1, term.height);
-                term.eraseLine();
-                term.restoreCursor();
-            }, 1000);
+            this.drawStatusBar(' 🛑 Aborting... ', 'bgYellow', 'black');
+            setTimeout(() => this.drawStatusBar(), 1000);
           }
           this.escCount = 0;
           if (this.escTimer) clearTimeout(this.escTimer);
@@ -113,36 +100,38 @@ class AgentChatTUI extends ScriptBase {
     });
 
     term.grabInput(true);
+    this.drawStatusBar();
 
     while (true) {
-      term.white(`[${this.chatId.slice(-8)}] You: `);
+      term.bold.cyan(`\n[${this.chatId.slice(-8)}] You: `);
       const input = await term.inputField().promise;
       term('\n');
       
       const cmd = input.toLowerCase().trim();
       if (['exit', 'quit', '\\q'].includes(cmd)) {
-        term.green('\nEnding session...\n');
+        term.bold.green('\n👋 Ending session...\n');
         break;
       }
 
       if (cmd === '/compact') {
-        term.yellow('✨ Compacting session... ');
+        term.bold.yellow('✨ Compacting session... ');
         try {
           const result = await agentService.compactSession(selectedAgent._id, this.chatId);
           if (result.success) {
-            term.green(`Done! Created snapshot: ${result.snapshotId}\n\n`);
+            term.bold.green(`Done! Created snapshot: ${result.snapshotId}\n`);
           } else {
-            term.red(`Failed: ${result.message}\n\n`);
+            term.bold.red(`Failed: ${result.message}\n`);
           }
         } catch (err) {
-          term.red(`Error: ${err.message}\n\n`);
+          term.bold.red(`Error: ${err.message}\n`);
         }
         continue;
       }
 
       if (cmd === '/new') {
         this.chatId = `tui-${Date.now()}`;
-        term.bold.green(`\n🆕 Started new session: ${this.chatId}\n\n`);
+        this.drawStatusBar();
+        term.bold.green(`\n🆕 Started new session: ${this.chatId}\n`);
         continue;
       }
 
@@ -167,17 +156,18 @@ class AgentChatTUI extends ScriptBase {
           });
         }
         
-        term.white('\nSelect session number (or Enter to cancel): ');
+        term.bold.white('\nSelect session number (or Enter to cancel): ');
         const sessionChoice = await term.inputField().promise;
         if (sessionChoice.trim()) {
           const sIndex = parseInt(sessionChoice, 10) - 1;
           if (!isNaN(sIndex) && sIndex >= 0 && sIndex < sessionConfigs.length) {
             const selectedSession = JSON.parse(sessionConfigs[sIndex].jsonRaw);
             this.chatId = selectedSession.id;
+            this.drawStatusBar();
             const labelDisplay = selectedSession.label ? ` (${selectedSession.label})` : '';
-            term.bold.green(`\n🔄 Switched to session: ${this.chatId}${labelDisplay}\n\n`);
+            term.bold.green(`\n🔄 Switched to session: ${this.chatId}${labelDisplay}\n`);
           } else {
-            term.red('\nInvalid selection.\n');
+            term.bold.red('\nInvalid selection.\n');
           }
         } else {
             term('\n');
@@ -188,27 +178,27 @@ class AgentChatTUI extends ScriptBase {
       if (cmd.startsWith('/rename')) {
         const newLabel = input.replace('/rename', '').trim();
         if (!newLabel) {
-          term.red('❌ Please provide a label: /rename My Session Label\n\n');
+          term.bold.red('❌ Please provide a label: /rename My Session Label\n');
           continue;
         }
         
-        term.yellow('✨ Renaming session... ');
+        term.bold.yellow('✨ Renaming session... ');
         try {
           const result = await agentService.renameSession(this.chatId, newLabel);
           if (result.success) {
-            term.green(`Done! Session renamed to: ${result.label}\n\n`);
+            term.bold.green(`Done! Session renamed to: ${result.label}\n`);
           } else {
-            term.red(`Failed: ${result.message}\n\n`);
+            term.bold.red(`Failed: ${result.message}\n`);
           }
         } catch (err) {
-          term.red(`Error: ${err.message}\n\n`);
+          term.bold.red(`Error: ${err.message}\n`);
         }
         continue;
       }
 
       if (!input.trim()) continue;
 
-      term.bold.cyan(`${selectedAgent.name}: `);
+      term.bold.magenta(`${selectedAgent.name} ^.is thinking...`);
       
       this.isProcessing = true;
       this.abortController = new AbortController();
@@ -224,20 +214,21 @@ class AgentChatTUI extends ScriptBase {
         
         const { text, usage, chatId: sessionChatId } = response;
         this.chatId = sessionChatId;
-        term.white(text + '\n');
+        
+        term.column(1).eraseLine();
+        term.bold.magenta(`${selectedAgent.name}: `).white(text + '\n');
 
         if (usage) {
           const contextLength = await llmService.getModelContextLength(selectedAgent.model, selectedAgent.providerKey);
           const currentTokens = usage.total_tokens || (usage.prompt_tokens + usage.completion_tokens);
-          const percentage = contextLength > 0 ? ((currentTokens / contextLength) * 100).toFixed(1) : 0;
-          const formatNum = (num) => num >= 1000 ? (num / 1000).toFixed(1) + 'k' : num;
-          term.gray(`[tokens: ${formatNum(currentTokens)}/${formatNum(contextLength)} (${percentage}%)]\n\n`);
+          this.drawStatusBar(null, null, null, { tokens: currentTokens, max: contextLength });
         }
       } catch (err) {
+        term.column(1).eraseLine();
         if (err.message === 'Operation aborted' || err.message.includes('aborted')) {
-          term.yellow('\n⚠️ Operation cancelled by user.\n\n');
+          term.bold.yellow('⚠️ Operation cancelled by user.\n');
         } else {
-          term.red(`\n❌ Error: ${err.message}\n\n`);
+          term.bold.red(`❌ Error: ${err.message}\n`);
         }
       } finally {
         this.isProcessing = false;
@@ -247,8 +238,35 @@ class AgentChatTUI extends ScriptBase {
     }
   }
 
+  drawStatusBar(message = null, bgColor = 'bgBlue', textColor = 'white', meta = {}) {
+    term.saveCursor();
+    term.moveTo(1, term.height);
+    term.eraseLine();
+    
+    if (message) {
+      term[bgColor][textColor](` ${message} `);
+    } else {
+      const id = this.chatId.slice(-8);
+      const agent = this.selectedAgent ? this.selectedAgent.name : 'No Agent';
+      const model = this.selectedAgent ? this.selectedAgent.model : 'No Model';
+      
+      term.bgCyan.black(` 🆔 ${id} `);
+      term.bgBlue.white(` 🤖 ${agent} `);
+      term.bgBlack.gray(` 🧠 ${model} `);
+      
+      if (meta.tokens) {
+        const perc = meta.max > 0 ? ((meta.tokens / meta.max) * 100).toFixed(1) : 0;
+        const color = perc > 80 ? 'bgRed' : perc > 50 ? 'bgYellow' : 'bgGreen';
+        term[color].black(` 📊 ${meta.tokens}/${meta.max} (${perc}%) `);
+      }
+    }
+    
+    term.restoreCursor();
+  }
+
   async cleanup() {
     term.grabInput(false);
+    term.moveTo(1, term.height).eraseLine();
     await new Promise(r => setTimeout(r, 100));
   }
 }
