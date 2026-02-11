@@ -434,7 +434,7 @@
                 // Step 2: Build tree client-side (immediate)
                 this.treeData = this.buildTreeFromGroupCodes(groupCodes);
               } else {
-                this.showToast(result.error || 'Failed to load tree', 'error');
+                this.showToast(groupCodes.error || 'Failed to load tree', 'error');
               }
             } catch (error) {
               this.showToast('Network error', 'error');
@@ -477,11 +477,28 @@
               this.loadFolderContents();
             }
           },
-          toggleNode(name) {
-            // Toggle folder expansion (simplified)
-            const node = this.treeData[name];
-            if (node && node._type === 'folder') {
-              node.expanded = !node.expanded;
+          toggleNode(name, path) {
+            // Toggle folder expansion
+            let current = this.treeData;
+            
+            // If it's a top-level node
+            if (path.length === 1) {
+              if (current[name]) {
+                current[name].expanded = !current[name].expanded;
+              }
+              return;
+            }
+            
+            // Navigate to the parent folder
+            for (let i = 0; i < path.length - 1; i++) {
+              const part = path[i];
+              if (current[part] && current[part].children) {
+                current = current[part].children;
+              }
+            }
+            
+            if (current[name] && current[name]._type === 'folder') {
+              current[name].expanded = !current[name].expanded;
             }
           },
           buildTreeFromGroupCodes(groupCodes) {
@@ -673,8 +690,8 @@
                 :name="childName" 
                 :node="child" 
                 :path="[...path, name]"
-                @select="$emit('select', $event.node, [...$event.path])"
-                @toggle="$emit('toggle', $event)">
+                @select="(node, path) => $emit('select', node, path)"
+                @toggle="(name, path) => $emit('toggle', name, path)">
               </tree-item>
             </div>
           </div>
@@ -682,7 +699,7 @@
         methods: {
           handleClick() {
             if (this.node._type === 'folder') {
-              this.$emit('toggle', this.name);
+              this.$emit('toggle', this.name, [...this.path, this.name]);
             }
             this.$emit('select', this.node, [...this.path, this.name]);
           }
