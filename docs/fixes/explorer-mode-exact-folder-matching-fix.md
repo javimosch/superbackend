@@ -74,7 +74,7 @@ const filter = {
 @select="$emit('select', $event, path)"
 
 // After (Correct)  
-@select="$emit('select', $event.node, [...$event.path])"
+@select="(node, path) => $emit('select', node, path)"
 ```
 
 **Impact**: This fix ensures that when clicking nested folders like "bar" under "foo", the correct path `["foo", "bar"]` is passed, resulting in the correct API call `/folder/common2/foo__bar`.
