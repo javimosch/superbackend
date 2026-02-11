@@ -311,7 +311,7 @@ async function compactSession(agentId, chatId) {
   if (!agent) throw new Error('Agent not found');
 
   const historyKey = `${agentId}:${chatId}`;
-  let history = await agentHistoryService.loadHistory(agentId, chatId);
+  let history = await agentHistoryService.getHistory(agentId, chatId, MAX_HISTORY);
 
   const sessionMetadata = await getOrCreateSession(agentId, chatId);
   
@@ -349,7 +349,8 @@ async function compactSession(agentId, chatId) {
     content: `Conversation summary at T=${new Date().toISOString()}`
   }];
 
-    await agentHistoryService.saveHistory(agentId, chatId, history);
+    await agentHistoryService.deleteHistory(agentId, chatId);
+    await agentHistoryService.appendMessages(agentId, chatId, history);
 
   return { success: true, snapshotId: snapshot.slug };
 }
@@ -371,9 +372,12 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     const systemPrompt = await getSystemPrompt(agent, chatId);
 
     const historyKey = `${agentId}:${chatId}`;
-  let history = await agentHistoryService.loadHistory(agentId, chatId);
+    let history = await agentHistoryService.getHistory(agentId, chatId, MAX_HISTORY);
+    const newMessages = [];
 
-    history.push({ role: 'user', content });
+    const userMsg = { role: 'user', content };
+    history.push(userMsg);
+    newMessages.push(userMsg);
 
     if (history.length > MAX_HISTORY) {
       history = history.slice(-MAX_HISTORY);
@@ -415,11 +419,14 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       if (usage) lastUsage = usage;
 
       if (toolCalls && toolCalls.length > 0 && !isLastChance) {
-        history.push({ 
+        const assistantMsg = { 
           role: 'assistant', 
           content: text || null,
-          tool_calls: toolCalls 
-        });
+          toolCalls: toolCalls // Store as camelCase for AgentMessage
+        };
+        // Keep snake_case for LLM context
+        history.push({ ...assistantMsg, tool_calls: toolCalls });
+        newMessages.push(assistantMsg);
 
         for (const toolCall of toolCalls) {
           const { name, arguments: argsString } = toolCall.function;
@@ -440,22 +447,28 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
             isError = true;
           }
 
-          history.push({
+          const toolMsg = {
             role: 'tool',
-            tool_call_id: toolCall.id,
+            toolCallId: toolCall.id,
             content: result
-          });
+          };
+          history.push({ ...toolMsg, tool_call_id: toolCall.id });
+          newMessages.push(toolMsg);
 
           if (isError) {
-            history.push({
+            const sysMsg = {
               role: 'system',
               content: 'IMPORTANT: The tool returned an error. Provide a friendly conversational response about this error.'
-            });
+            };
+            history.push(sysMsg);
+            newMessages.push(sysMsg);
           }
         }
       } else {
         assistantContent = text;
-        history.push({ role: 'assistant', content: assistantContent });
+        const finalMsg = { role: 'assistant', content: assistantContent };
+        history.push(finalMsg);
+        newMessages.push(finalMsg);
         break;
       }
     }
@@ -469,7 +482,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       }
     }
 
-  await agentHistoryService.saveHistory(agentId, chatId, history);
+  await agentHistoryService.appendMessages(agentId, chatId, newMessages);
 
     const finalResponse = {
       text: assistantContent || 'I processed your request but have no specific response.',
