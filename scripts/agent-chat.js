@@ -55,7 +55,7 @@ class AgentChatTUI extends ScriptBase {
     const senderId = 'cli-user';
 
     console.log(`\n--- Chatting with: ${selectedAgent.name} ---`);
-    console.log(`(Commands: '/new' = new session, '/sessions' = list sessions, 'exit' = quit, 'clear' = local reset)\n`);
+    console.log(`(Commands: '/new' = new, '/sessions' = list, '/compact' = manual summary, 'exit' = quit)\n`);
 
     while (true) {
       const input = await this.question(`[${chatId.slice(-8)}] You: `);
@@ -64,6 +64,21 @@ class AgentChatTUI extends ScriptBase {
       if (['exit', 'quit', '\\q'].includes(cmd)) {
         console.log('\nEnding session...');
         break;
+      }
+
+      if (cmd === '/compact') {
+        process.stdout.write('✨ Compacting session... ');
+        try {
+          const result = await agentService.compactSession(selectedAgent._id, chatId);
+          if (result.success) {
+            console.log(`Done! Created snapshot: ${result.snapshotId}\n`);
+          } else {
+            console.log(`Failed: ${result.message}\n`);
+          }
+        } catch (err) {
+          console.log(`Error: ${err.message}\n`);
+        }
+        continue;
       }
 
       if (cmd === '/new') {

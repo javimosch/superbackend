@@ -260,7 +260,7 @@ async function ensureAgentMemory(agent) {
     'SOUL': `# SOUL.md - Who You Are\n\n*You're not a chatbot. You're becoming someone.*\n\n## Core Truths\n\n**Be genuinely helpful.** Skip filler.\n\n**Have opinions.** Personality matters.\n\n**Be resourceful before asking.**\n\n**Earn trust through competence.**\n\n**Remember you're a guest.**\n\n## Boundaries\n\n- Private things stay private.\n- Ask before external actions.\n- Never send half-baked public replies.\n- You're not the user's voice.\n\nOnly act under: /home/jarancibia/ai/polybot\n\n## Mission\n\nHelp user running polybot scripts.\nAlways use 30s global timeout.\n\n## Continuity\n\nThese files are your memory.\nIf you modify this file, inform the user.`,
     'IDENTITY': `# IDENTITY.md - Who Am I?\n\n---\n\nThis isn't metadata.\nIt's the start of identity formation.`,
     'NOW': `# NOW.md - What Matters Right Now\n\n## Active Goals\n-\n\n## Open Threads\n-\n\n## Blockers\n-\n\n## Recent Decisions\n-`,
-    'TASKS': `# TASKS.md - Execution Tracker\n\n## In Progress\n-\n\n## Waiting\n-\n\n## Completed\n-\n\n## Abandoned\n-`,
+    'TASKS': `# TASKS.md - Execution Tracker\n\n## Task List\nUse this format for all tasks:\n\n- [ ] [PRIORITY:HIGH] Task description here\n- [ ] [PRIORITY:MEDIUM] Another task with medium priority\n- [ ] [PRIORITY:LOW] Low priority task\n- [X] [PRIORITY:HIGH] Completed task with priority\n\n## Instructions\n1. **Mark tasks with checkboxes**: Use \`- [ ]\` for incomplete, \`- [X]\` for completed\n2. **Add priority tags**: Always include \`[PRIORITY:HIGH]\`, \`[PRIORITY:MEDIUM]\`, or \`[PRIORITY:LOW]\`\n3. **Use single list**: Keep all tasks in one list, don't split by status\n4. **Update immediately**: Mark tasks as done when completed\n5. **Add new tasks**: When starting work, add a new checkbox with appropriate priority\n\n## Example\n- [ ] [PRIORITY:HIGH] Fix authentication bug in user service\n- [ ] [PRIORITY:MEDIUM] Add unit tests for new feature\n- [X] [PRIORITY:HIGH] Review pull request #42\n- [ ] [PRIORITY:LOW] Update documentation for legacy endpoint\n\n## Priority Guidelines\n- **HIGH**: Blocks other work, critical bugs, production issues\n- **MEDIUM**: Important features, improvements, non-critical bugs\n- **LOW**: Nice-to-have, technical debt, future improvements`,
     'RECENT_LEARNINGS': `# RECENT_LEARNINGS.md - Fresh Observations\n\n-`,
     'SYSTEM': `# SYSTEM.md - Operational Environment\n\n## File System Rules\n- Only act under: /home/jarancibia/ai/polybot\n\n## Execution Rules\n- Always use 30s timeout.\n\n## Known Limitations\n-`,
     'PROJECTS': `# PROJECTS.md - Long-Term Work\n\n## Polybot Monitoring\nDescription:\nStatus:\nRisks:\nMetrics:`,
@@ -311,6 +311,36 @@ async function getGlobalRules() {
   }
 }
 
+async function compactSession(agentId, chatId) {
+  const agent = await Agent.findById(agentId);
+  if (!agent) throw new Error('Agent not found');
+
+  const historyKey = `${agentId}:${chatId}`;
+  let history = await cacheLayer.get(historyKey, { namespace: HISTORY_NAMESPACE }) || [];
+
+  if (history.length === 0) return { success: false, message: 'History is empty' };
+
+  console.log(`[agent.service] Manual compaction triggered for session ${chatId}`);
+  const snapshot = await generateSnapshot(agent, chatId, history);
+  
+  await updateSessionMetadata(chatId, { 
+    lastSnapshotId: snapshot.slug,
+    totalTokens: 0
+  });
+
+  history = [{
+    role: 'assistant',
+    content: `Conversation summary at T=${new Date().toISOString()}`
+  }];
+
+  await cacheLayer.set(historyKey, history, { 
+    namespace: HISTORY_NAMESPACE,
+    ttlSeconds: 3600
+  });
+
+  return { success: true, snapshotId: snapshot.slug };
+}
+
 /**
  * Process a message through the agent gateway
  */
@@ -322,7 +352,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     const chatId = inputChatId || crypto.randomUUID();
     
     await ensureAgentMemory(agent);
-    const session = await getOrCreateSession(agentId, chatId);
+    await getOrCreateSession(agentId, chatId);
 
     const contextLength = await llmService.getModelContextLength(agent.model, agent.providerKey);
     const systemPrompt = await getSystemPrompt(agent, chatId);
@@ -422,18 +452,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       await updateSessionMetadata(chatId, { totalTokens: currentTokens });
 
       if (currentTokens / contextLength > COMPACTION_THRESHOLD) {
-        console.log(`[agent.service] Auto-compaction triggered for session ${chatId} (${currentTokens}/${contextLength})`);
-        const snapshot = await generateSnapshot(agent, chatId, history);
-        
-        await updateSessionMetadata(chatId, { 
-          lastSnapshotId: snapshot.slug,
-          totalTokens: 0
-        });
-
-        history = [{
-          role: 'assistant',
-          content: `Conversation summary at T=${new Date().toISOString()}`
-        }];
+        await compactSession(agentId, chatId);
       }
     }
 
@@ -458,5 +477,6 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
 module.exports = {
   processMessage,
   getSystemPrompt,
-  getGlobalRules
+  getGlobalRules,
+  compactSession
 };
