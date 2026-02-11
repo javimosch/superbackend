@@ -15,7 +15,7 @@
 <body class="bg-gray-50 overflow-hidden">
     <div id="app" class="h-screen flex flex-col" v-cloak>
         <!-- Top Header -->
-        <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
+        <header v-if="!globalZenMode" class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 shrink-0">
             <div class="flex items-center gap-4">
                 <i class="ti ti-layout-dashboard text-2xl text-blue-600"></i>
                 <h1 class="text-xl font-bold text-gray-800">
@@ -30,6 +30,9 @@
                     <span class="ml-1">to search</span>
                 </div>
                 <div class="flex items-center gap-4">
+                    <button @click="globalZenMode = !globalZenMode" class="text-gray-500 hover:text-blue-600 p-1.5 rounded-lg border border-gray-200 bg-white" title="Toggle Global Zen Mode (ESC ESC to exit)">
+                        <i class="ti ti-maximize"></i>
+                    </button>
                     <span class="text-sm text-gray-500">v1.0.0</span>
                     <a :href="baseUrl + adminBase + '/api/test'" target="_blank" class="text-sm text-blue-600 hover:underline">API Test</a>
                 </div>
@@ -37,11 +40,15 @@
         </header>
 
         <div class="flex-1 flex overflow-hidden">
-            <%- include('partials/dashboard/sidebar') %>
+            <template v-if="!globalZenMode">
+                <%- include('partials/dashboard/sidebar') %>
+            </template>
 
             <!-- Main Content Area -->
             <main class="flex-1 flex flex-col overflow-hidden bg-gray-50">
-                <%- include('partials/dashboard/tab-bar') %>
+                <template v-if="!globalZenMode">
+                    <%- include('partials/dashboard/tab-bar') %>
+                </template>
                 
                 <div class="flex-1 relative">
                     <!-- Iframes -->
@@ -89,6 +96,11 @@
                 // Tabs state
                 const tabs = ref([]);
                 const activeTabId = ref(null);
+                const globalZenMode = ref(false);
+
+                // ESC ESC to exit Zen Mode
+                let escCount = 0;
+                let escTimeout = null;
 
                 // localStorage utilities
                 const STORAGE_KEY = 'adminDashboardTabs';
@@ -342,6 +354,19 @@
 
                 // Keyboard events
                 const handleKeydown = (e) => {
+                    if (e.key === 'Escape') {
+                        escCount++;
+                        clearTimeout(escTimeout);
+                        if (escCount >= 2) {
+                            globalZenMode.value = false;
+                            escCount = 0;
+                        } else {
+                            escTimeout = setTimeout(() => {
+                                escCount = 0;
+                            }, 500);
+                        }
+                    }
+
                     if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
                         e.preventDefault();
                         e.stopPropagation();
@@ -350,8 +375,13 @@
                 };
 
                 const handleMessage = (e) => {
-                    if (e.data && e.data.type === 'keydown' && e.data.ctrlK) {
-                        togglePalette('iframe-message');
+                    if (e.data && e.data.type === 'keydown') {
+                        if (e.data.ctrlK) {
+                            togglePalette('iframe-message');
+                        }
+                        if (e.data.key === 'Escape') {
+                            handleKeydown({ key: 'Escape' });
+                        }
                     }
                 };
 
@@ -389,6 +419,7 @@
                     navSections,
                     tabs,
                     activeTabId,
+                    globalZenMode,
                     openTab,
                     closeTab,
                     showPalette,
