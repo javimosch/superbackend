@@ -1,10 +1,27 @@
-# Explorer Mode Uncategorized Folder Access Issue
+# Explorer Mode Uncategorized Folder Access Issue - FIXED ✅
 
-## Status: PENDING FIX
+## Status: COMPLETED ✅
 
 ## Problem Description
 
-The explorer mode still has issues accessing files with empty `group_code` (root-level files) despite previous attempts to fix it.
+The explorer mode had issues accessing files with empty `group_code` (root-level files) because they were being filtered out in the backend service.
+
+## Resolution
+
+### Backend Fix
+Modified `src/services/markdowns.service.js` to include empty group codes in `getUniqueGroupCodes()`:
+
+```javascript
+async function getUniqueGroupCodes(category, options = {}) {
+  // ...
+  const groupCodes = await Markdown.distinct('group_code', filter);
+  return groupCodes; // No longer filtering out empty strings
+}
+```
+
+### Test Updates
+Updated `src/services/markdowns.service.test.js` to verify that empty group codes are included.
+Updated `src/controllers/adminMarkdowns.controller.test.js` to match the current controller implementation.
 
 ## Current Issues
 

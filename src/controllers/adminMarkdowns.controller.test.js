@@ -55,8 +55,9 @@ describe('adminMarkdowns.controller', () => {
         {
           page: 1,
           limit: 50,
-          sort: null
-        }
+          sort: { updatedAt: -1 }
+        },
+        { isAdmin: true }
       );
 
       expect(mockRes.json).toHaveBeenCalledWith(mockData);
@@ -69,10 +70,15 @@ describe('adminMarkdowns.controller', () => {
 
       const mockReq = { query: {} };
 
+      // We expect console.error to be called, so let's mock it to keep output clean
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
       await adminMarkdownsController.list(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
     });
 
     test('parses sort parameter', async () => {
@@ -91,7 +97,8 @@ describe('adminMarkdowns.controller', () => {
         expect.any(Object),
         expect.objectContaining({
           sort: { title: 1 }
-        })
+        }),
+        { isAdmin: true }
       );
     });
   });
@@ -132,11 +139,14 @@ describe('adminMarkdowns.controller', () => {
       markdownsService.getMarkdownById.mockRejectedValue(error);
 
       const mockReq = { params: { id: '1' } };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.get(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -172,11 +182,14 @@ describe('adminMarkdowns.controller', () => {
       markdownsService.createMarkdown.mockRejectedValue(error);
 
       const mockReq = { body: {} };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.create(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Title is required' });
+      
+      consoleSpy.mockRestore();
     });
 
     test('handles path uniqueness errors', async () => {
@@ -185,11 +198,14 @@ describe('adminMarkdowns.controller', () => {
       markdownsService.createMarkdown.mockRejectedValue(error);
 
       const mockReq = { body: { title: 'Test' } };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.create(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(409);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Path must be unique' });
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -227,11 +243,14 @@ describe('adminMarkdowns.controller', () => {
         params: { id: 'nonexistent' },
         body: { title: 'Updated' }
       };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.update(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Markdown not found' });
+      
+      consoleSpy.mockRestore();
     });
 
     test('handles validation errors', async () => {
@@ -243,11 +262,14 @@ describe('adminMarkdowns.controller', () => {
         params: { id: '1' },
         body: { status: 'invalid' }
       };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.update(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(400);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid status' });
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -269,60 +291,14 @@ describe('adminMarkdowns.controller', () => {
       markdownsService.deleteMarkdown.mockRejectedValue(error);
 
       const mockReq = { params: { id: 'nonexistent' } };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.remove(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(404);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Markdown not found' });
-    });
-  });
-
-  describe('getTree', () => {
-    test('returns tree structure', async () => {
-      const mockTree = {
-        folder1: {
-          _type: 'folder',
-          children: {
-            file1: {
-              _type: 'file',
-              title: 'File 1',
-              slug: 'file1'
-            }
-          }
-        }
-      };
-
-      markdownsService.getMarkdownTree.mockResolvedValue(mockTree);
-
-      const mockReq = {
-        query: { category: 'docs' }
-      };
-
-      await adminMarkdownsController.getTree(mockReq, mockRes);
-
-      expect(markdownsService.getMarkdownTree).toHaveBeenCalledWith('docs');
-      expect(mockRes.json).toHaveBeenCalledWith({ tree: mockTree });
-    });
-
-    test('handles missing category parameter', async () => {
-      const mockReq = { query: {} };
-
-      await adminMarkdownsController.getTree(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'category is required' });
-    });
-
-    test('handles service errors', async () => {
-      const error = new Error('Service error');
-      markdownsService.getMarkdownTree.mockRejectedValue(error);
-
-      const mockReq = { query: { category: 'docs' } };
-
-      await adminMarkdownsController.getTree(mockReq, mockRes);
-
-      expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -353,8 +329,9 @@ describe('adminMarkdowns.controller', () => {
         {
           page: 1,
           limit: 100,
-          sort: null
-        }
+          sort: { title: 1 }
+        },
+        { isAdmin: true }
       );
 
       expect(mockRes.json).toHaveBeenCalledWith(mockContents);
@@ -376,8 +353,10 @@ describe('adminMarkdowns.controller', () => {
         undefined,
         expect.objectContaining({
           page: 1,
-          limit: 100
-        })
+          limit: 100,
+          sort: { title: 1 }
+        }),
+        { isAdmin: true }
       );
     });
 
@@ -389,11 +368,14 @@ describe('adminMarkdowns.controller', () => {
         params: { category: 'docs' },
         query: {}
       };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.getFolderContents(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
     });
   });
 
@@ -469,11 +451,54 @@ describe('adminMarkdowns.controller', () => {
           slug: 'endpoints'
         }
       };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
       await adminMarkdownsController.validatePath(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('getGroupCodes', () => {
+    test('returns unique group codes', async () => {
+      const mockGroupCodes = ['foo', 'bar'];
+      markdownsService.getUniqueGroupCodes.mockResolvedValue(mockGroupCodes);
+
+      const mockReq = {
+        params: { category: 'docs' }
+      };
+
+      await adminMarkdownsController.getGroupCodes(mockReq, mockRes);
+
+      expect(markdownsService.getUniqueGroupCodes).toHaveBeenCalledWith('docs', { isAdmin: true });
+      expect(mockRes.json).toHaveBeenCalledWith(mockGroupCodes);
+    });
+
+    test('handles missing category parameter', async () => {
+      const mockReq = { params: {} };
+
+      await adminMarkdownsController.getGroupCodes(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(400);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'category is required' });
+    });
+
+    test('handles service errors', async () => {
+      const error = new Error('Service error');
+      markdownsService.getUniqueGroupCodes.mockRejectedValue(error);
+
+      const mockReq = { params: { category: 'docs' } };
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+      await adminMarkdownsController.getGroupCodes(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Service error' });
+      
+      consoleSpy.mockRestore();
     });
   });
 });

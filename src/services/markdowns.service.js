@@ -420,8 +420,24 @@ async function getUniqueGroupCodes(category, options = {}) {
     filter.status = 'published';
   }
 
+  // Use distinct to get all existing group codes
   const groupCodes = await Markdown.distinct('group_code', filter);
-  return groupCodes.filter(code => code !== ''); // Remove empty group codes
+  
+  // Normalize results: convert null/undefined to "" and ensure uniqueness
+  const normalizedCodes = Array.from(new Set(groupCodes.map(code => code || '')));
+  
+  // Explicitly check for documents where group_code field might be missing
+  // because distinct() omits values for documents where the field is missing.
+  const hasMissingField = await Markdown.findOne({
+    ...filter,
+    group_code: { $exists: false }
+  }).select('_id').lean();
+
+  if (hasMissingField && !normalizedCodes.includes('')) {
+    normalizedCodes.push('');
+  }
+
+  return normalizedCodes;
 }
 
 // Search functionality

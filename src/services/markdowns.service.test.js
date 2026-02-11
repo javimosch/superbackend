@@ -606,6 +606,10 @@ describe('markdowns.service', () => {
     test('gets unique group codes for category', async () => {
       const mockGroupCodes = ['foo', 'foo__bar', 'api', 'api__endpoints'];
       Markdown.distinct.mockResolvedValue(mockGroupCodes);
+      Markdown.findOne.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(null)
+      });
 
       const result = await markdownsService.getUniqueGroupCodes('docs');
 
@@ -616,18 +620,26 @@ describe('markdowns.service', () => {
       });
     });
 
-    test('filters empty group codes', async () => {
-      const mockGroupCodes = ['foo', '', 'bar', ''];
+    test('includes empty group codes and detects missing field', async () => {
+      const mockGroupCodes = ['foo', null, 'bar'];
       Markdown.distinct.mockResolvedValue(mockGroupCodes);
+      Markdown.findOne.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({ _id: 'some-id' })
+      });
 
       const result = await markdownsService.getUniqueGroupCodes('docs');
 
-      expect(result).toEqual(['foo', 'bar']);
+      expect(result).toEqual(['foo', '', 'bar']);
     });
 
     test('handles admin mode', async () => {
       const mockGroupCodes = ['foo', 'bar'];
       Markdown.distinct.mockResolvedValue(mockGroupCodes);
+      Markdown.findOne.mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue(null)
+      });
 
       await markdownsService.getUniqueGroupCodes('docs', { isAdmin: true });
 
