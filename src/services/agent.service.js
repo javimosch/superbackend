@@ -11,7 +11,6 @@ const HISTORY_NAMESPACE = 'agent:history';
 const HISTORY_JSON_CONFIG_PREFIX = 'agent-history-';
 const MAX_HISTORY = 20;
 const COMPACTION_THRESHOLD = 0.5;
-
 async function getOrCreateSession(agentId, chatId) {
   const slug = `agent-session-${chatId}`;
   try {
@@ -27,13 +26,11 @@ async function getOrCreateSession(agentId, chatId) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      
       await jsonConfigsService.createJsonConfig({
         title: `Agent Session: ${chatId}`,
         alias: slug,
         jsonRaw: JSON.stringify(sessionData)
       });
-      
       return sessionData;
     }
     throw err;
@@ -47,14 +44,11 @@ async function updateSessionMetadata(chatId, patch) {
   });
   
   if (!config) return;
-  
   const current = JSON.parse(config.jsonRaw);
   const updated = { ...current, ...patch, updatedAt: new Date().toISOString() };
-  
   await jsonConfigsService.updateJsonConfig(config._id, {
     jsonRaw: JSON.stringify(updated)
   });
-  
   return updated;
 }
 
@@ -65,7 +59,6 @@ async function generateSnapshot(agent, chatId, history) {
   const agentPrefix = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
   const snapshotGroupCode = `${agentPrefix}__snapshots__${sessionUuid}`;
   const markdownsService = require('./markdowns.service');
-
   const systemPrompt = `You are a memory compaction system. 
 Analyze the following conversation history and extract a structured snapshot.
 Return ONLY a markdown document in this exact format:
@@ -155,10 +148,7 @@ async function getSystemPrompt(agent, chatId) {
     }
   }
 
-  // Inject memory context
   const memoryContext = await getMemoryContext(agent, chatId);
-  
-  // Inject global rules
   const globalRules = await getGlobalRules();
   
   let finalPrompt = '';
@@ -304,6 +294,22 @@ async function getGlobalRules() {
   }
 }
 
+async function renameSession(chatId, newLabel) {
+  if (!newLabel || !newLabel.trim()) return { success: false, message: 'Label cannot be empty' };
+  
+  const slug = `agent-session-${chatId}`;
+  const config = await Markdown.model('JsonConfig').findOne({ $or: [{ slug }, { alias: slug }] });
+  
+  if (!config) return { success: false, message: 'Session not found' };
+  
+  const current = JSON.parse(config.jsonRaw);
+  current.label = newLabel.trim();
+  
+  await jsonConfigsService.updateJsonConfig(config._id, { jsonRaw: JSON.stringify(current) });
+  
+  return { success: true, label: newLabel.trim() };
+}
+
 async function compactSession(agentId, chatId) {
   const agent = await Agent.findById(agentId);
   if (!agent) throw new Error('Agent not found');
@@ -311,11 +317,9 @@ async function compactSession(agentId, chatId) {
   const historyKey = `${agentId}:${chatId}`;
   let history = await agentHistoryService.loadHistoryFromBothStorages(agentId, chatId);
 
-  // Check session metadata to see if there's any history at all
   const sessionMetadata = await getOrCreateSession(agentId, chatId);
   
   if (history.length === 0) {
-    // Check if there's an existing session snapshot that could serve as history
     const agentPrefix = agent.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
     const snapshotGroupCode = `${agentPrefix}__snapshots__${chatId}`;
     const existingSnapshot = await Markdown.findOne({
@@ -325,17 +329,10 @@ async function compactSession(agentId, chatId) {
 
     if (existingSnapshot) {
       console.log(`[agent.service] Manual compaction triggered for session ${chatId} (using existing snapshot)`);
-      // Use the existing snapshot as history for generating a new snapshot
-      history = [{
-        role: 'system',
-        content: existingSnapshot.markdownRaw
-      }];
+      history = [{ role: 'system', content: existingSnapshot.markdownRaw }];
     } else if (sessionMetadata.lastSnapshotId) {
-      // If session has a snapshot ID, it was previously compacted
       return { success: false, message: 'This session was previously compacted. No additional history to compact.' };
     } else if (sessionMetadata.totalTokens > 0) {
-      // Session has tokens but no history in cache and no snapshot
-      // This can happen when history expired from cache but session wasn't compacted
       return { success: false, message: 'Session history has expired from cache. Use /new to start a fresh session.' };
     } else {
       return { success: false, message: 'History is empty and no existing snapshot found for this session' };
@@ -495,5 +492,6 @@ module.exports = {
   processMessage,
   getSystemPrompt,
   getGlobalRules,
-  compactSession
+  compactSession,
+  renameSession
 };

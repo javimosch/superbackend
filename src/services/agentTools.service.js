@@ -2,7 +2,34 @@ const mongoose = require('mongoose');
 const { exec } = require('child_process');
 const { promisify } = require('util');
 const execAsync = promisify(exec);
-
+function hasTimeoutInCommand(command) {
+  return /^\s*timeout\s+/.test(command) ||
+         /\btimeout\s+\d+/.test(command) ||
+         /\b--timeout\b/.test(command) ||
+         /\b-t\s+\d+/.test(command) ||
+         /^\s*\w+.*--timeout=\d+/.test(command);
+}
+async function execWithTimeout(command) {
+  const timeoutInCommand = hasTimeoutInCommand(command);
+  if (timeoutInCommand) {
+    console.log(`[exec] Command already has timeout, using as-is: ${command}`);
+    return await execAsync(command);
+  }
+  console.log(`[exec] Adding 15-second timeout to command: ${command}`);
+  const wrappedCommand = `timeout 15s ${command}`;
+  try {
+    const { stdout, stderr } = await execAsync(wrappedCommand);
+    return { stdout, stderr };
+  } catch (error) {
+    if (error.code === 124) {
+      throw new Error(`Command timed out after 15 seconds`);
+    }
+    if (error.signal === 'SIGTERM' || error.signal === 'SIGKILL') {
+      throw new Error(`Command was terminated (likely timed out)`);
+    }
+    throw error;
+  }
+}
 function createErrorResponse(error, options = {}) {
   const {
     code = 100,
@@ -12,7 +39,6 @@ function createErrorResponse(error, options = {}) {
     suggestions = [],
     context = {}
   } = options;
-
   return JSON.stringify({
     error: {
       code,
@@ -26,7 +52,6 @@ function createErrorResponse(error, options = {}) {
     }
   }, null, 2);
 }
-
 const ERROR_CODES = {
   INVALID_INPUT: 80,
   MISSING_REQUIRED: 81,
@@ -40,7 +65,6 @@ const ERROR_CODES = {
   INTERNAL_ERROR: 110,
   BUG: 111
 };
-
 const tools = {
   'mongo-memory': {
     description: 'Persistent virtual cognitive space for the agent. Read, write, append, search, and list files in your memory workspace.',
@@ -85,7 +109,6 @@ const tools = {
           const sub = String(group_code).trim().replace(/^__+/, '');
           if (sub) targetGroupCode = `${agentPrefix}__${sub}`;
         }
-
         switch (operation) {
           case 'list': {
             const docs = await Markdown.find({ 
@@ -98,7 +121,6 @@ const tools = {
               files: docs.map(d => ({ filename: d.slug + '.md', title: d.title, updatedAt: d.updatedAt }))
             }, null, 2);
           }
-
           case 'read': {
             if (!filename) throw new Error('filename is required for read');
             const slug = filename.replace(/\.md$/i, '');
@@ -111,7 +133,6 @@ const tools = {
             if (!doc) throw new Error(`File ${filename} not found in ${targetGroupCode}`);
             return doc.markdownRaw;
           }
-
           case 'write': {
             if (!filename) throw new Error('filename is required for write');
             if (content === undefined) throw new Error('content is required for write');
@@ -129,7 +150,6 @@ const tools = {
             
             return `File ${filename} written successfully to ${targetGroupCode}`;
           }
-
           case 'append': {
             if (!filename) throw new Error('filename is required for append');
             if (content === undefined) throw new Error('content is required for append');
@@ -156,7 +176,6 @@ const tools = {
             
             return `Content appended to ${filename} in ${targetGroupCode}`;
           }
-
           case 'search': {
             if (!query) throw new Error('query is required for search');
             // Regex to match agent prefix and any subfolders
@@ -177,7 +196,6 @@ const tools = {
               title: d.title
             })), null, 2);
           }
-
           default:
             throw new Error(`Unknown memory operation: ${operation}`);
         }
@@ -191,20 +209,20 @@ const tools = {
     }
   },
   exec: {
-    description: 'Execute a shell command in the project working directory. Use this for system operations, checking logs, or running scripts.',
+    description: 'Execute a shell command in the project working directory. Automatically adds a 15-second timeout to prevent hangs. Use timeout command or --timeout flag to override.',
     parameters: {
       type: 'object',
       properties: {
         command: {
           type: 'string',
-          description: 'The shell command to execute'
+          description: 'The shell command to execute (will automatically add 15s timeout unless already specified)'
         }
       },
       required: ['command']
     },
     execute: async ({ command }) => {
       try {
-        const { stdout, stderr } = await execAsync(command);
+        const { stdout, stderr } = await execWithTimeout(command);
         return JSON.stringify({
           stdout: stdout.trim(),
           stderr: stderr.trim()
@@ -219,6 +237,10 @@ const tools = {
         }
         if (err.code === 'ENOENT') {
           suggestions.push('Check the working directory exists and is accessible');
+        }
+        if (err.message && err.message.includes('timed out')) {
+          suggestions.push('The command took too long to complete (15 second timeout)');
+          suggestions.push('Add a timeout to your command (e.g., "timeout 30s command") or use a shorter command');
         }
         return createErrorResponse(err, {
           code: ERROR_CODES.INTERNAL_ERROR,
@@ -254,7 +276,6 @@ const tools = {
       try {
         const Model = mongoose.model(modelName);
         if (!Model) throw new Error(`Model ${modelName} not found`);
-
         const results = await Model.find(query).limit(limit).lean();
         return JSON.stringify(results, null, 2);
       } catch (err) {
@@ -356,13 +377,11 @@ const tools = {
         if (!mongoose.connection || !mongoose.connection.db) {
           throw new Error('MongoDB connection not ready. Please ensure database is connected.');
         }
-
         let db = mongoose.connection.db;
         
         if (database && database !== mongoose.connection.name) {
           db = mongoose.connection.useDb(database);
         }
-
         let parsedFilter = filter;
         if (typeof filter === 'string') {
           try {
@@ -371,7 +390,6 @@ const tools = {
             throw new Error(`Failed to parse filter JSON: ${err.message}`);
           }
         }
-
         let parsedAdminCommand = adminCommand;
         if (typeof adminCommand === 'string') {
           try {
@@ -380,7 +398,6 @@ const tools = {
             throw new Error(`Failed to parse adminCommand JSON: ${err.message}`);
           }
         }
-
         switch (queryType) {
           case 'listDatabases': {
             try {
@@ -399,7 +416,6 @@ const tools = {
               });
             }
           }
-
           case 'listCollections': {
             if (!database && !mongoose.connection.name) {
               throw new Error('Database name required for listCollections');
@@ -413,7 +429,6 @@ const tools = {
               collections: names 
             }, null, 2);
           }
-
           case 'countDocuments': {
             if (!collection) throw new Error('Collection name required for countDocuments');
             const coll = db.collection(collection);
@@ -425,7 +440,6 @@ const tools = {
               filter: parsedFilter
             }, null, 2);
           }
-
           case 'findOne': {
             if (!collection) throw new Error('Collection name required for findOne');
             const coll = db.collection(collection);
@@ -437,7 +451,6 @@ const tools = {
               result: result || null
             }, null, 2);
           }
-
           case 'aggregate': {
             if (!collection) throw new Error('Collection name required for aggregate');
             const coll = db.collection(collection);
@@ -450,7 +463,6 @@ const tools = {
               count: results.length
             }, null, 2);
           }
-
           case 'adminCommand': {
             if (!parsedAdminCommand) throw new Error('Admin command required for adminCommand queryType');
             const result = await mongoose.connection.db.admin().command(parsedAdminCommand);
@@ -459,7 +471,6 @@ const tools = {
               result
             }, null, 2);
           }
-
           default:
             throw new Error(`Unknown queryType: ${queryType}. Supported: listDatabases, listCollections, countDocuments, findOne, aggregate, adminCommand`);
         }
@@ -486,8 +497,7 @@ const tools = {
       }
     }
   }
-};
-
+}
 async function executeTool(name, args, context = {}) {
   const tool = tools[name];
   if (!tool) {
@@ -504,7 +514,6 @@ async function executeTool(name, args, context = {}) {
   console.log(`Executing tool ${name} with args:`, args);
   return await tool.execute(args, context);
 }
-
 function getToolDefinitions() {
   return Object.entries(tools).map(([name, tool]) => ({
     type: 'function',
@@ -515,7 +524,6 @@ function getToolDefinitions() {
     }
   }));
 }
-
 module.exports = {
   executeTool,
   getToolDefinitions

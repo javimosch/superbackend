@@ -54,8 +54,8 @@ class AgentChatTUI extends ScriptBase {
     let chatId = `tui-${Date.now()}`;
     const senderId = 'cli-user';
 
-    console.log(`\n--- Chatting with: ${selectedAgent.name} ---`);
-    console.log(`(Commands: '/new' = new, '/sessions' = list, '/compact' = manual summary, 'exit' = quit)\n`);
+      console.log(`\n--- Chatting with: ${selectedAgent.name} ---`);
+      console.log(`(Commands: '/new' = new, '/sessions' = list, '/compact' = manual summary, '/rename [label]' = rename session, 'exit' = quit)\n`);
 
     while (true) {
       const input = await this.question(`[${chatId.slice(-8)}] You: `);
@@ -95,7 +95,8 @@ class AgentChatTUI extends ScriptBase {
         console.log('\n--- Recent TUI Sessions ---');
         sessionConfigs.slice(-10).forEach((c, i) => {
           const data = JSON.parse(c.jsonRaw);
-          console.log(`${i + 1}. ${data.id} (Tokens: ${data.totalTokens}, Last Snapshot: ${data.lastSnapshotId || 'None'})`);
+          const labelDisplay = data.label ? `[${data.label}] ` : '';
+          console.log(`${i + 1}. ${labelDisplay}${data.id} (Tokens: ${data.totalTokens}, Last Snapshot: ${data.lastSnapshotId || 'None'})`);
         });
         
         const sessionChoice = await this.question('\nSelect a session number to switch (or Enter to cancel): ');
@@ -104,10 +105,32 @@ class AgentChatTUI extends ScriptBase {
           if (!isNaN(sIndex) && sIndex >= 0 && sIndex < sessionConfigs.length) {
             const selectedSession = JSON.parse(sessionConfigs[sIndex].jsonRaw);
             chatId = selectedSession.id;
-            console.log(`\n🔄 Switched to session: ${chatId}\n`);
+            const labelDisplay = selectedSession.label ? ` (${selectedSession.label})` : '';
+            console.log(`\n🔄 Switched to session: ${chatId}${labelDisplay}\n`);
           } else {
             console.log('Invalid selection.');
           }
+        }
+        continue;
+      }
+
+      if (cmd.startsWith('/rename')) {
+        const newLabel = input.replace('/rename', '').trim();
+        if (!newLabel) {
+          console.log('❌ Please provide a label: /rename My Session Label\n');
+          continue;
+        }
+        
+        process.stdout.write('✨ Renaming session... ');
+        try {
+          const result = await agentService.renameSession(chatId, newLabel);
+          if (result.success) {
+            console.log(`Done! Session renamed to: ${result.label}\n`);
+          } else {
+            console.log(`Failed: ${result.message}\n`);
+          }
+        } catch (err) {
+          console.log(`Error: ${err.message}\n`);
         }
         continue;
       }
@@ -149,7 +172,9 @@ class AgentChatTUI extends ScriptBase {
   }
 
   async cleanup() {
-    this.rl.close();
+    if (this.rl && !this.rl.closed) {
+      this.rl.close();
+    }
   }
 }
 
