@@ -7,8 +7,9 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>Markdowns - Admin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <style>
       .toast {
         animation: slideIn 0.3s ease-out;
@@ -275,37 +276,55 @@
 
       <!-- Create/Edit Modal -->
       <div v-if="showCreateModal || editingItem" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-          <div class="px-6 py-4 border-b">
+        <div class="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div class="px-6 py-4 border-b flex justify-between items-center">
             <h3 class="text-lg font-semibold text-gray-900">
               {{ editingItem ? 'Edit Markdown' : 'Create Markdown' }}
             </h3>
+            <div class="flex gap-2">
+              <button @click="copyToClipboard" class="text-gray-500 hover:text-blue-600 p-2 rounded border border-gray-200" title="Copy Markdown to Clipboard">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+              </button>
+            </div>
           </div>
           <div class="px-6 py-4">
             <div class="grid grid-cols-1 gap-4">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
-                <input v-model="formData.title" type="text" required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-              </div>
-              <div class="grid grid-cols-2 gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
-                  <input v-model="formData.category" type="text" required
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                  <input v-model="formData.title" type="text" required
                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
-                <div>
-                  <label class="block text-sm font-medium text-gray-700 mb-1">Group Code</label>
-                  <input v-model="formData.group_code" type="text" placeholder="folder__subfolder"
-                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                  <p class="text-xs text-gray-500 mt-1">Use __ to separate folders</p>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <input v-model="formData.category" type="text" required
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Group Code</label>
+                    <input v-model="formData.group_code" type="text" placeholder="folder__subfolder"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  </div>
                 </div>
               </div>
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Content *</label>
-                <textarea v-model="formData.markdownRaw" rows="10" required
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <div class="flex justify-between items-center mb-1">
+                    <label class="block text-sm font-medium text-gray-700">Content *</label>
+                    <span class="text-xs text-gray-500">Markdown supported</span>
+                  </div>
+                  <textarea v-model="formData.markdownRaw" rows="15" required
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Preview</label>
+                  <div class="border border-gray-200 rounded-md p-4 bg-gray-50 overflow-y-auto h-[calc(15*1.5rem+1rem)] prose prose-sm max-w-none" v-html="previewHtml">
+                  </div>
+                </div>
               </div>
+
               <div class="grid grid-cols-3 gap-4">
                 <div>
                   <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -387,6 +406,14 @@
           },
           hasNextPage() {
             return this.data.skip + this.data.limit < this.data.total;
+          },
+          previewHtml() {
+            if (!this.formData.markdownRaw) return '<p class="text-gray-400 italic">No content to preview</p>';
+            try {
+              return marked.parse(this.formData.markdownRaw);
+            } catch (e) {
+              return '<p class="text-red-500">Error parsing markdown</p>';
+            }
           }
         },
         methods: {
@@ -659,6 +686,15 @@
                 current[part].expanded = true;
                 current = current[part].children;
               }
+            }
+          },
+          async copyToClipboard() {
+            if (!this.formData.markdownRaw) return;
+            try {
+              await navigator.clipboard.writeText(this.formData.markdownRaw);
+              this.showToast('Markdown copied to clipboard', 'success');
+            } catch (err) {
+              this.showToast('Failed to copy to clipboard', 'error');
             }
           }
         },
