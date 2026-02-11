@@ -30,7 +30,7 @@
                 >
                     <i v-if="loading.provisioning" class="ti ti-loader-2 animate-spin"></i>
                     <i v-else class="ti ti-file-code"></i>
-                    Provision manage.sh
+                    Provision manage.js
                 </button>
             </div>
 
@@ -81,24 +81,24 @@ REMOTE_DOMAIN_CONFIG_FILENAME=superlandings.yml</pre>
                         <div>
                             <p class="text-sm font-semibold text-gray-700 mb-2">1. Deploy Application</p>
                             <div class="bg-gray-100 p-2 rounded font-mono text-xs flex justify-between items-center">
-                                <code>./manage.sh deploy</code>
-                                <button @click="copyToClipboard('./manage.sh deploy')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
+                                <code>node manage.js deploy</code>
+                                <button @click="copyToClipboard('node manage.js deploy')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
                             </div>
                             <p class="text-xs text-gray-500 mt-1">Syncs files via rsync and runs docker compose remotely.</p>
                         </div>
                         <div>
                             <p class="text-sm font-semibold text-gray-700 mb-2">2. Setup Traefik Proxy</p>
                             <div class="bg-gray-100 p-2 rounded font-mono text-xs flex justify-between items-center">
-                                <code>./manage.sh proxy</code>
-                                <button @click="copyToClipboard('./manage.sh proxy')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
+                                <code>node manage.js proxy</code>
+                                <button @click="copyToClipboard('node manage.js proxy')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
                             </div>
                             <p class="text-xs text-gray-500 mt-1">Generates the Traefik YAML configuration file locally.</p>
                         </div>
                         <div>
                             <p class="text-sm font-semibold text-gray-700 mb-2">3. Deploy Domain</p>
                             <div class="bg-gray-100 p-2 rounded font-mono text-xs flex justify-between items-center">
-                                <code>./manage.sh domain</code>
-                                <button @click="copyToClipboard('./manage.sh domain')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
+                                <code>node manage.js domain</code>
+                                <button @click="copyToClipboard('node manage.js domain')" class="p-1 hover:text-blue-600"><i class="ti ti-copy"></i></button>
                             </div>
                             <p class="text-xs text-gray-500 mt-1">Uploads the Traefik YAML to the gateway server.</p>
                         </div>
@@ -145,7 +145,7 @@ REMOTE_DOMAIN_CONFIG_FILENAME=superlandings.yml`;
 
                 const provisionScript = async (overwrite = false) => {
                     if (overwrite) {
-                        if (!confirm('Are you sure you want to overwrite the existing manage.sh?')) {
+                        if (!confirm('Are you sure you want to overwrite the existing manage.js?')) {
                             return;
                         }
                     }

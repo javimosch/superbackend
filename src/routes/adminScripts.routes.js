@@ -10,7 +10,10 @@ router.get('/', controller.listScripts);
 router.post('/', controller.createScript);
 router.get('/runs', controller.listRuns);
 router.get('/runs/:runId', controller.getRun);
-router.get('/runs/:runId/stream', controller.streamRun);
+router.get('/runs/:runId/stream', controller.streamRunLogs);
+router.get('/runs/:runId/programmatic-output', controller.getProgrammaticOutput);
+router.get('/runs/:runId/full-output', controller.getFullOutput);
+router.get('/runs/:runId/download', controller.downloadOutput);
 
 router.get('/:id', controller.getScript);
 router.put('/:id', controller.updateScript);
