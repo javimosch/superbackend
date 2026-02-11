@@ -1,14 +1,10 @@
 const crypto = require('crypto');
 const jsonConfigsService = require('./jsonConfigs.service');
 const llmService = require('./llm.service');
-const cacheLayer = require('./cacheLayer.service');
 const agentTools = require('./agentTools.service');
 const Agent = require('../models/Agent');
 const Markdown = require('../models/Markdown');
 const agentHistoryService = require('./agentHistory.service');
-
-const HISTORY_NAMESPACE = 'agent:history';
-const HISTORY_JSON_CONFIG_PREFIX = 'agent-history-';
 const MAX_HISTORY = 20;
 const COMPACTION_THRESHOLD = 0.5;
 async function getOrCreateSession(agentId, chatId) {
@@ -315,7 +311,7 @@ async function compactSession(agentId, chatId) {
   if (!agent) throw new Error('Agent not found');
 
   const historyKey = `${agentId}:${chatId}`;
-  let history = await agentHistoryService.loadHistoryFromBothStorages(agentId, chatId);
+  let history = await agentHistoryService.loadHistory(agentId, chatId);
 
   const sessionMetadata = await getOrCreateSession(agentId, chatId);
   
@@ -353,7 +349,7 @@ async function compactSession(agentId, chatId) {
     content: `Conversation summary at T=${new Date().toISOString()}`
   }];
 
-  await agentHistoryService.saveHistoryToBothStorages(agentId, chatId, history);
+    await agentHistoryService.saveHistory(agentId, chatId, history);
 
   return { success: true, snapshotId: snapshot.slug };
 }
@@ -375,7 +371,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
     const systemPrompt = await getSystemPrompt(agent, chatId);
 
     const historyKey = `${agentId}:${chatId}`;
-    let history = await agentHistoryService.loadHistoryFromBothStorages(agentId, chatId);
+  let history = await agentHistoryService.loadHistory(agentId, chatId);
 
     history.push({ role: 'user', content });
 
@@ -473,7 +469,7 @@ async function processMessage(agentId, { content, senderId, chatId: inputChatId,
       }
     }
 
-    await agentHistoryService.saveHistoryToBothStorages(agentId, chatId, history);
+  await agentHistoryService.saveHistory(agentId, chatId, history);
 
     const finalResponse = {
       text: assistantContent || 'I processed your request but have no specific response.',

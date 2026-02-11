@@ -1,4 +1,4 @@
-# Fix: Alias Uniqueness Error in Dual-Write System
+# Fix: Alias Uniqueness Error in Single-Write System
 
 ## Problem
 
@@ -20,7 +20,7 @@ The alias format `agent-history-{agentId}:{chatId}` (with colon) was being norma
 
 1. **Changed alias format**: Changed from `agent-history-{agentId}:{chatId}` to `agent-history-{agentId}-{chatId}`
 2. **Added normalization**: Added explicit normalization of the key before searching in `jsonConfigsService.getJsonConfig()`
-3. **Updated functions**: Updated `saveHistoryToBothStorages()`, `loadHistoryFromBothStorages()`, and `migrateCacheOnlyHistories()` to use normalized keys
+3. **Updated functions**: Updated `saveHistory()`, `loadHistory()`, and `migrateCacheOnlyHistories()` to use normalized keys
 
 ## Changes Made
 
@@ -28,15 +28,11 @@ The alias format `agent-history-{agentId}:{chatId}` (with colon) was being norma
 - Changed from: `return `${HISTORY_JSON_CONFIG_PREFIX}${agentId}:${chatId}`;`
 - Changed to: `return `${HISTORY_JSON_CONFIG_PREFIX}${agentId}-${chatId}`;`
 
-### `saveHistoryToBothStorages()` function
+### `saveHistory()` function
 - Added normalization: `const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');`
 - Use normalized key for `jsonConfigsService.getJsonConfig()`
 
-### `loadHistoryFromBothStorages()` function
-- Added normalization: `const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');`
-- Use normalized key for `jsonConfigsService.getJsonConfig()`
-
-### `migrateCacheOnlyHistories()` function
+### `loadHistory()` function
 - Added normalization: `const normalizedKey = jsonConfigKey.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');`
 - Use normalized key for `jsonConfigsService.getJsonConfig()`
 
@@ -53,13 +49,13 @@ The normalization has been verified to match the `normalizeAlias` function from 
 
 ## Impact
 
-- **Cache keys**: No change (still use colon format)
-- **JSON Config aliases**: Now use hyphen format (more consistent)
-- **Existing data**: Migration function handles conversion from old format
+- **Cache keys**: No longer used for history (cache-layer removed)
+- **JSON Config aliases**: Use hyphen format (consistent with normalization)
+- **Existing data**: Already using hyphen format (no migration needed)
 - **Future sessions**: Will automatically use the new format
 
 ## Notes
 
-- The cache layer still uses the colon format for keys (e.g., `agentId:chatId`)
-- Only JSON Config aliases have been changed to use hyphens
-- This change is backward compatible because the migration function can handle both formats
+- The cache layer is no longer used for history storage
+- JSON Config aliases use hyphens (more consistent)
+- This change is backward compatible with existing JSON Config entries
