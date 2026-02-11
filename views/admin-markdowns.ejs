@@ -58,6 +58,9 @@
       .file-icon::before {
         content: '📄';
       }
+      .category-icon::before {
+        content: '🏷️';
+      }
     </style>
   </head>
   <body class="bg-gray-100">
@@ -199,18 +202,24 @@
           <!-- Explorer Mode -->
           <div v-if="activeTab === 'explorer'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <!-- Tree View -->
-            <div class="bg-white rounded-lg shadow">
+            <div class="bg-white rounded-lg shadow flex flex-col">
               <div class="px-4 py-3 border-b">
-                <div class="flex items-center justify-between">
-                  <h2 class="text-lg font-semibold text-gray-900">Explorer</h2>
-                  <select v-model="selectedCategory" @change="loadTree" class="text-sm border rounded px-2 py-1">
-                    <option value="">Select Category</option>
-                    <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
-                  </select>
+                <h2 class="text-lg font-semibold text-gray-900 mb-2">Categories</h2>
+                <div class="flex flex-wrap gap-2">
+                  <button 
+                    v-for="cat in categories" 
+                    :key="cat"
+                    @click="toggleCategory(cat)"
+                    :class="['px-2 py-1 text-xs rounded-full border transition-colors', 
+                      selectedCategories.includes(cat) ? 'bg-blue-500 text-white border-blue-500' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200']">
+                    {{ cat }}
+                  </button>
                 </div>
               </div>
-              <div class="p-4 max-h-96 overflow-y-auto">
-                <div v-if="!selectedCategory" class="text-gray-500 text-sm">Select a category to explore</div>
+              <div class="p-4 flex-1 max-h-[600px] overflow-y-auto">
+                <div v-if="selectedCategories.length === 0" class="text-gray-500 text-sm text-center py-4">
+                  Select one or more categories to explore
+                </div>
                 <div v-else>
                   <tree-item 
                     v-for="(node, name) in treeData" 
@@ -233,7 +242,8 @@
                     <h2 class="text-lg font-semibold text-gray-900">Files</h2>
                     <!-- Breadcrumb Navigation -->
                     <div class="text-sm text-gray-600 mt-1">
-                      <span>{{ selectedCategory }}</span>
+                      <span v-if="activeCategory" class="font-medium text-gray-900">{{ activeCategory }}</span>
+                      <span v-else class="italic text-gray-400">No folder selected</span>
                       <span v-for="(segment, index) in currentPath" :key="index">
                         / <button @click="navigateToFolder(index)" class="text-blue-600 hover:underline">{{ segment }}</button>
                       </span>
@@ -411,7 +421,8 @@
             data: { items: [], total: 0, limit: 50, skip: 0 },
             filters: { category: '', group_code: '', status: '', search: '' },
             categories: [],
-            selectedCategory: '',
+            selectedCategories: [],
+            activeCategory: '',
             treeData: {},
             currentPath: [],
             folderContents: { items: [], total: 0, limit: 100, skip: 0 },
@@ -485,12 +496,25 @@
           extractCategories() {
             const cats = new Set(this.data.items.map(item => item.category));
             this.categories = Array.from(cats).sort();
+            // If no categories selected and we have categories, select the first one by default
+            if (this.selectedCategories.length === 0 && this.categories.length > 0) {
+              this.toggleCategory(this.categories[0]);
+            }
+          },
+          toggleCategory(cat) {
+            const index = this.selectedCategories.indexOf(cat);
+            if (index === -1) {
+              this.selectedCategories.push(cat);
+            } else {
+              this.selectedCategories.splice(index, 1);
+            }
+            this.loadTree();
           },
           openCreateModal() {
             this.formData = {
               title: '',
-              category: '',
-              group_code: '',
+              category: this.activeCategory || (this.selectedCategories.length > 0 ? this.selectedCategories[0] : ''),
+              group_code: this.currentPath.join('__'),
               markdownRaw: '',
               status: 'draft',
               publicEnabled: false,
@@ -500,29 +524,31 @@
             this.showCreateModal = true;
           },
           async loadTree() {
-            if (!this.selectedCategory) return;
+            if (this.selectedCategories.length === 0) {
+              this.treeData = {};
+              return;
+            }
             
             try {
-              // Step 1: Fetch unique group codes only (performance optimized)
-              const response = await fetch(`<%= baseUrl %>/api/admin/markdowns/group-codes/${this.selectedCategory}`);
-              const groupCodes = await response.json();
+              // Step 1: Fetch unique group codes for all selected categories
+              const results = await Promise.all(this.selectedCategories.map(async (cat) => {
+                const response = await fetch(`<%= baseUrl %>/api/admin/markdowns/group-codes/${cat}`);
+                const groupCodes = await response.json();
+                return { category: cat, groupCodes };
+              }));
               
-              if (response.ok) {
-                // Step 2: Build tree client-side (immediate)
-                this.treeData = this.buildTreeFromGroupCodes(groupCodes);
-              } else {
-                this.showToast(groupCodes.error || 'Failed to load tree', 'error');
-              }
+              // Step 2: Build combined tree client-side
+              this.treeData = this.buildTreeFromGroupCodes(results);
             } catch (error) {
-              this.showToast('Network error', 'error');
+              this.showToast('Network error loading tree', 'error');
             }
           },
           async loadFolderContents() {
-            if (!this.selectedCategory) return;
+            if (!this.activeCategory) return;
             
             try {
               const groupCode = this.currentPath.join('__');
-              const path = groupCode ? `/${this.selectedCategory}/${groupCode}` : `/${this.selectedCategory}`;
+              const path = groupCode ? `/${this.activeCategory}/${groupCode}` : `/${this.activeCategory}`;
               const response = await fetch(`<%= baseUrl %>/api/admin/markdowns/folder${path}`);
               const result = await response.json();
               
@@ -545,11 +571,15 @@
               if (item) this.editItem(item);
             } else {
               // Navigate to folder
-              if (path.includes('(uncategorized)')) {
+              // First element of path is the category
+              this.activeCategory = path[0];
+              const folderPath = path.slice(1);
+
+              if (folderPath.includes('(uncategorized)')) {
                 // Special handling for uncategorized folder
                 this.currentPath = []; // Empty path for root-level files
               } else {
-                this.currentPath = path;
+                this.currentPath = folderPath;
               }
               this.loadFolderContents();
             }
@@ -558,15 +588,7 @@
             // Toggle folder expansion
             let current = this.treeData;
             
-            // If it's a top-level node
-            if (path.length === 1) {
-              if (current[name]) {
-                current[name].expanded = !current[name].expanded;
-              }
-              return;
-            }
-            
-            // Navigate to the parent folder
+            // Navigate to the node
             for (let i = 0; i < path.length - 1; i++) {
               const part = path[i];
               if (current[part] && current[part].children) {
@@ -578,26 +600,38 @@
               current[name].expanded = !current[name].expanded;
             }
           },
-          buildTreeFromGroupCodes(groupCodes) {
+          buildTreeFromGroupCodes(results) {
             const tree = {};
             
-            groupCodes.forEach(groupCode => {
-              if (!groupCode) {
-                // Create uncategorized folder for empty group codes
-                if (!tree['(uncategorized)']) {
-                  tree['(uncategorized)'] = { _type: 'folder', children: {} };
-                }
-              } else {
-                const parts = groupCode.split('__');
-                let current = tree;
-                
-                parts.forEach(part => {
-                  if (!current[part]) {
-                    current[part] = { _type: 'folder', children: {} };
+            results.forEach(({ category, groupCodes }) => {
+              // Each category is a root folder
+              tree[category] = { 
+                _type: 'folder', 
+                _isCategory: true, 
+                expanded: true, 
+                children: {} 
+              };
+              
+              const catChildren = tree[category].children;
+              
+              groupCodes.forEach(groupCode => {
+                if (!groupCode) {
+                  // Create uncategorized folder for empty group codes
+                  if (!catChildren['(uncategorized)']) {
+                    catChildren['(uncategorized)'] = { _type: 'folder', children: {} };
                   }
-                  current = current[part].children;
-                });
-              }
+                } else {
+                  const parts = groupCode.split('__');
+                  let current = catChildren;
+                  
+                  parts.forEach(part => {
+                    if (!current[part]) {
+                      current[part] = { _type: 'folder', children: {} };
+                    }
+                    current = current[part].children;
+                  });
+                }
+              });
             });
             
             return tree;
@@ -793,8 +827,8 @@
           <div>
             <div @click="handleClick" class="tree-item px-2 py-1 rounded flex items-center justify-between">
               <div class="flex items-center">
-                <span :class="['mr-2', node._type === 'folder' ? 'folder-icon' : 'file-icon']"></span>
-                <span>{{ name }}</span>
+                <span :class="['mr-2', node._isCategory ? 'category-icon' : (node._type === 'folder' ? 'folder-icon' : 'file-icon')]"></span>
+                <span :class="{'font-bold': node._isCategory}">{{ name }}</span>
               </div>
               <span v-if="node._type === 'file' && node.status" :class="[
                 'text-xs px-2 py-0.5 rounded',
