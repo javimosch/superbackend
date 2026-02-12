@@ -97,6 +97,8 @@ const saasbackend = {
     FormSubmission: require("./src/models/FormSubmission"),
     GlobalSetting: require("./src/models/GlobalSetting"),
     I18nEntry: require("./src/models/I18nEntry"),
+    ScriptDefinition: require("./src/models/ScriptDefinition"),
+    ScriptRun: require("./src/models/ScriptRun"),
     I18nLocale: require("./src/models/I18nLocale"),
     Invite: require("./src/models/Invite"),
     JsonConfig: require("./src/models/JsonConfig"),
