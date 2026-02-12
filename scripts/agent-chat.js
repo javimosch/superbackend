@@ -70,8 +70,7 @@ class AgentChatTUI extends ScriptBase {
     const senderId = 'cli-user';
 
     term.clear();
-    term.bold.cyan(`\n--- Chatting with: ${selectedAgent.name} ---\n`);
-    term.gray(`(Commands: '/new', '/sessions', '/compact', '/rename [label]', 'exit')\n\n`);
+    term.bold.cyan(`\n--- Chatting with: ${selectedAgent.name} ---\n\n`);
 
     term.on('key', (name) => {
       if (name === 'ESCAPE') {
@@ -102,12 +101,12 @@ class AgentChatTUI extends ScriptBase {
 
     term.grabInput(true);
     
-    term.scrollingRegion(1, term.height - 1);
+    term.scrollingRegion(1, term.height - 2);
     
     this.drawStatusBar();
 
     term.on('resize', (width, height) => {
-        term.scrollingRegion(1, height - 1);
+        term.scrollingRegion(1, height - 2);
         this.drawStatusBar();
     });
 
@@ -227,16 +226,12 @@ class AgentChatTUI extends ScriptBase {
           abortSignal: this.abortController.signal,
           onProgress: async (p) => {
             if (p.status === 'reasoning') {
-                if (thinkingSpinner) {
-                    thinkingSpinner.animate(false);
-                    thinkingSpinner = null;
-                }
                 if (!hasStartedReasoning) {
                     hasStartedReasoning = true;
                     this.drawStatusBar(` 🧠 Loop ${p.iteration || '?'} | thinking... `);
                     term.column(1).eraseLine();
                     hasErasedInitialThinking = true;
-                    term.bold.magenta(`${selectedAgent.name} (thinking): `).gray.italic('...\n');
+                    term.bold.magenta(`${selectedAgent.name} (thinking): `).gray.italic('\n');
                 }
                 term.gray.italic(p.token);
             } else if (p.status === 'streaming_content') {
@@ -315,6 +310,11 @@ class AgentChatTUI extends ScriptBase {
 
   drawStatusBar(message = null, bgColor = 'bgBlue', textColor = 'white', meta = {}) {
     term.saveCursor();
+    
+    term.moveTo(1, term.height - 1);
+    term.eraseLine();
+    term.gray(" Commands: '/new', '/sessions', '/compact', '/rename [label]', 'exit'");
+
     term.moveTo(1, term.height);
     term.eraseLine();
     

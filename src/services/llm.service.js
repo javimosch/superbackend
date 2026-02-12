@@ -885,7 +885,14 @@ async function streamAdhoc(
           if (parsed.usage) lastUsage = parsed.usage;
 
           const choice = parsed.choices?.[0];
-          if (!choice) continue;
+          if (!choice) {
+            const topReasoning = parsed.reasoning_content || parsed.reasoning || parsed.thinking;
+            if (topReasoning) {
+                fullReasoning += topReasoning;
+                if (onReasoning) onReasoning(topReasoning);
+            }
+            continue;
+          }
 
           const delta = choice.delta || {};
           
@@ -894,7 +901,7 @@ async function streamAdhoc(
             if (onToken) onToken(delta.content);
           }
 
-          const reasoning = delta.reasoning_content || delta.reasoning || delta.thinking;
+          const reasoning = delta.reasoning_content || delta.reasoning || delta.thinking || choice.reasoning_content || choice.reasoning;
           if (reasoning) {
             fullReasoning += reasoning;
             if (onReasoning) onReasoning(reasoning);
