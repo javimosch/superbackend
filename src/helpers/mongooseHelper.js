@@ -83,7 +83,7 @@ class MongooseHelper {
       const uri = this.getMongoUri();
       const options = this.getConnectionOptions();
       
-      console.log(`[MongooseHelper] Connecting to MongoDB...`);
+      if (!process.env.TUI_MODE) console.log(`[MongooseHelper] Connecting to MongoDB...`);
       
       // Clear any existing connection
       if (mongoose.connection.readyState !== 0) {
@@ -94,7 +94,7 @@ class MongooseHelper {
       
       this.isConnected = true;
       
-      console.log(`[MongooseHelper] ✅ Connected to MongoDB`);
+      if (!process.env.TUI_MODE) console.log(`[MongooseHelper] ✅ Connected to MongoDB`);
       
       // Setup connection error handling
       mongoose.connection.on('error', (error) => {
@@ -104,13 +104,13 @@ class MongooseHelper {
       });
 
       mongoose.connection.on('disconnected', () => {
-        console.log('[MongooseHelper] Disconnected from MongoDB');
+        if (!process.env.TUI_MODE) console.log('[MongooseHelper] Disconnected from MongoDB');
         this.isConnected = false;
         this.connectionPromise = null;
       });
 
       mongoose.connection.on('reconnected', () => {
-        console.log('[MongooseHelper] Reconnected to MongoDB');
+        if (!process.env.TUI_MODE) console.log('[MongooseHelper] Reconnected to MongoDB');
         this.isConnected = true;
       });
 
@@ -136,7 +136,7 @@ class MongooseHelper {
     if (this.connectionCount <= 0) {
       try {
         await mongoose.disconnect();
-        console.log('[MongooseHelper] ✅ Disconnected from MongoDB');
+        if (!process.env.TUI_MODE) console.log('[MongooseHelper] ✅ Disconnected from MongoDB');
       } catch (error) {
         console.error('[MongooseHelper] Disconnect error:', error);
       } finally {
@@ -155,7 +155,7 @@ class MongooseHelper {
     try {
       if (mongoose.connection.readyState !== 0) {
         await mongoose.disconnect();
-        console.log('[MongooseHelper] ✅ Force disconnected from MongoDB');
+        if (!process.env.TUI_MODE) console.log('[MongooseHelper] ✅ Force disconnected from MongoDB');
       }
     } catch (error) {
       console.error('[MongooseHelper] Force disconnect error:', error);

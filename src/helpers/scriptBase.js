@@ -55,13 +55,13 @@ class ScriptBase {
     });
 
     try {
-      console.log(`[${this.name}] Starting script execution...`);
+      if (!process.env.TUI_MODE) console.log(`[${this.name}] Starting script execution...`);
       
       const executionPromise = this._executeWithConnection();
       const result = await Promise.race([executionPromise, timeoutPromise]);
 
       const duration = Date.now() - this.startTime;
-      console.log(`[${this.name}] ✅ Completed in ${duration}ms`);
+      if (!process.env.TUI_MODE) console.log(`[${this.name}] ✅ Completed in ${duration}ms`);
       
       return result;
     } catch (error) {
