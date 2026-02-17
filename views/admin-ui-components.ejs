@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UI Components - Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   </head>
   <body class="bg-gray-100">
     <div id="app" class="min-h-screen">
@@ -332,410 +332,90 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
             </div>
           </div>
         </div>
+
+        <div class="bg-white rounded-lg shadow p-4 space-y-4" ref="previewContainerRef">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="font-semibold text-gray-800">Preview & Test</h2>
+              <p class="text-xs text-gray-500">Test current editor content without saving. Default mode: iframe.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="runPreview" class="text-xs px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white">Run Preview</button>
+              <button @click="resetPreview" class="text-xs px-3 py-2 rounded bg-gray-100 hover:bg-gray-200">Reset</button>
+              <button @click="togglePreviewFullscreen" class="text-xs px-3 py-2 rounded bg-gray-800 hover:bg-gray-900 text-white">
+                {{ previewFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-4 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+              <select v-model="previewMode" class="w-full border rounded px-2 py-2 text-sm">
+                <option value="iframe">iframe (dynamic)</option>
+                <option value="top">top-frame (isolated)</option>
+                <option value="top-no-isolation">top-frame (not isolated)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">CSS Isolation</label>
+              <select v-model="previewCssIsolation" class="w-full border rounded px-2 py-2 text-sm">
+                <option value="scoped">scoped</option>
+                <option value="shadow">shadow</option>
+              </select>
+            </div>
+            <div class="lg:col-span-2">
+              <label class="block text-xs font-medium text-gray-600 mb-1">Props JSON</label>
+              <input v-model="previewPropsJson" class="w-full border rounded px-2 py-2 text-sm font-mono" placeholder='{"message":"Hello"}' />
+            </div>
+          </div>
+
+          <div class="text-xs text-gray-500">
+            Status: <span class="font-medium text-gray-700">{{ previewStatus }}</span>
+            <span class="ml-2">Use the API runner below with flexible JS commands.</span>
+          </div>
+
+          <div class="border border-gray-200 rounded overflow-hidden">
+            <div v-show="previewMode !== 'iframe'" class="h-[380px] bg-gray-50">
+              <div ref="previewTopMountRef" class="h-full w-full"></div>
+            </div>
+            <div v-show="previewMode === 'iframe'" class="h-[380px] bg-gray-50">
+              <iframe
+                ref="previewIframeRef"
+                title="UI Component Preview"
+                class="w-full h-full border-0"
+                sandbox="allow-scripts allow-same-origin"
+              ></iframe>
+            </div>
+          </div>
+
+          <div class="border border-gray-200 rounded p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <h3 class="font-semibold text-sm text-gray-800">JS API Runner</h3>
+              <div class="flex gap-2">
+                <button @click="setPreviewCommandExample('create')" class="text-[11px] px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Example: create</button>
+                <button @click="setPreviewCommandExample('call')" class="text-[11px] px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Example: call method</button>
+                <button @click="setPreviewCommandExample('destroy')" class="text-[11px] px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Example: destroy</button>
+              </div>
+            </div>
+            <textarea v-model="previewCommand" rows="4" class="w-full border rounded px-2 py-2 text-xs font-mono" placeholder="await uiCmp.create({ message: 'Hi from preview' })"></textarea>
+            <div class="flex gap-2">
+              <button @click="runPreviewCommand" class="text-xs px-3 py-2 rounded bg-purple-600 hover:bg-purple-700 text-white">Run command</button>
+              <button @click="clearPreviewLogs" class="text-xs px-3 py-2 rounded bg-gray-100 hover:bg-gray-200">Clear logs</button>
+            </div>
+            <pre class="text-[11px] bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words max-h-56 overflow-auto">{{ previewLogsText }}</pre>
+          </div>
+        </div>
       </div>
     </div>
-
     <script>
-      const { createApp, ref, onMounted } = Vue;
-
-      createApp({
-        setup() {
-          const baseUrl = '<%= baseUrl %>';
-          const adminPath = '<%= adminPath %>';
-          const API_BASE = window.location.origin + baseUrl;
-
-          const STORAGE_KEYS = {
-            providerKey: 'uiComponents.ai.providerKey',
-            model: 'uiComponents.ai.model',
-            helpOpen: 'uiComponents.help.open',
-          };
-
-          const toast = ref({ show: false, message: '', type: 'success' });
-          let toastTimer = null;
-
-          function showToast(message, type) {
-            toast.value = { show: true, message, type: type || 'success' };
-            if (toastTimer) clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => {
-              toast.value.show = false;
-            }, 2500);
-          }
-
-          async function api(path, options) {
-            const res = await fetch(baseUrl + path, {
-              method: (options && options.method) || 'GET',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: options && options.body ? JSON.stringify(options.body) : undefined,
-            });
-
-            const text = await res.text();
-            let data = null;
-            try { data = text ? JSON.parse(text) : null; } catch { data = null; }
-
-            if (!res.ok) {
-              const msg = (data && data.error) ? data.error : ('Request failed: ' + res.status);
-              throw new Error(msg);
-            }
-
-            return data;
-          }
-
-          const helpOpen = ref(false);
-
-          const projects = ref([]);
-          const components = ref([]);
-          const selectedProject = ref(null);
-          const assignments = ref([]);
-          const lastGeneratedKey = ref('');
-
-          const ai = ref({
-            providerKey: localStorage.getItem(STORAGE_KEYS.providerKey) || '',
-            model: localStorage.getItem(STORAGE_KEYS.model) || '',
-            prompt: '',
-            mode: 'minimal',
-            targets: { html: true, css: true, js: true, usageMarkdown: true },
-          });
-          const aiLoading = ref(false);
-          const aiProposal = ref(null);
-          const aiWarnings = ref([]);
-
-          const newProject = ref({ name: '', projectId: '', isPublic: true });
-
-          const componentEditor = ref({ code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' });
-
-          function loadHelpState() {
-            try {
-              const raw = localStorage.getItem(STORAGE_KEYS.helpOpen);
-              if (raw === '1') helpOpen.value = true;
-              if (raw === '0') helpOpen.value = false;
-            } catch {}
-          }
-
-          function persistHelpState() {
-            try {
-              localStorage.setItem(STORAGE_KEYS.helpOpen, helpOpen.value ? '1' : '0');
-            } catch {}
-          }
-
-          function toggleHelp() {
-            helpOpen.value = !helpOpen.value;
-            persistHelpState();
-          }
-
-          function syncAiPickerToVue() {
-            const providerEl = document.getElementById('uiComponentsAiProviderKey');
-            const modelEl = document.getElementById('uiComponentsAiModel');
-            if (providerEl) providerEl.value = String(ai.value.providerKey || '');
-            if (modelEl) modelEl.value = String(ai.value.model || '');
-          }
-
-          function wireAiPickerListeners() {
-            const providerEl = document.getElementById('uiComponentsAiProviderKey');
-            const modelEl = document.getElementById('uiComponentsAiModel');
-            if (!providerEl || !modelEl) return;
-
-            if (providerEl.dataset.wired === '1') return;
-            providerEl.dataset.wired = '1';
-            modelEl.dataset.wired = '1';
-
-            providerEl.addEventListener('input', () => {
-              ai.value.providerKey = String(providerEl.value || '');
-              persistAiSettings();
-            });
-            providerEl.addEventListener('change', () => {
-              ai.value.providerKey = String(providerEl.value || '');
-              persistAiSettings();
-            });
-
-            modelEl.addEventListener('input', () => {
-              ai.value.model = String(modelEl.value || '');
-              persistAiSettings();
-            });
-            modelEl.addEventListener('change', () => {
-              ai.value.model = String(modelEl.value || '');
-              persistAiSettings();
-            });
-          }
-
-          async function initAiPicker() {
-            if (!window.__llmProviderModelPicker || !window.__llmProviderModelPicker.init) return;
-            await window.__llmProviderModelPicker.init({
-              apiBase: API_BASE,
-              providerInputId: 'uiComponentsAiProviderKey',
-              modelInputId: 'uiComponentsAiModel',
-            });
-            syncAiPickerToVue();
-            wireAiPickerListeners();
-          }
-
-          async function loadLlmConfig() {
-            try {
-              await initAiPicker();
-              showToast('LLM config reloaded', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          function persistAiSettings() {
-            try {
-              localStorage.setItem(STORAGE_KEYS.providerKey, String(ai.value.providerKey || ''));
-              localStorage.setItem(STORAGE_KEYS.model, String(ai.value.model || ''));
-            } catch {}
-          }
-
-          async function aiPropose() {
-            try {
-              const code = String(componentEditor.value.code || '').trim().toLowerCase();
-              if (!code) throw new Error('Select or enter a component code first');
-              const prompt = String(ai.value.prompt || '').trim();
-              if (!prompt) throw new Error('Prompt is required');
-
-              persistAiSettings();
-              aiLoading.value = true;
-              aiProposal.value = null;
-              aiWarnings.value = [];
-
-              const payload = {
-                prompt,
-                providerKey: ai.value.providerKey || undefined,
-                model: ai.value.model || undefined,
-                targets: ai.value.targets,
-                mode: ai.value.mode,
-              };
-
-              const data = await api('/api/admin/ui-components/ai/components/' + encodeURIComponent(code) + '/propose', {
-                method: 'POST',
-                body: payload,
-              });
-
-              aiProposal.value = data && data.proposal ? data.proposal : null;
-              aiWarnings.value = (aiProposal.value && Array.isArray(aiProposal.value.warnings)) ? aiProposal.value.warnings : [];
-              showToast('AI proposal ready', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            } finally {
-              aiLoading.value = false;
-            }
-          }
-
-          function aiApply() {
-            try {
-              if (!aiProposal.value || !aiProposal.value.fields) return;
-              const f = aiProposal.value.fields;
-              if (f.html !== undefined) componentEditor.value.html = f.html;
-              if (f.css !== undefined) componentEditor.value.css = f.css;
-              if (f.js !== undefined) componentEditor.value.js = f.js;
-              if (f.usageMarkdown !== undefined) componentEditor.value.usageMarkdown = f.usageMarkdown;
-              showToast('Applied proposal into editor (click Save to persist)', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function refreshProjects() {
-            const data = await api('/api/admin/ui-components/projects');
-            projects.value = (data && data.items) ? data.items : [];
-          }
-
-          async function refreshComponents() {
-            const data = await api('/api/admin/ui-components/components');
-            components.value = (data && data.items) ? data.items : [];
-          }
-
-          async function refreshAssignments(projectId) {
-            const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(projectId) + '/components');
-            assignments.value = (data && data.items) ? data.items : [];
-          }
-
-          async function refreshAll() {
-            try {
-              await Promise.all([refreshProjects(), refreshComponents()]);
-              if (selectedProject.value) {
-                await refreshAssignments(selectedProject.value.projectId);
-              }
-              showToast('Refreshed', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function createProject() {
-            try {
-              lastGeneratedKey.value = '';
-              const payload = {
-                name: newProject.value.name,
-                projectId: newProject.value.projectId || undefined,
-                isPublic: Boolean(newProject.value.isPublic),
-              };
-              const data = await api('/api/admin/ui-components/projects', { method: 'POST', body: payload });
-              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
-              newProject.value = { name: '', projectId: '', isPublic: true };
-              await refreshProjects();
-              showToast('Project created', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function selectProject(p) {
-            try {
-              lastGeneratedKey.value = '';
-              selectedProject.value = { ...p };
-              await refreshAssignments(p.projectId);
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          function isAssigned(code) {
-            return assignments.value.some((a) => a.componentCode === code && a.enabled);
-          }
-
-          async function toggleAssignment(code, enabled) {
-            try {
-              if (!selectedProject.value) return;
-              if (enabled) {
-                await api(
-                  '/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/components/' + encodeURIComponent(code),
-                  { method: 'POST', body: { enabled: true } },
-                );
-              } else {
-                await api(
-                  '/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/components/' + encodeURIComponent(code),
-                  { method: 'DELETE' },
-                );
-              }
-              await refreshAssignments(selectedProject.value.projectId);
-              showToast('Updated assignment', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function toggleProjectPublic() {
-            try {
-              lastGeneratedKey.value = '';
-              const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId), {
-                method: 'PUT',
-                body: { isPublic: Boolean(selectedProject.value.isPublic) },
-              });
-              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
-              await refreshProjects();
-              await refreshAssignments(selectedProject.value.projectId);
-              showToast('Project updated', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function rotateKey() {
-            try {
-              lastGeneratedKey.value = '';
-              const data = await api('/api/admin/ui-components/projects/' + encodeURIComponent(selectedProject.value.projectId) + '/rotate-key', { method: 'POST' });
-              if (data && data.apiKey) lastGeneratedKey.value = data.apiKey;
-              showToast('Key rotated', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          function clearComponentEditor() {
-            componentEditor.value = { code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' };
-          }
-
-          async function loadComponentIntoEditor(code) {
-            try {
-              const data = await api('/api/admin/ui-components/components/' + encodeURIComponent(code));
-              const c = data && data.item ? data.item : null;
-              if (!c) return;
-
-              aiProposal.value = null;
-              aiWarnings.value = [];
-
-              componentEditor.value = {
-                code: c.code || '',
-                name: c.name || '',
-                html: c.html || '',
-                js: c.js || '',
-                css: c.css || '',
-                usageMarkdown: c.usageMarkdown || '',
-              };
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          async function saveComponent() {
-            try {
-              const code = String(componentEditor.value.code || '').trim().toLowerCase();
-              if (!code) throw new Error('code is required');
-              const payload = {
-                code,
-                name: componentEditor.value.name,
-                html: componentEditor.value.html,
-                js: componentEditor.value.js,
-                css: componentEditor.value.css,
-                usageMarkdown: componentEditor.value.usageMarkdown,
-              };
-
-              const existing = components.value.find((c) => c.code === code);
-              if (existing) {
-                await api('/api/admin/ui-components/components/' + encodeURIComponent(code), { method: 'PUT', body: payload });
-              } else {
-                await api('/api/admin/ui-components/components', { method: 'POST', body: payload });
-              }
-
-              await refreshComponents();
-              if (selectedProject.value) await refreshAssignments(selectedProject.value.projectId);
-              showToast('Component saved', 'success');
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          }
-
-          onMounted(async () => {
-            try {
-              loadHelpState();
-              await refreshAll();
-              await initAiPicker();
-            } catch (e) {
-              showToast(e.message, 'error');
-            }
-          });
-
-          return {
-            baseUrl,
-            adminPath,
-            toast,
-            helpOpen,
-            projects,
-            components,
-            selectedProject,
-            assignments,
-            lastGeneratedKey,
-            newProject,
-            componentEditor,
-            toggleHelp,
-            ai,
-            aiLoading,
-            aiProposal,
-            aiWarnings,
-            refreshAll,
-            createProject,
-            selectProject,
-            isAssigned,
-            toggleAssignment,
-            toggleProjectPublic,
-            rotateKey,
-            clearComponentEditor,
-            loadComponentIntoEditor,
-            saveComponent,
-          };
-        },
-      }).mount('#app');
+      window.__adminUiComponentsConfig = {
+        baseUrl: '<%= baseUrl %>',
+        adminPath: '<%= adminPath %>',
+      };
     </script>
+    <script src="<%= baseUrl %>/public/js/admin-ui-components-preview.js"></script>
+    <script src="<%= baseUrl %>/public/js/llm-provider-model-picker.js"></script>
+    <script src="<%= baseUrl %>/public/js/admin-ui-components.js"></script>
   </body>
 </html>
