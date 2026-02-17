@@ -66,6 +66,27 @@ The UI Components admin page includes a collapsible “Using the system endpoint
 - Example `<script>` and `uiCmp.init` usage for the browser SDK.
 - A short project setup checklist and troubleshooting tips.
 
+## Admin preview & testing
+The UI Components admin page also includes a **Preview & Test** section to test the current editor content without saving.
+
+### Preview modes
+- **iframe (dynamic)** (default): runs the preview in a generated iframe for stronger isolation.
+- **top-frame (isolated)**: runs in the current page using an isolated shadow-root host.
+- **top-frame (not isolated)**: runs in the current page without a shadow-root host.
+
+### Fullscreen
+- The preview container can enter fullscreen from the UI button.
+- Exit fullscreen with **Esc** or the same button.
+
+### JS API runner
+- Includes a flexible command runner to execute JavaScript against the live preview runtime.
+- Supports quick examples (create/call method/destroy).
+- Useful for testing JS APIs exported by component code (e.g. `show`, `hide`, custom methods).
+
+### Notes
+- Preview uses **editor state**, not persisted DB state, until you click Save.
+- CSS isolation options are available in preview (`scoped` and `shadow`) to validate behavior against browser SDK runtime choices.
+
 ## Public/browser APIs
 Base path:
 - `/api/ui-components`
@@ -92,6 +113,12 @@ Private projects require `x-project-key` on **every** request.
 Core methods:
 - `uiCmp.init({ projectId, apiKey, apiUrl, cssIsolation })`
 - `uiCmp.load(code)`
+
+### Component JS contract
+- Component JS is executed as a function body via:
+  - `new Function('api', 'templateRootEl', 'props', js)`
+- To expose methods from `uiCmp.<code>.create(...)`, component JS must `return` an object.
+- DOM queries should be scoped to `templateRootEl`.
 
 ### CSS isolation
 Supported modes:
