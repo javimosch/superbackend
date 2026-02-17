@@ -8,7 +8,17 @@ const globalSettingSchema = new mongoose.Schema({
   },
   value: {
     type: String,
-    required: true
+    default: '',
+    validate: {
+      validator: function(v) {
+        // Only encrypted values cannot be empty
+        if (this.type === 'encrypted') {
+          return v && v.trim().length > 0;
+        }
+        return true; // Allow any value (including empty) for other types
+      },
+      message: 'Encrypted values cannot be empty'
+    }
   },
   type: {
     type: String,

@@ -43,10 +43,6 @@ async function setStringSetting(key, value, description) {
     await existing.save();
     return existing;
   }
-  // Ensure we never create a document with an undefined value
-  if (stringValue === undefined) {
-    throw new Error(`Cannot save GlobalSetting with undefined value for key: ${key}`);
-  }
   const created = new GlobalSetting({
     key,
     value: stringValue,
@@ -78,10 +74,6 @@ async function setJsonSetting(key, value) {
     }
     await existing.save();
     return existing;
-  }
-  // Ensure we never create a document with an empty value
-  if (!stringValue) {
-    throw new Error(`Cannot save GlobalSetting with empty value for key: ${key}`);
   }
   const created = new GlobalSetting({
     key,
