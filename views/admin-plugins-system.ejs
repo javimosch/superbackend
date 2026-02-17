@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plugins system</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-100">
+  <div id="app" class="min-h-screen p-6">
+    <div class="max-w-6xl mx-auto space-y-6">
+      <header class="bg-white rounded-xl border border-gray-200 p-6">
+        <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <i class="ti ti-puzzle text-blue-600"></i>
+          Plugins system
+        </h1>
+        <p class="text-gray-600 mt-2">Enable, disable, and install local CommonJS plugins from <code class="text-sm bg-gray-100 px-1.5 py-0.5 rounded">cwd/plugins/*</code>.</p>
+      </header>
+
+      <section class="bg-white rounded-xl border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-800">Available plugins</h2>
+          <button @click="loadPlugins" class="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm">
+            Refresh
+          </button>
+        </div>
+
+        <p v-if="error" class="mb-4 text-sm text-red-600">{{ error }}</p>
+
+        <div v-if="loading" class="text-sm text-gray-500">Loading plugins...</div>
+
+        <div v-else-if="plugins.length === 0" class="text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg p-4">
+          No plugins discovered. Create folders under <code>plugins/</code> with an <code>index.js</code> CommonJS export.
+        </div>
+
+        <div v-else class="space-y-3">
+          <article v-for="plugin in plugins" :key="plugin.id" class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="font-semibold text-gray-900">{{ plugin.name }} <span class="text-xs text-gray-500">({{ plugin.id }})</span></h3>
+                <p class="text-sm text-gray-600 mt-1">{{ plugin.description || 'No description provided.' }}</p>
+                <div class="mt-2 flex flex-wrap gap-2 text-xs">
+                  <span class="px-2 py-1 rounded bg-white border border-gray-200">version: {{ plugin.version }}</span>
+                  <span class="px-2 py-1 rounded bg-white border border-gray-200">bootstrap: {{ plugin.hooks.bootstrap ? 'yes' : 'no' }}</span>
+                  <span class="px-2 py-1 rounded bg-white border border-gray-200">install: {{ plugin.hooks.install ? 'yes' : 'no' }}</span>
+                  <span class="px-2 py-1 rounded" :class="plugin.enabled ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300'">
+                    {{ plugin.enabled ? 'enabled' : 'disabled' }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex flex-col gap-2 min-w-[170px]">
+                <button
+                  v-if="!plugin.enabled"
+                  @click="enablePlugin(plugin.id)"
+                  class="px-3 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 text-sm"
+                >Enable</button>
+                <button
+                  v-else
+                  @click="disablePlugin(plugin.id)"
+                  class="px-3 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-800 text-sm"
+                >Disable</button>
+                <button
+                  @click="installPlugin(plugin.id)"
+                  class="px-3 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-sm"
+                >Run install</button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+        <h2 class="text-lg font-semibold text-gray-800">How to create and use plugins</h2>
+
+        <details class="border border-gray-200 rounded-lg p-4">
+          <summary class="cursor-pointer font-medium text-gray-900">Add a new plugin</summary>
+          <pre class="mt-3 text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto">plugins/my-plugin/index.js
+
+module.exports = {
+  meta: {
+    id: 'my-plugin',
+    name: 'My Plugin',
+    version: '1.0.0',
+    description: 'Example plugin',
+    tags: ['example']
+  },
+  hooks: {
+    bootstrap(ctx) {
+      console.log('[my-plugin] bootstrap', Object.keys(ctx.services || {}));
+    },
+    install(ctx) {
+      console.log('[my-plugin] install');
+    }
+  }
+};</pre>
+        </details>
+
+        <details class="border border-gray-200 rounded-lg p-4">
+          <summary class="cursor-pointer font-medium text-gray-900">Permissive contract supported</summary>
+          <pre class="mt-3 text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto">module.exports = {
+  id: 'top-level-contract',
+  name: 'Top level contract plugin',
+  bootstrap(ctx) {
+    console.log('bootstrap hook with fallback contract');
+  },
+  install(ctx) {
+    console.log('install hook with fallback contract');
+  }
+};</pre>
+        </details>
+
+        <details class="border border-gray-200 rounded-lg p-4">
+          <summary class="cursor-pointer font-medium text-gray-900">Expose helpers/services programmatically</summary>
+          <pre class="mt-3 text-xs bg-gray-900 text-gray-100 p-3 rounded overflow-auto">module.exports = {
+  meta: { id: 'tools', name: 'Tools plugin' },
+  services: {
+    myService() {
+      return 'hello';
+    }
+  },
+  helpers: {
+    formatLabel(input) {
+      return String(input || '').toUpperCase();
+    }
+  }
+};
+
+// then available in runtime after enable/bootstrap:
+// superbackend.services.pluginsRuntime.myService()
+// superbackend.helpers.pluginsRuntime.formatLabel('demo')</pre>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const baseUrl = '<%= baseUrl %>';
+        const plugins = ref([]);
+        const loading = ref(false);
+        const error = ref('');
+
+        const loadPlugins = async () => {
+          loading.value = true;
+          error.value = '';
+          try {
+            const response = await fetch(baseUrl + '/api/admin/plugins');
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Failed to load plugins');
+            plugins.value = payload.items || [];
+          } catch (err) {
+            error.value = err.message || 'Failed to load plugins';
+          } finally {
+            loading.value = false;
+          }
+        };
+
+        const enablePlugin = async (id) => {
+          error.value = '';
+          try {
+            const response = await fetch(baseUrl + '/api/admin/plugins/' + encodeURIComponent(id) + '/enable', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Enable failed');
+            await loadPlugins();
+          } catch (err) {
+            error.value = err.message || 'Enable failed';
+          }
+        };
+
+        const disablePlugin = async (id) => {
+          error.value = '';
+          try {
+            const response = await fetch(baseUrl + '/api/admin/plugins/' + encodeURIComponent(id) + '/disable', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Disable failed');
+            await loadPlugins();
+          } catch (err) {
+            error.value = err.message || 'Disable failed';
+          }
+        };
+
+        const installPlugin = async (id) => {
+          error.value = '';
+          try {
+            const response = await fetch(baseUrl + '/api/admin/plugins/' + encodeURIComponent(id) + '/install', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' }
+            });
+            const payload = await response.json();
+            if (!response.ok) throw new Error(payload.error || 'Install failed');
+          } catch (err) {
+            error.value = err.message || 'Install failed';
+          }
+        };
+
+        onMounted(loadPlugins);
+
+        return {
+          plugins,
+          loading,
+          error,
+          loadPlugins,
+          enablePlugin,
+          disablePlugin,
+          installPlugin,
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
