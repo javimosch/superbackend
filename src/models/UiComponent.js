@@ -20,6 +20,8 @@ const uiComponentSchema = new mongoose.Schema(
     api: { type: mongoose.Schema.Types.Mixed, default: null },
     usageMarkdown: { type: String, default: '' },
 
+    previewExample: { type: String, default: null },
+
     version: { type: Number, default: 1 },
     isActive: { type: Boolean, default: true, index: true },
   },
