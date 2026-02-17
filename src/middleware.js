@@ -466,6 +466,9 @@ const telegramService = require("./services/telegram.service");
 
   router.use("/api", rateLimiter.limit("globalApiLimiter"));
 
+  // Serve public static files with /public prefix (for admin UI components)
+  router.use("/public", express.static(path.join(__dirname, "..", "public")));
+
   // Serve public static files (e.g. /og/og-default.png)
   router.use(express.static(path.join(__dirname, "..", "public")));
 
@@ -1488,7 +1491,7 @@ const telegramService = require("./services/telegram.service");
         const html = ejs.render(
           template,
           {
-            baseUrl: req.baseUrl,
+            baseUrl: req.baseUrl || '',
             adminPath,
             endpointRegistry,
           },

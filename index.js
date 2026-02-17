@@ -79,6 +79,7 @@ const saasbackend = {
     rateLimiter: require("./src/services/rateLimiter.service"),
     registry: require("./src/services/registry.service"),
     plugins: require("./src/services/plugins.service"),
+    uiComponents: require("./src/services/uiComponents.service"),
   },
   models: {
     ActionEvent: require("./src/models/ActionEvent"),
