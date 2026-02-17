@@ -81,12 +81,22 @@ async function isConsoleManagerEnabled() {
  * @param {string} options.jwtSecret - JWT secret for authentication
  * @param {Object} options.dbConnection - Existing Mongoose connection
  * @param {boolean} options.skipBodyParser - Skip adding body parser middleware (default: false)
+ * @param {Object} options.telegram - Telegram configuration
+ * @param {boolean} options.telegram.enabled - Whether to enable Telegram bots (default: true)
+ * @param {Object} options.cron - Cron scheduler configuration
+ * @param {boolean} options.cron.enabled - Whether to enable cron scheduler (default: true)
  * @returns {express.Router} Configured Express router
  */
 function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
   const pagesPrefix = options.pagesPrefix || "/";
+
+  // Debug: Log received options
+  console.log("[Middleware Debug] Received options:", {
+    telegramEnabled: options.telegram?.enabled,
+    cronEnabled: options.cron?.enabled
+  });
 
   const normalizeBasePath = (value) => {
     const v = String(value || "").trim();
@@ -168,15 +178,25 @@ const telegramService = require("./services/telegram.service");
       .connect(mongoUri, connectionOptions)
       .then(async () => {
         console.log("✅ Middleware: Connected to MongoDB");
-        // Start cron scheduler after DB connection
-        await cronScheduler.start();
-        await healthChecksScheduler.start();
-        await healthChecksBootstrap.bootstrap();
-        await blogCronsBootstrap.bootstrap();
-        await require("./services/experimentsCronsBootstrap.service").bootstrap();
         
-        // Initialize Telegram bots
-        await telegramService.init();
+        // Start cron scheduler after DB connection (only if enabled)
+        if (options.cron?.enabled !== false) {
+          await cronScheduler.start();
+          await healthChecksScheduler.start();
+          await healthChecksBootstrap.bootstrap();
+          await blogCronsBootstrap.bootstrap();
+          await require("./services/experimentsCronsBootstrap.service").bootstrap();
+        } else {
+          console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled);
+        }
+        
+        // Initialize Telegram bots (check telegram config)
+        const telegramEnabled = options.telegram?.enabled !== false;
+        if (telegramEnabled) {
+          await telegramService.init();
+        } else {
+          console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled);
+        }
 
         // Console manager is already initialized early in the middleware
         console.log("[Console Manager] MongoDB connection established");
@@ -254,25 +274,40 @@ const telegramService = require("./services/telegram.service");
     router.connectionPromise = connectionPromise;
   } else if (mongoose.connection.readyState === 1) {
     console.log("✅ Middleware: Using existing MongoDB connection");
-    // Start cron scheduler for existing connection
-    cronScheduler.start().catch((err) => {
-      console.error("Failed to start cron scheduler:", err);
-    });
-    healthChecksScheduler.start().catch((err) => {
-      console.error("Failed to start health checks scheduler:", err);
-    });
-    healthChecksBootstrap.bootstrap().catch((err) => {
-      console.error("Failed to bootstrap health checks:", err);
-    });
-    blogCronsBootstrap.bootstrap().catch((err) => {
-      console.error("Failed to bootstrap blog crons:", err);
-    });
-
-    require("./services/experimentsCronsBootstrap.service")
-      .bootstrap()
-      .catch((err) => {
-        console.error("Failed to bootstrap experiments crons:", err);
+    
+    // Start cron scheduler for existing connection (only if enabled)
+    if (options.cron?.enabled !== false) {
+      cronScheduler.start().catch((err) => {
+        console.error("Failed to start cron scheduler:", err);
       });
+      healthChecksScheduler.start().catch((err) => {
+        console.error("Failed to start health checks scheduler:", err);
+      });
+      healthChecksBootstrap.bootstrap().catch((err) => {
+        console.error("Failed to bootstrap health checks:", err);
+      });
+      blogCronsBootstrap.bootstrap().catch((err) => {
+        console.error("Failed to bootstrap blog crons:", err);
+      });
+
+      require("./services/experimentsCronsBootstrap.service")
+        .bootstrap()
+        .catch((err) => {
+          console.error("Failed to bootstrap experiments crons:", err);
+        });
+    } else {
+      console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, "(existing connection)");
+    }
+    
+    // Initialize Telegram bots for existing connection (check telegram config)
+    const telegramEnabled = options.telegram?.enabled !== false;
+    if (telegramEnabled) {
+      telegramService.init().catch(err => {
+        console.error("Failed to initialize Telegram service (existing connection):", err);
+      });
+    } else {
+      console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled, "(existing connection)");
+    }
     
     // Initialize console manager AFTER database is already connected
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
