@@ -415,6 +415,74 @@ const endpointRegistry = [
       },
     ],
   },
+  {
+    id: "open-registry",
+    title: "Open Registry",
+    endpoints: [
+      {
+        id: "registry-auth",
+        method: "GET",
+        path: "/registry/plugins/auth",
+        auth: "none|bearer",
+      },
+      {
+        id: "registry-list",
+        method: "GET",
+        path: "/registry/plugins/list?category=plugins&minimal=true",
+        auth: "none|bearer",
+      },
+      {
+        id: "admin-registries-list",
+        method: "GET",
+        path: "/api/admin/registries",
+        auth: "basic",
+      },
+      {
+        id: "admin-registries-create",
+        method: "POST",
+        path: "/api/admin/registries",
+        auth: "basic",
+        bodyExample: { id: "plugins", name: "Plugins Registry", public: true, categories: ["plugins"] },
+      },
+      {
+        id: "admin-registry-item-upsert",
+        method: "POST",
+        path: "/api/admin/registries/plugins/items",
+        auth: "basic",
+        bodyExample: { id: "hello-cli", name: "hello-cli", category: "plugins", version: 1, versions: [1], description: "Sample" },
+      },
+    ],
+  },
+  {
+    id: "plugins-system",
+    title: "Plugins System",
+    endpoints: [
+      {
+        id: "plugins-list",
+        method: "GET",
+        path: "/api/admin/plugins",
+        auth: "basic",
+      },
+      {
+        id: "plugins-enable",
+        method: "POST",
+        path: "/api/admin/plugins/:id/enable",
+        auth: "basic",
+      },
+      {
+        id: "plugins-disable",
+        method: "POST",
+        path: "/api/admin/plugins/:id/disable",
+        auth: "basic",
+      },
+      {
+        id: "plugins-install",
+        method: "POST",
+        path: "/api/admin/plugins/:id/install",
+        auth: "basic",
+      },
+    ],
+  },
 ];
 
 module.exports = endpointRegistry;

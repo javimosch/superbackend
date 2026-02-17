@@ -77,6 +77,8 @@ const saasbackend = {
     healthChecks: require("./src/services/healthChecks.service"),
     dbBrowser: require("./src/services/dbBrowser.service"),
     rateLimiter: require("./src/services/rateLimiter.service"),
+    registry: require("./src/services/registry.service"),
+    plugins: require("./src/services/plugins.service"),
   },
   models: {
     ActionEvent: require("./src/models/ActionEvent"),
@@ -131,6 +133,8 @@ const saasbackend = {
     jsonConfigs: require("./src/services/jsonConfigs.service"),
     terminals: require("./src/services/terminalsWs.service"),
     rateLimiter: require("./src/services/rateLimiter.service"),
+    registry: require("./src/services/registry.service"),
+    plugins: require("./src/services/plugins.service"),
   },
 };
 

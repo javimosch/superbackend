@@ -40,6 +40,7 @@ const {
   requestIdMiddleware,
 } = require("./middleware/errorCapture");
 const rateLimiter = require("./services/rateLimiter.service");
+const pluginsService = require("./services/plugins.service");
 
 let errorCaptureInitialized = false;
 
@@ -92,10 +93,63 @@ function createMiddleware(options = {}) {
   const adminPath = options.adminPath || "/admin";
   const pagesPrefix = options.pagesPrefix || "/";
 
+  const bootstrapPluginsRuntime = async () => {
+    try {
+      const superbackend = globalThis.superbackend || globalThis.saasbackend || {};
+      await pluginsService.bootstrap({
+        context: {
+          services: superbackend.services || {},
+          helpers: superbackend.helpers || {},
+        },
+      });
+      const pluginServices = pluginsService.getExposedServices();
+      const pluginHelpers = pluginsService.getExposedHelpers();
+      if (superbackend.services && typeof superbackend.services === "object") {
+        superbackend.services.pluginsRuntime = pluginServices;
+      }
+      if (superbackend.helpers && typeof superbackend.helpers === "object") {
+        superbackend.helpers.pluginsRuntime = pluginHelpers;
+      }
+    } catch (error) {
+      console.error("Failed to bootstrap plugins runtime:", error);
+    }
+  };
+
   // Debug: Log received options
   console.log("[Middleware Debug] Received options:", {
     telegramEnabled: options.telegram?.enabled,
     cronEnabled: options.cron?.enabled
+  });
+
+  router.get(`${adminPath}/plugins-system`, basicAuth, (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-plugins-system.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl,
+            adminPath,
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
   });
 
   const normalizeBasePath = (value) => {
@@ -197,6 +251,8 @@ const telegramService = require("./services/telegram.service");
         } else {
           console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled);
         }
+
+        await bootstrapPluginsRuntime();
 
         // Console manager is already initialized early in the middleware
         console.log("[Console Manager] MongoDB connection established");
@@ -308,6 +364,10 @@ const telegramService = require("./services/telegram.service");
     } else {
       console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled, "(existing connection)");
     }
+
+    bootstrapPluginsRuntime().catch((err) => {
+      console.error("Failed to bootstrap plugins runtime (existing connection):", err);
+    });
     
     // Initialize console manager AFTER database is already connected
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
@@ -856,6 +916,8 @@ const telegramService = require("./services/telegram.service");
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
   router.use("/api/admin/telegram", require("./routes/adminTelegram.routes"));
   router.use("/api/admin/agents", require("./routes/adminAgents.routes"));
+  router.use("/api/admin/registries", require("./routes/adminRegistry.routes"));
+  router.use("/api/admin/plugins", require("./routes/adminPlugins.routes"));
   router.use(
     "/api/admin/ejs-virtual",
     require("./routes/adminEjsVirtual.routes"),
@@ -882,6 +944,7 @@ const telegramService = require("./services/telegram.service");
   router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
   router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
+  router.use("/registry", require("./routes/registry.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
   router.use("/api/experiments", require("./routes/experiments.routes"));
 
