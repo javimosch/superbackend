@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - SuperBackend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+    <style>
+        [v-cloak] { display: none; }
+        .auth-option { transition: all 0.3s ease; }
+        .auth-option.active { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .floating-label {
+            transition: all 0.2s ease;
+        }
+        .input-group:focus-within .floating-label,
+        .input-group input:not(:placeholder-shown) ~ .floating-label {
+            transform: translateY(-1.5rem) scale(0.85);
+            color: #667eea;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
+    <div id="app" class="w-full max-w-md" v-cloak>
+        <!-- Login Card -->
+        <div class="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-center">
+                <div class="flex justify-center mb-3">
+                    <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                        <i class="ti ti-lock text-white text-xl"></i>
+                    </div>
+                </div>
+                <h1 class="text-2xl font-bold text-white">Admin Login</h1>
+                <p class="text-blue-100 text-sm mt-1">SuperBackend Management Panel</p>
+            </div>
+
+            <!-- Alert Messages -->
+            <div v-if="alertMessage" class="m-4 p-3 rounded-lg text-sm flex items-center" :class="alertClass">
+                <i class="ti" :class="alertIcon" class="mr-2"></i>
+                <span>{{ alertMessage }}</span>
+            </div>
+
+            <!-- Authentication Type Selector -->
+            <div class="px-6 pt-4">
+                <p class="text-sm text-gray-600 mb-3 text-center">Choose authentication method:</p>
+                <div class="grid grid-cols-2 gap-3">
+                    <button 
+                        @click="authType = 'basic'" 
+                        :class="['auth-option p-3 rounded-lg border-2 text-center transition-all', authType === 'basic' ? 'active border-blue-500' : 'border-gray-200 hover:border-gray-300']">
+                        <i class="ti ti-key text-xl mb-1 block"></i>
+                        <span class="text-sm font-medium">Basic Auth</span>
+                        <span class="text-xs opacity-75 block">Username/Password</span>
+                    </button>
+                    <button 
+                        @click="authType = 'iam'" 
+                        :class="['auth-option p-3 rounded-lg border-2 text-center transition-all', authType === 'iam' ? 'active border-blue-500' : 'border-gray-200 hover:border-gray-300']">
+                        <i class="ti ti-user text-xl mb-1 block"></i>
+                        <span class="text-sm font-medium">IAM User</span>
+                        <span class="text-xs opacity-75 block">Email/Password</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Login Form -->
+            <form @submit.prevent="handleSubmit" class="p-6 pt-4">
+                <!-- Identifier Field (Username or Email) -->
+                <div class="input-group relative mb-6">
+                    <input 
+                        type="text" 
+                        id="identifier"
+                        v-model="form.identifier"
+                        :placeholder="authType === 'basic' ? 'Enter username' : 'Enter email'"
+                        class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors peer"
+                        :class="{ 'border-red-300': errors.identifier }"
+                        required>
+                    <label 
+                        for="identifier" 
+                        class="floating-label absolute left-4 top-3 text-gray-500 pointer-events-none bg-white px-1">
+                        {{ authType === 'basic' ? 'Username' : 'Email Address' }}
+                    </label>
+                    <div v-if="errors.identifier" class="text-red-500 text-xs mt-1">
+                        <i class="ti ti-alert-circle"></i> {{ errors.identifier }}
+                    </div>
+                </div>
+
+                <!-- Password Field -->
+                <div class="input-group relative mb-6">
+                    <input 
+                        :type="showPassword ? 'text' : 'password'"
+                        id="password"
+                        v-model="form.password"
+                        placeholder="Enter password"
+                        class="w-full px-4 py-3 pr-12 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-colors peer"
+                        :class="{ 'border-red-300': errors.password }"
+                        required>
+                    <label 
+                        for="password" 
+                        class="floating-label absolute left-4 top-3 text-gray-500 pointer-events-none bg-white px-1">
+                        Password
+                    </label>
+                    <button 
+                        type="button"
+                        @click="showPassword = !showPassword"
+                        class="absolute right-3 top-3.5 text-gray-400 hover:text-gray-600">
+                        <i class="ti" :class="showPassword ? 'ti-eye-off' : 'ti-eye'"></i>
+                    </button>
+                    <div v-if="errors.password" class="text-red-500 text-xs mt-1">
+                        <i class="ti ti-alert-circle"></i> {{ errors.password }}
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button 
+                    type="submit"
+                    :disabled="loading"
+                    class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98]">
+                    <span v-if="loading" class="flex items-center justify-center">
+                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Signing in...
+                    </span>
+                    <span v-else class="flex items-center justify-center">
+                        <i class="ti ti-login mr-2"></i>
+                        Sign In
+                    </span>
+                </button>
+            </form>
+
+            <!-- Help Section -->
+            <div class="px-6 pb-6">
+                <div class="bg-blue-50 rounded-lg p-4">
+                    <h3 class="font-medium text-blue-900 mb-2 flex items-center">
+                        <i class="ti ti-info-circle mr-2"></i>
+                        Authentication Help
+                    </h3>
+                    <div v-if="authType === 'basic'" class="text-sm text-blue-700 space-y-1">
+                        <p>• Use your admin username and password</p>
+                        <p>• Default credentials: admin/admin</p>
+                        <p>• Configure via ADMIN_USERNAME and ADMIN_PASSWORD environment variables</p>
+                    </div>
+                    <div v-else class="text-sm text-blue-700 space-y-1">
+                        <p>• Use your IAM user email and password</p>
+                        <p>• User must have 'admin' or 'superadmin' role</p>
+                        <p>• First-time setup: Login with basic auth to create IAM users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="text-center mt-6 text-sm text-gray-500">
+            <p>SuperBackend v1.5.3 • Secure Admin Access</p>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    authType: 'basic',
+                    loading: false,
+                    showPassword: false,
+                    form: {
+                        identifier: '',
+                        password: ''
+                    },
+                    errors: {},
+                    alertMessage: '',
+                    alertClass: '',
+                    alertIcon: ''
+                };
+            },
+            mounted() {
+                this.checkForAlerts();
+                this.autoDetectAuthType();
+            },
+            methods: {
+                checkForAlerts() {
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const error = urlParams.get('error');
+                    const success = urlParams.get('success');
+
+                    if (error) {
+                        this.showAlert(error, 'error');
+                    } else if (success) {
+                        this.showAlert(success, 'success');
+                    }
+                },
+                showAlert(message, type) {
+                    this.alertMessage = message;
+                    if (type === 'error') {
+                        this.alertClass = 'bg-red-50 text-red-700 border border-red-200';
+                        this.alertIcon = 'ti-alert-circle';
+                    } else {
+                        this.alertClass = 'bg-green-50 text-green-700 border border-green-200';
+                        this.alertIcon = 'ti-check-circle';
+                    }
+
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        this.alertMessage = '';
+                    }, 5000);
+                },
+                autoDetectAuthType() {
+                    // Auto-detect based on input field content
+                    if (this.form.identifier) {
+                        this.authType = this.form.identifier.includes('@') ? 'iam' : 'basic';
+                    }
+                },
+                validateForm() {
+                    this.errors = {};
+
+                    if (!this.form.identifier) {
+                        this.errors.identifier = this.authType === 'basic' ? 'Username is required' : 'Email is required';
+                    } else if (this.authType === 'iam' && !this.form.identifier.includes('@')) {
+                        this.errors.identifier = 'Please enter a valid email address';
+                    }
+
+                    if (!this.form.password) {
+                        this.errors.password = 'Password is required';
+                    } else if (this.form.password.length < 1) {
+                        this.errors.password = 'Password cannot be empty';
+                    }
+
+                    return Object.keys(this.errors).length === 0;
+                },
+                async handleSubmit() {
+                    if (!this.validateForm()) {
+                        return;
+                    }
+
+                    this.loading = true;
+
+                    try {
+                        const formData = new URLSearchParams();
+                        formData.append('identifier', this.form.identifier);
+                        formData.append('password', this.form.password);
+
+                        const response = await fetch('<%= adminPath %>/login', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: formData.toString()
+                        });
+
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            // Handle error responses
+                            const text = await response.text();
+                            if (text.includes('error=')) {
+                                const urlParams = new URLSearchParams(text.split('error=')[1].split('&')[0]);
+                                this.showAlert(decodeURIComponent(urlParams.get('error') || 'Login failed'), 'error');
+                            } else {
+                                this.showAlert('Login failed', 'error');
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Login error:', error);
+                        this.showAlert('Network error. Please try again.', 'error');
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            },
+            watch: {
+                'form.identifier'() {
+                    this.autoDetectAuthType();
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
