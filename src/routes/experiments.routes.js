@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const rateLimiter = require('../services/rateLimiter.service');
 
 const controller = require('../controllers/experiments.controller');
 
 router.use(express.json({ limit: '1mb' }));
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get(
   '/:code/assignment',

@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminProxy.controller');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/entries', controller.list);
 router.get('/entries/:id', controller.get);

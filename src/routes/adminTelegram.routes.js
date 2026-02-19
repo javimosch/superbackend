@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const adminTelegramController = require('../controllers/adminTelegram.controller');
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/', adminTelegramController.listBots);
 router.post('/', adminTelegramController.createBot);

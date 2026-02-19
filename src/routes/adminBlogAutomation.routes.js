@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/blogAutomationAdmin.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 router.use(express.json({ limit: '2mb' }));
 
 router.get('/blog-automation/config', controller.getConfig);

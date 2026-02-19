@@ -1,11 +1,11 @@
 const express = require('express');
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminRegistry.controller');
 
 const router = express.Router();
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/', controller.listRegistries);
 router.post('/', controller.createRegistry);

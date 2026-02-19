@@ -1,17 +1,17 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const adminRateLimitsController = require('../controllers/adminRateLimits.controller');
 
-router.get('/', basicAuth, adminRateLimitsController.list);
-router.get('/config', basicAuth, adminRateLimitsController.getConfig);
-router.put('/config', basicAuth, adminRateLimitsController.updateConfig);
-router.get('/metrics', basicAuth, adminRateLimitsController.getMetrics);
+router.get('/', adminSessionAuth, adminRateLimitsController.list);
+router.get('/config', adminSessionAuth, adminRateLimitsController.getConfig);
+router.put('/config', adminSessionAuth, adminRateLimitsController.updateConfig);
+router.get('/metrics', adminSessionAuth, adminRateLimitsController.getMetrics);
 
-router.post('/bulk-enabled', basicAuth, adminRateLimitsController.bulkEnabled);
+router.post('/bulk-enabled', adminSessionAuth, adminRateLimitsController.bulkEnabled);
 
-router.put('/:id', basicAuth, adminRateLimitsController.updateLimiter);
-router.post('/:id/reset', basicAuth, adminRateLimitsController.resetLimiter);
+router.put('/:id', adminSessionAuth, adminRateLimitsController.updateLimiter);
+router.post('/:id/reset', adminSessionAuth, adminRateLimitsController.resetLimiter);
 
 module.exports = router;

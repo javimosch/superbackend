@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const adminHeadlessController = require('../controllers/adminHeadless.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 // Models
 router.get('/models', adminHeadlessController.listModels);

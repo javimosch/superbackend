@@ -1,13 +1,13 @@
 const express = require('express');
 const router = express.Router();
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const formsController = require('../controllers/forms.controller');
 const asyncHandler = require('../utils/asyncHandler');
 
-router.get('/', basicAuth, asyncHandler(formsController.adminList));
-router.delete('/:id', basicAuth, asyncHandler(formsController.deleteSubmission));
-router.get('/definitions', basicAuth, asyncHandler(formsController.getForms));
-router.post('/definitions', basicAuth, asyncHandler(formsController.saveForm));
-router.delete('/definitions/:id', basicAuth, asyncHandler(formsController.deleteForm));
+router.get('/', adminSessionAuth, asyncHandler(formsController.adminList));
+router.delete('/:id', adminSessionAuth, asyncHandler(formsController.deleteSubmission));
+router.get('/definitions', adminSessionAuth, asyncHandler(formsController.getForms));
+router.post('/definitions', adminSessionAuth, asyncHandler(formsController.saveForm));
+router.delete('/definitions/:id', adminSessionAuth, asyncHandler(formsController.deleteForm));
 
 module.exports = router;

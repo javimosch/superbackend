@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminRbac.controller');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/rights', controller.listRights);
 router.get('/users', controller.searchUsers);

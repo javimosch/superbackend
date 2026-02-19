@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminEjsVirtual.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/files', controller.list);
 router.get('/file', controller.getFile);

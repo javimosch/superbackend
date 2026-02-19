@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const ConsoleEntry = require('../models/ConsoleEntry');
 const ConsoleLog = require('../models/ConsoleLog');
 const GlobalSetting = require('../models/GlobalSetting');
@@ -21,7 +21,7 @@ function toInt(val, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/config', async (req, res) => {
   try {

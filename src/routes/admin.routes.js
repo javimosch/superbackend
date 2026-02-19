@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 
-// All admin routes protected by basic auth
-router.use(basicAuth);
+// All admin routes protected by session auth
+router.use(adminSessionAuth);
 
 router.get('/users', adminController.getUsers);
 router.post('/users/register', adminController.registerUser);

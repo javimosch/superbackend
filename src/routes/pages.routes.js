@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pagesService = require('../services/pages.service');
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 
 router.get('*', async (req, res, next) => {
   try {
@@ -14,11 +14,11 @@ router.get('*', async (req, res, next) => {
 
     if (draft) {
       let nextCalled = false;
-      basicAuth(req, res, () => {
+      adminSessionAuth(req, res, () => {
         nextCalled = true;
       });
 
-      // If basicAuth did not call next(), it likely ended the response.
+      // If adminSessionAuth did not call next(), it likely ended the response.
       if (!nextCalled) {
         return;
       }

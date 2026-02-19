@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const { auditMiddleware } = require('../services/auditLogger');
 const controller = require('../controllers/adminDbBrowser.controller');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 // Connection profiles
 router.get('/connections', controller.listConnections);

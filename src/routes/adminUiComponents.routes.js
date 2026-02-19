@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const adminUiComponentsController = require('../controllers/adminUiComponents.controller');
 const adminUiComponentsAiController = require('../controllers/adminUiComponentsAi.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/projects', adminUiComponentsController.listProjects);
 router.post('/projects', adminUiComponentsController.createProject);

@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 
 const adminI18nController = require('../controllers/adminI18n.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/locales', adminI18nController.listLocales);
 router.post('/locales', adminI18nController.createLocale);

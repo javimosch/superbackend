@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminPages.controller');
 const adminBlockDefinitionsController = require('../controllers/adminBlockDefinitions.controller');
 const adminBlockDefinitionsAiController = require('../controllers/adminBlockDefinitionsAi.controller');
@@ -8,7 +8,7 @@ const adminContextBlockDefinitionsController = require('../controllers/adminCont
 const adminPagesContextBlocksAiController = require('../controllers/adminPagesContextBlocksAi.controller');
 const rateLimiter = require('../services/rateLimiter.service');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/collections', controller.listCollections);
 router.get('/collections/:id', controller.getCollection);

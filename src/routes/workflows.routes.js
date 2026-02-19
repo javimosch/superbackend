@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const Workflow = require('../models/Workflow');
 const WorkflowExecution = require('../models/WorkflowExecution');
 const workflowService = require('../services/workflow.service');
 
-// Apply basic authentication to all workflows endpoints
-router.use(basicAuth);
+// Apply session authentication to all workflows endpoints
+router.use(adminSessionAuth);
 
 // List workflows
 router.get('/', async (req, res) => {

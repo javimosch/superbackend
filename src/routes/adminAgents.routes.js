@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const adminAgentsController = require('../controllers/adminAgents.controller');
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/', adminAgentsController.listAgents);
 router.post('/', adminAgentsController.createAgent);

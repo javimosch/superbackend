@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const controller = require('../controllers/adminCrons.controller');
 
-router.use(basicAuth);
+router.use(adminSessionAuth);
 
 router.get('/', controller.listCronJobs);
 router.post('/', controller.createCronJob);

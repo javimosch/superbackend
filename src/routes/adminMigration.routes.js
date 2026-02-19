@@ -1,79 +1,79 @@
 const express = require('express');
 const router = express.Router();
 
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const { auditMiddleware } = require('../services/auditLogger');
 
 const adminMigrationController = require('../controllers/adminMigration.controller');
 
 router.get(
   '/environments',
-  basicAuth,
+  adminSessionAuth,
   adminMigrationController.listEnvironments,
 );
 
 router.get(
   '/environments/:envKey',
-  basicAuth,
+  adminSessionAuth,
   adminMigrationController.getEnvironment,
 );
 
 router.get(
   '/models',
-  basicAuth,
+  adminSessionAuth,
   adminMigrationController.listModels,
 );
 
 router.get(
   '/models/:modelName/schema',
-  basicAuth,
+  adminSessionAuth,
   adminMigrationController.getModelSchema,
 );
 
 router.post(
   '/preview',
-  basicAuth,
+  adminSessionAuth,
   adminMigrationController.preview,
 );
 
 router.post(
   '/environments',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.environments.upsert', { entityType: 'GlobalSetting' }),
   adminMigrationController.upsertEnvironment,
 );
 
 router.delete(
   '/environments/:envKey',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.environments.delete', { entityType: 'GlobalSetting' }),
   adminMigrationController.deleteEnvironment,
 );
 
 router.post(
   '/test-connection',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.test_connection', { entityType: 'Migration' }),
   adminMigrationController.testConnection,
 );
 
 router.post(
   '/test-assets',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.test_assets', { entityType: 'Migration' }),
   adminMigrationController.testAssetsTarget,
 );
 
 router.post(
   '/test-assets-copy',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.test_assets_copy', { entityType: 'Migration' }),
   adminMigrationController.testAssetsCopyKey,
 );
 
 router.post(
   '/run',
-  basicAuth,
+  adminSessionAuth,
   auditMiddleware('admin.migration.run', { entityType: 'Migration' }),
   adminMigrationController.runMigration,
 );
