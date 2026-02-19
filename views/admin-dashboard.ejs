@@ -30,6 +30,35 @@
                     <span class="ml-1">to search</span>
                 </div>
                 <div class="flex items-center gap-4">
+                    <!-- User Info & Logout -->
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <div class="text-sm font-medium text-gray-700">{{ currentUser.name || currentUser.username || 'Admin User' }}</div>
+                            <div class="text-xs text-gray-500">{{ currentUser.email || currentUser.authType + ' authentication' }}</div>
+                        </div>
+                        <div class="relative">
+                            <button 
+                                @click="showUserMenu = !showUserMenu" 
+                                class="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors">
+                                <i class="ti ti-user text-sm"></i>
+                            </button>
+                            
+                            <!-- User Dropdown Menu -->
+                            <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                <div class="px-4 py-2 border-b border-gray-100">
+                                    <div class="text-sm font-medium text-gray-900">{{ currentUser.name || currentUser.username || 'Admin User' }}</div>
+                                    <div class="text-xs text-gray-500">{{ currentUser.role }}</div>
+                                </div>
+                                <button 
+                                    @click="handleLogout" 
+                                    class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2">
+                                    <i class="ti ti-logout"></i>
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <button @click="globalZenMode = !globalZenMode" class="text-gray-500 hover:text-blue-600 p-1.5 rounded-lg border border-gray-200 bg-white" title="Toggle Global Zen Mode (ESC ESC to exit)">
                         <i class="ti ti-maximize"></i>
                     </button>
@@ -97,6 +126,10 @@
                 const tabs = ref([]);
                 const activeTabId = ref(null);
                 const globalZenMode = ref(false);
+                
+                // User authentication state
+                const currentUser = ref({});
+                const showUserMenu = ref(false);
 
                 // ESC ESC to exit Zen Mode
                 let escCount = 0;
@@ -385,9 +418,59 @@
                     }
                 };
 
+                // User authentication functions
+                const fetchCurrentUser = async () => {
+                    try {
+                        const response = await fetch(`${adminBase}/auth-status`);
+                        if (response.ok) {
+                            const userData = await response.json();
+                            if (userData.authenticated) {
+                                currentUser.value = userData.user || {};
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Failed to fetch user data:', error);
+                        // Set default user data on error
+                        currentUser.value = { name: 'Admin User', authType: 'unknown' };
+                    }
+                };
+
+                const handleLogout = async () => {
+                    try {
+                        const response = await fetch(`${adminBase}/logout`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            }
+                        });
+                        
+                        if (response.redirected) {
+                            window.location.href = response.url;
+                        } else {
+                            // Fallback redirect
+                            window.location.href = `${adminBase}/login`;
+                        }
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        // Fallback redirect
+                        window.location.href = `${adminBase}/login`;
+                    }
+                };
+
+                // Close user menu when clicking outside
+                const handleClickOutside = (event) => {
+                    if (showUserMenu.value && !event.target.closest('.relative')) {
+                        showUserMenu.value = false;
+                    }
+                };
+
                 onMounted(() => {
                     window.addEventListener('keydown', handleKeydown);
                     window.addEventListener('message', handleMessage);
+                    window.addEventListener('click', handleClickOutside);
+                    
+                    // Fetch current user data
+                    fetchCurrentUser();
                     
                     // Load saved tabs from localStorage
                     const savedState = loadTabsFromStorage();
@@ -411,6 +494,7 @@
                 onUnmounted(() => {
                     window.removeEventListener('keydown', handleKeydown);
                     window.removeEventListener('message', handleMessage);
+                    window.removeEventListener('click', handleClickOutside);
                 });
 
                 return {
@@ -420,6 +504,8 @@
                     tabs,
                     activeTabId,
                     globalZenMode,
+                    currentUser,
+                    showUserMenu,
                     openTab,
                     closeTab,
                     showPalette,
@@ -431,7 +517,8 @@
                     closePalette,
                     navigatePalette,
                     selectPaletteItem,
-                    selectModule
+                    selectModule,
+                    handleLogout
                 };
             }
         }).mount('#app');
