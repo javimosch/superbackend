@@ -23,7 +23,9 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const fs = require("fs");
 const ejs = require("ejs");
-const { basicAuth } = require("./middleware/auth");
+const session = require("express-session");
+const MongoStore = require("connect-mongo");
+const { adminSessionAuth } = require("./middleware/auth");
 const endpointRegistry = require("./admin/endpointRegistry");
 const {
   createFeatureFlagsEjsMiddleware,
@@ -121,7 +123,7 @@ function createMiddleware(options = {}) {
     cronEnabled: options.cron?.enabled
   });
 
-  router.get(`${adminPath}/plugins-system`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/plugins-system`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -264,7 +266,7 @@ const telegramService = require("./services/telegram.service");
         return false;
       });
 
-    router.get(`${adminPath}/health-checks`, basicAuth, (req, res) => {
+    router.get(`${adminPath}/health-checks`, adminSessionAuth, (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -295,7 +297,7 @@ const telegramService = require("./services/telegram.service");
       });
     });
 
-    router.get(`${adminPath}/console-manager`, basicAuth, (req, res) => {
+    router.get(`${adminPath}/console-manager`, adminSessionAuth, (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -462,6 +464,27 @@ const telegramService = require("./services/telegram.service");
     router.use(express.urlencoded({ extended: true }));
   }
 
+  // Session middleware for admin authentication
+  const sessionMiddleware = session({
+    secret: process.env.SESSION_SECRET || 'superbackend-session-secret-fallback',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: 'lax'
+    },
+    store: MongoStore.create({
+      mongoUrl: options.mongodbUri || process.env.MONGODB_URI,
+      collectionName: 'admin_sessions',
+      ttl: 24 * 60 * 60 // 24 hours in seconds
+    }),
+    name: 'superbackend.admin.session'
+  });
+
+  router.use(sessionMiddleware);
+
   router.use(requestIdMiddleware);
 
   router.use("/api", rateLimiter.limit("globalApiLimiter"));
@@ -558,11 +581,11 @@ const telegramService = require("./services/telegram.service");
   const adminStatsController = require("./controllers/adminStats.controller");
   router.get(
     "/api/admin/stats/overview",
-    basicAuth,
+    adminSessionAuth,
     adminStatsController.getOverviewStats,
   );
 
-  router.get(`${adminPath}/stats/dashboard-home`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/stats/dashboard-home`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -588,7 +611,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/experiments`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/experiments`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -619,7 +642,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/rbac`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/rbac`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-rbac.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -645,7 +668,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/terminals`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/terminals`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -677,7 +700,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/scripts`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/scripts`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -709,7 +732,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/crons`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/crons`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-crons.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -735,7 +758,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/cache`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/cache`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-cache.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -761,7 +784,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-    router.get(`${adminPath}/db-browser`, basicAuth, (req, res) => {
+    router.get(`${adminPath}/db-browser`, adminSessionAuth, (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -792,7 +815,7 @@ const telegramService = require("./services/telegram.service");
       });
     });
 
-    router.get(`${adminPath}/telegram`, basicAuth, (req, res) => {
+    router.get(`${adminPath}/telegram`, adminSessionAuth, (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -823,7 +846,7 @@ const telegramService = require("./services/telegram.service");
       });
     });
 
-    router.get(`${adminPath}/agents`, basicAuth, (req, res) => {
+    router.get(`${adminPath}/agents`, adminSessionAuth, (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -908,12 +931,12 @@ const telegramService = require("./services/telegram.service");
   router.use("/api/admin/migration", require("./routes/adminMigration.routes"));
   router.use(
     "/api/admin/errors",
-    basicAuth,
+    adminSessionAuth,
     require("./routes/adminErrors.routes"),
   );
   router.use(
     "/api/admin/audit",
-    basicAuth,
+    adminSessionAuth,
     require("./routes/adminAudit.routes"),
   );
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
@@ -929,7 +952,7 @@ const telegramService = require("./services/telegram.service");
   router.use("/api/admin", require("./routes/adminBlog.routes"));
   router.use("/api/admin", require("./routes/adminBlogAi.routes"));
   router.use("/api/admin", require("./routes/adminBlogAutomation.routes"));
-  router.use("/api/admin/workflows", basicAuth, require("./routes/workflows.routes"));
+  router.use("/api/admin/workflows", adminSessionAuth, require("./routes/workflows.routes"));
   router.use("/w", require("./routes/workflowWebhook.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
   router.use("/api/settings", require("./routes/globalSettings.routes"));
@@ -969,8 +992,14 @@ const telegramService = require("./services/telegram.service");
   // Public assets proxy
   router.use("/public/assets", require("./routes/publicAssets.routes"));
 
-  // Admin dashboard (polished view)
-  router.get(adminPath, basicAuth, (req, res) => {
+  // Admin login routes (no authentication required)
+  router.use(`${adminPath}`, (req, res, next) => {
+    req.adminPath = adminPath;
+    next();
+  }, require("./routes/adminLogin.routes"));
+
+  // Admin dashboard (redirect to login if not authenticated)
+  router.get(adminPath, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -996,8 +1025,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin technical API test page (protected by basic auth)
-  router.get(`${adminPath}/api/test`, basicAuth, (req, res) => {
+  // Admin technical API test page (protected by session auth)
+  router.get(`${adminPath}/api/test`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-test.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1024,7 +1053,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/migration`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/migration`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1057,7 +1086,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin LLM/AI page (protected by basic auth)
-  router.get(`${adminPath}/admin-llm`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/admin-llm`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-llm.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1083,7 +1112,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/workflows/:id`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/workflows/:id`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1109,7 +1138,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/pages`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/pages`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-pages.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1135,7 +1164,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/blog`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/blog`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-blog.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1156,7 +1185,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/blog-automation`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/blog-automation`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1182,7 +1211,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/blog/new`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/blog/new`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1208,7 +1237,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/blog/edit/:id`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/blog/edit/:id`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1239,7 +1268,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/file-manager`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/file-manager`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1270,7 +1299,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/ejs-virtual`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/ejs-virtual`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1301,7 +1330,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/seo-config`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/seo-config`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1333,7 +1362,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/i18n`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/i18n`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-i18n.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1354,7 +1383,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/i18n/locales`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/i18n/locales`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1381,7 +1410,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin forms page (protected by basic auth)
-  router.get(`${adminPath}/forms`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/forms`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-forms.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1409,7 +1438,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin feature flags page (protected by basic auth)
-  router.get(`${adminPath}/feature-flags`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/feature-flags`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1442,7 +1471,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin headless CMS page (protected by basic auth)
-  router.get(`${adminPath}/headless`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/headless`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1475,7 +1504,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin UI Components page (protected by basic auth)
-  router.get(`${adminPath}/ui-components`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/ui-components`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1508,7 +1537,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin JSON configs page (protected by basic auth)
-  router.get(`${adminPath}/json-configs`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/json-configs`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1541,7 +1570,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin markdowns page (protected by basic auth)
-  router.get(`${adminPath}/markdowns`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/markdowns`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1574,7 +1603,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin assets page (protected by basic auth)
-  router.get(`${adminPath}/assets`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/assets`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1607,7 +1636,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin waiting list page (protected by basic auth)
-  router.get(`${adminPath}/waiting-list`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/waiting-list`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1634,7 +1663,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin organizations page (protected by basic auth)
-  router.get(`${adminPath}/organizations`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/organizations`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1666,8 +1695,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin users page (protected by basic auth)
-  router.get(`${adminPath}/users`, basicAuth, (req, res) => {
+  // Admin users page (protected by session auth)
+  router.get(`${adminPath}/users`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-users.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1694,8 +1723,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin notifications page (protected by basic auth)
-  router.get(`${adminPath}/notifications`, basicAuth, (req, res) => {
+  // Admin notifications page (protected by session auth)
+  router.get(`${adminPath}/notifications`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1727,8 +1756,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin Stripe pricing page (protected by basic auth)
-  router.get(`${adminPath}/stripe-pricing`, basicAuth, (req, res) => {
+  // Admin Stripe pricing page (protected by session auth)
+  router.get(`${adminPath}/stripe-pricing`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1760,8 +1789,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin metrics page (protected by basic auth)
-  router.get(`${adminPath}/metrics`, basicAuth, (req, res) => {
+  // Admin metrics page (protected by session auth)
+  router.get(`${adminPath}/metrics`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1787,7 +1816,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/rate-limiter`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/rate-limiter`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1812,8 +1841,8 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  // Admin global settings page (protected by basic auth) - render manually
-  router.get(`${adminPath}/global-settings`, basicAuth, (req, res) => {
+  // Admin global settings page (protected by session auth) - render manually
+  router.get(`${adminPath}/global-settings`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1835,7 +1864,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/errors`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/errors`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1861,7 +1890,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/audit`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/audit`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-audit.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1882,7 +1911,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/coolify-deploy`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/coolify-deploy`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1908,7 +1937,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/proxy`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/proxy`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-proxy.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1929,7 +1958,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/webhooks`, basicAuth, (req, res) => {
+  router.get(`${adminPath}/webhooks`, adminSessionAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
