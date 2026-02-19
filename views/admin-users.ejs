@@ -135,9 +135,12 @@
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
           <select id="edit-role" class="w-full border rounded px-3 py-2">
-            <option value="user">user</option>
-            <option value="admin">admin</option>
+            <option value="">Select a role</option>
           </select>
+          <div id="edit-role-info" class="mt-2 p-2 bg-gray-50 rounded text-sm hidden">
+            <div id="edit-role-description" class="text-gray-600"></div>
+            <div id="edit-role-grants" class="text-gray-500 text-xs mt-1"></div>
+          </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Plan</label>
@@ -257,10 +260,15 @@
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
-          <select id="register-role" class="w-full border rounded px-3 py-2">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
+          <div class="space-y-2">
+            <select id="register-role" class="w-full border rounded px-3 py-2">
+              <option value="">Loading roles...</option>
+            </select>
+            <div id="role-info" class="hidden text-xs text-gray-600 bg-gray-50 p-2 rounded border">
+              <div id="role-description"></div>
+              <div id="role-grants" class="mt-1"></div>
+            </div>
+          </div>
         </div>
         <div id="register-error" class="hidden text-red-600 text-sm"></div>
       </form>
@@ -433,12 +441,18 @@
       } catch (e) { showToast(e.message, 'error'); }
     }
 
-    function openEditModal(userId, name, role, plan, subscription) {
+    async function openEditModal(userId, name, role, plan, subscription) {
       document.getElementById('edit-user-id').value = userId;
       document.getElementById('edit-name').value = name || '';
-      document.getElementById('edit-role').value = role || 'user';
       document.getElementById('edit-plan').value = plan || 'free';
       document.getElementById('edit-subscription').value = subscription || 'none';
+      
+      // Load RBAC roles for edit form
+      await loadEditRbacRoles();
+      
+      // Set the role after loading RBAC roles
+      document.getElementById('edit-role').value = role || 'user';
+      displayEditRoleInfo(role || 'user');
       
       // Reset password fields
       document.getElementById('edit-reset-password').checked = false;
@@ -625,13 +639,141 @@
       } catch (e) { showToast(e.message, 'error'); }
     }
 
+    // RBAC Role Management Functions
+    let rbacRoles = [];
+
+    async function loadRbacRoles() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/rbac/roles`);
+        const data = await res.json();
+        if (res.ok) {
+          rbacRoles = data.roles || [];
+          populateRoleSelect();
+        } else {
+          console.error('Failed to load RBAC roles:', data.error);
+          // Fallback to hardcoded options
+          rbacRoles = [
+            { key: 'user', name: 'User', description: 'Regular user with no admin access' },
+            { key: 'admin', name: 'Admin', description: 'Admin with panel access' }
+          ];
+          populateRoleSelect();
+        }
+      } catch (error) {
+        console.error('Error loading RBAC roles:', error);
+        // Fallback to hardcoded options
+        rbacRoles = [
+          { key: 'user', name: 'User', description: 'Regular user with no admin access' },
+          { key: 'admin', name: 'Admin', description: 'Admin with panel access' }
+        ];
+        populateRoleSelect();
+      }
+    }
+
+    function populateRoleSelect() {
+      const select = document.getElementById('register-role');
+      select.innerHTML = '<option value="">Select a role</option>';
+      
+      rbacRoles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role.key;
+        option.textContent = `${role.name} - ${role.description}`;
+        select.appendChild(option);
+      });
+    }
+
+    function displayRoleInfo(roleKey) {
+      const role = rbacRoles.find(r => r.key === roleKey);
+      const infoDiv = document.getElementById('role-info');
+      const descDiv = document.getElementById('role-description');
+      const grantsDiv = document.getElementById('role-grants');
+
+      if (!role) {
+        infoDiv.classList.add('hidden');
+        return;
+      }
+
+      descDiv.textContent = role.description || '';
+      
+      // Show grants information if available
+      if (role.grants && role.grants.length > 0) {
+        grantsDiv.innerHTML = `<strong>Permissions:</strong> ${role.grants.slice(0, 3).join(', ')}${role.grants.length > 3 ? '...' : ''}`;
+      } else {
+        grantsDiv.innerHTML = '<strong>Permissions:</strong> Admin panel access';
+      }
+      
+      infoDiv.classList.remove('hidden');
+    }
+
+    // Edit Form RBAC Functions
+    async function loadEditRbacRoles() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/rbac/roles`);
+        const data = await res.json();
+        if (res.ok) {
+          rbacRoles = data.roles || [];
+          populateEditRoleSelect();
+        } else {
+          rbacRoles = [
+            { key: 'user', name: 'User', description: 'Regular user with no admin access' },
+            { key: 'admin', name: 'Admin', description: 'Admin Panel Access - Full administrative privileges' }
+          ];
+          populateEditRoleSelect();
+        }
+      } catch (error) {
+        rbacRoles = [
+          { key: 'user', name: 'User', description: 'Regular user with no admin access' },
+          { key: 'admin', name: 'Admin', description: 'Admin Panel Access - Full administrative privileges' }
+        ];
+        populateEditRoleSelect();
+      }
+    }
+
+    function populateEditRoleSelect() {
+      const select = document.getElementById('edit-role');
+      select.innerHTML = '<option value="">Select a role</option>';
+      
+      rbacRoles.forEach(role => {
+        const option = document.createElement('option');
+        option.value = role.key;
+        option.textContent = `${role.name} - ${role.description}`;
+        select.appendChild(option);
+      });
+    }
+
+    function displayEditRoleInfo(roleKey) {
+      const role = rbacRoles.find(r => r.key === roleKey);
+      const infoDiv = document.getElementById('edit-role-info');
+      const descDiv = document.getElementById('edit-role-description');
+      const grantsDiv = document.getElementById('edit-role-grants');
+
+      if (!role) {
+        infoDiv.classList.add('hidden');
+        return;
+      }
+
+      descDiv.textContent = role.description || '';
+      
+      // Show grants information if available
+      if (role.grants && role.grants.length > 0) {
+        grantsDiv.innerHTML = `<strong>Permissions:</strong> ${role.grants.slice(0, 3).join(', ')}${role.grants.length > 3 ? '...' : ''}`;
+      } else {
+        grantsDiv.innerHTML = '<strong>Permissions:</strong> Admin panel access';
+      }
+      
+      infoDiv.classList.remove('hidden');
+    }
+
     function openRegisterModal() {
       document.getElementById('register-email').value = '';
       document.getElementById('register-password').value = '';
       document.getElementById('register-name').value = '';
-      document.getElementById('register-role').value = 'user';
+      document.getElementById('register-role').value = '';
       document.getElementById('register-error').classList.add('hidden');
+      document.getElementById('role-info').classList.add('hidden');
       document.getElementById('modal-register').classList.remove('hidden');
+      
+      // Load RBAC roles when modal opens
+      loadRbacRoles();
     }
 
     function closeRegisterModal() {
@@ -865,6 +1007,15 @@
       document.getElementById('btn-register-cancel').onclick = closeRegisterModal;
       document.getElementById('btn-register-submit').onclick = registerUser;
       document.getElementById('toggle-password').onclick = togglePasswordVisibility;
+      
+      // Role selection change events
+      document.getElementById('register-role').onchange = (e) => {
+        displayRoleInfo(e.target.value);
+      };
+      
+      document.getElementById('edit-role').onchange = (e) => {
+        displayEditRoleInfo(e.target.value);
+      };
       
       // Form submission
       document.getElementById('register-form').onsubmit = (e) => {
