@@ -7,6 +7,8 @@ const Notification = require('../models/Notification');
 const Invite = require('../models/Invite');
 const EmailLog = require('../models/EmailLog');
 const FormSubmission = require('../models/FormSubmission');
+const RbacRole = require('../models/RbacRole');
+const RbacUserRole = require('../models/RbacUserRole');
 const asyncHandler = require('../utils/asyncHandler');
 const fs = require('fs');
 const path = require('path');
@@ -56,10 +58,6 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
-  if (!['user', 'admin'].includes(role)) {
-    return res.status(400).json({ error: 'Role must be either "user" or "admin"' });
-  }
-
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
@@ -76,10 +74,32 @@ const registerUser = asyncHandler(async (req, res) => {
     email: email.toLowerCase(),
     passwordHash: password, // Will be hashed by pre-save hook
     name: name || '',
-    role: role
+    role: role // Keep for backward compatibility
   });
 
   await user.save();
+
+  // Assign RBAC role if it's not 'user'
+  if (role !== 'user') {
+    try {
+      // Find the RBAC role
+      const rbacRole = await RbacRole.findOne({ key: role, status: 'active' });
+      if (rbacRole) {
+        // Create user-role assignment
+        const userRoleAssignment = new RbacUserRole({
+          userId: user._id,
+          roleId: rbacRole._id
+        });
+        await userRoleAssignment.save();
+        console.log(`Assigned RBAC role '${role}' to user ${user.email}`);
+      } else {
+        console.warn(`RBAC role '${role}' not found, user created without RBAC role assignment`);
+      }
+    } catch (error) {
+      console.error('Error assigning RBAC role:', error);
+      // Don't fail the user creation if RBAC assignment fails
+    }
+  }
 
   // Log the admin action
   console.log(`Admin registered new user: ${user.email} with role: ${user.role}`);
