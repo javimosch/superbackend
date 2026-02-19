@@ -70,4 +70,74 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { authenticate, basicAuth, requireAdmin };
+// Admin session authentication middleware - checks session for authenticated admin user
+const adminSessionAuth = (req, res, next) => {
+  // Check if session exists and user is authenticated
+  if (!req.session || !req.session.authenticated) {
+    // Store the originally requested URL for redirect after login
+    req.session = req.session || {};
+    req.session.returnTo = req.originalUrl;
+    
+    // For API routes, return JSON error
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(401).json({ 
+        error: "Authentication required", 
+        redirectTo: `${req.adminPath || '/admin'}/login` 
+      });
+    }
+    
+    // For web routes, redirect to login page
+    return res.redirect(`${req.adminPath || '/admin'}/login`);
+  }
+
+  // Verify session is still valid (check login time)
+  const loginTime = new Date(req.session.loginTime);
+  const now = new Date();
+  const sessionAge = (now - loginTime) / (1000 * 60 * 60); // hours
+  
+  // Session expires after 24 hours
+  if (sessionAge > 24) {
+    req.session.destroy((err) => {
+      if (err) console.error('Error destroying expired session:', err);
+    });
+    
+    if (req.xhr || req.headers.accept?.includes('application/json')) {
+      return res.status(401).json({ 
+        error: "Session expired", 
+        redirectTo: `${req.adminPath || '/admin'}/login` 
+      });
+    }
+    
+    return res.redirect(`${req.adminPath || '/admin'}/login?error=Session expired`);
+  }
+
+  // Attach user info to request for consistency with other auth middleware
+  req.user = {
+    authenticated: true,
+    authType: req.session.authType,
+    role: req.session.role
+  };
+
+  if (req.session.authType === 'iam') {
+    req.user.id = req.session.userId;
+    req.user.email = req.session.email;
+    req.user.name = req.session.name;
+  } else {
+    req.user.username = req.session.username;
+  }
+
+  next();
+};
+
+// Admin authentication middleware that supports both session and basic auth
+const adminAuth = (req, res, next) => {
+  // First try session authentication
+  if (req.session && req.session.authenticated) {
+    return adminSessionAuth(req, res, next);
+  }
+  
+  // Fallback to basic auth for backward compatibility
+  return basicAuth(req, res, next);
+};
+
+module.exports = { authenticate, basicAuth, requireAdmin, adminSessionAuth, adminAuth };
