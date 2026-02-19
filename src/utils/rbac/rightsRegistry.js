@@ -21,6 +21,16 @@ const DEFAULT_RIGHTS = [
   'file_manager:files:share',
   'backoffice:*',
   'backoffice:dashboard:access',
+  'admin_panel__login',
+  'admin_panel__dashboard',
+  'admin_panel__users:read',
+  'admin_panel__users:write',
+  'admin_panel__rbac:read',
+  'admin_panel__rbac:write',
+  'admin_panel__organizations:read',
+  'admin_panel__organizations:write',
+  'admin_panel__notifications:read',
+  'admin_panel__notifications:write',
   '*',
 ];
 
