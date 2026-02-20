@@ -7,3 +7,8 @@ npm-debug.log
 *.log
 .manage*
 coverage*
+
+# Plugins - ignore all plugins except core- plugins
+plugins/*
+!plugins/core-/
+!plugins/core-*
