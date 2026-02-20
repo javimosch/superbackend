@@ -1,6 +1,6 @@
-# Waiting List Migration Plugin
+# Core Waiting List Migration Plugin
 
-This plugin creates migration scripts to transfer waiting list data from the legacy MongoDB collection to the new JSON Configs persistence system.
+This core plugin creates migration scripts to transfer waiting list data from the legacy MongoDB collection to the new JSON Configs persistence system.
 
 ## Installation
 
@@ -99,7 +99,7 @@ After successful migration:
 ## Plugin Structure
 
 ```
-plugins/waiting-list-migration/
+plugins/core-waiting-list-migration/
 ├── index.js          # Main plugin file
 └── README.md         # This documentation
 ```
