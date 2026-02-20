@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access Denied - SuperBackend Admin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
+        <div class="text-center">
+            <!-- Error Icon -->
+            <div class="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <i class="ti ti-lock text-red-600 text-2xl"></i>
+            </div>
+            
+            <!-- Error Title -->
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+            
+            <!-- Error Message -->
+            <p class="text-gray-600 mb-6">
+                You don't have permission to access this module.
+            </p>
+            
+            <!-- Permission Details -->
+            <div class="bg-gray-50 rounded-lg p-4 mb-6 text-left">
+                <h3 class="text-sm font-semibold text-gray-700 mb-2">Permission Details:</h3>
+                <div class="space-y-1 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Module:</span>
+                        <span class="font-mono text-gray-800"><%= moduleId %></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Action:</span>
+                        <span class="font-mono text-gray-800"><%= action %></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Required:</span>
+                        <span class="font-mono text-gray-800 break-all"><%= required %></span>
+                    </div>
+                    <% if (reason) { %>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Reason:</span>
+                        <span class="font-mono text-gray-800"><%= reason %></span>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+            
+            <!-- User Info -->
+            <% if (user) { %>
+            <div class="bg-blue-50 rounded-lg p-4 mb-6 text-left">
+                <h3 class="text-sm font-semibold text-blue-700 mb-2">Current User:</h3>
+                <div class="space-y-1 text-xs">
+                    <div class="flex justify-between">
+                        <span class="text-blue-600">Name:</span>
+                        <span class="font-mono text-blue-800"><%= user.name || 'N/A' %></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-blue-600">Email:</span>
+                        <span class="font-mono text-blue-800 break-all"><%= user.email %></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-blue-600">Role:</span>
+                        <span class="font-mono text-blue-800"><%= user.role || 'N/A' %></span>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+            
+            <!-- Action Buttons -->
+            <div class="space-y-3">
+                <a href="<%= adminPath %>" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center">
+                    <i class="ti ti-layout-dashboard mr-2"></i>
+                    Return to Dashboard
+                </a>
+                
+                <button onclick="history.back()" class="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center">
+                    <i class="ti ti-arrow-left mr-2"></i>
+                    Go Back
+                </button>
+            </div>
+            
+            <!-- Help Text -->
+            <p class="text-xs text-gray-500 mt-6">
+                If you believe this is an error, please contact your system administrator.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
