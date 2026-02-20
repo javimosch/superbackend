@@ -76,6 +76,7 @@ const saasbackend = {
     workflow: require("./src/services/workflow.service"),
     healthChecks: require("./src/services/healthChecks.service"),
     dbBrowser: require("./src/services/dbBrowser.service"),
+    dataCleanup: require("./src/services/dataCleanup.service"),
     rateLimiter: require("./src/services/rateLimiter.service"),
     registry: require("./src/services/registry.service"),
     plugins: require("./src/services/plugins.service"),
@@ -135,6 +136,7 @@ const saasbackend = {
     terminals: require("./src/services/terminalsWs.service"),
     rateLimiter: require("./src/services/rateLimiter.service"),
     registry: require("./src/services/registry.service"),
+    dataCleanup: require("./src/services/dataCleanup.service"),
     plugins: require("./src/services/plugins.service"),
   },
 };
