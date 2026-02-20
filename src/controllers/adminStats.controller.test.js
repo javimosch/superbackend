@@ -10,7 +10,7 @@ const JsonConfig = require('../models/JsonConfig');
 const StripeCatalogItem = require('../models/StripeCatalogItem');
 const Workflow = require('../models/Workflow');
 const FormSubmission = require('../models/FormSubmission');
-const WaitingList = require('../models/WaitingList');
+const waitingListService = require('../services/waitingListJson.service');
 
 jest.mock('../models/User');
 jest.mock('../models/Organization');
@@ -18,7 +18,7 @@ jest.mock('../models/AuditEvent');
 jest.mock('../models/ErrorAggregate');
 jest.mock('../models/Asset');
 jest.mock('../models/FormSubmission');
-jest.mock('../models/WaitingList');
+jest.mock('../services/waitingListJson.service');
 jest.mock('../models/EmailLog');
 jest.mock('../models/VirtualEjsFile');
 jest.mock('../models/JsonConfig');
@@ -52,7 +52,7 @@ describe('adminStats.controller', () => {
       VirtualEjsFile.countDocuments.mockResolvedValue(15);
       JsonConfig.countDocuments.mockResolvedValue(8);
       FormSubmission.countDocuments.mockResolvedValue(25);
-      WaitingList.countDocuments.mockResolvedValue(12);
+      waitingListService.getWaitingListStats.mockResolvedValue({ totalSubscribers: 12 });
       StripeCatalogItem.countDocuments.mockResolvedValue(3);
       Workflow.countDocuments.mockResolvedValue(4);
 

@@ -4,7 +4,7 @@ const AuditEvent = require('../models/AuditEvent');
 const ErrorAggregate = require('../models/ErrorAggregate');
 const Asset = require('../models/Asset');
 const FormSubmission = require('../models/FormSubmission');
-const WaitingList = require('../models/WaitingList');
+const waitingListService = require('../services/waitingListJson.service');
 const EmailLog = require('../models/EmailLog');
 const VirtualEjsFile = require('../models/VirtualEjsFile');
 const JsonConfig = require('../models/JsonConfig');
@@ -35,7 +35,7 @@ exports.getOverviewStats = async (req, res) => {
       totalJsonConfigs,
       // SaaS & Billing
       totalForms,
-      totalWaiting,
+      waitingListStats,
       totalPlans,
       totalWorkflows
     ] = await Promise.all([
@@ -51,7 +51,7 @@ exports.getOverviewStats = async (req, res) => {
       VirtualEjsFile.countDocuments(),
       JsonConfig.countDocuments(),
       FormSubmission.countDocuments(),
-      WaitingList.countDocuments(),
+      waitingListService.getWaitingListStats().catch(() => ({ totalSubscribers: 0 })), // Fallback to 0 if service fails
       StripeCatalogItem.countDocuments({ active: true }),
       Workflow.countDocuments()
     ]);
@@ -106,7 +106,7 @@ exports.getOverviewStats = async (req, res) => {
         },
         saas: {
           forms: totalForms,
-          waiting: totalWaiting,
+          waiting: waitingListStats.totalSubscribers || 0,
           plans: totalPlans,
           workflows: totalWorkflows
         }
