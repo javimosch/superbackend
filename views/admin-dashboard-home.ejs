@@ -149,14 +149,64 @@
 
   <script>
     let growthChart, emailChart;
+    const isIframe = <%= typeof isIframe !== 'undefined' && isIframe %>;
 
     async function fetchStats() {
       try {
-        const res = await fetch('<%= baseUrl %>/api/admin/stats/overview');
-        const data = await res.json();
+        let data;
+        
+        if (isIframe) {
+          // In iframe mode, request data from parent window
+          data = await new Promise((resolve, reject) => {
+            const messageId = 'stats-request-' + Date.now();
+            
+            const handleMessage = (event) => {
+              if (event.data.type === 'stats-response' && event.data.messageId === messageId) {
+                window.removeEventListener('message', handleMessage);
+                if (event.data.error) {
+                  reject(new Error(event.data.error));
+                } else {
+                  resolve(event.data.data);
+                }
+              }
+            };
+            
+            window.addEventListener('message', handleMessage);
+            
+            // Request data from parent
+            window.parent.postMessage({
+              type: 'stats-request',
+              messageId: messageId,
+              endpoint: '<%= baseUrl %>/api/admin/stats/overview'
+            }, '*');
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+              window.removeEventListener('message', handleMessage);
+              reject(new Error('Timeout waiting for parent response'));
+            }, 5000);
+          });
+        } else {
+          // Normal mode - direct fetch
+          const res = await fetch('<%= baseUrl %>/api/admin/stats/overview');
+          data = await res.json();
+        }
+        
         updateUI(data);
       } catch (err) {
         console.error('Failed to load stats:', err);
+        // Show error state
+        const app = document.getElementById('app');
+        if (app) {
+          app.innerHTML = `
+            <div class="text-center py-12">
+              <i class="ti ti-alert-triangle text-4xl text-yellow-500 mb-4"></i>
+              <h3 class="text-lg font-semibold text-gray-900 mb-2">Unable to load stats</h3>
+              <p class="text-gray-500">${err.message}</p>
+              ${isIframe ? '<p class="text-sm text-gray-400 mt-2">Iframe mode: Parent window communication failed</p>' : ''}
+            </div>
+          `;
+        }
       }
     }
 

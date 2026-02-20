@@ -85,7 +85,7 @@
                         v-for="tab in tabs"
                         v-show="activeTabId === tab.id"
                         :key="tab.id"
-                        :src="baseUrl + tab.path" 
+                        :src="getIframeSrc(tab.path)" 
                         class="absolute inset-0 w-full h-full border-none"
                         :id="'frame-' + tab.id"
                     ></iframe>
@@ -497,6 +497,14 @@
                     window.removeEventListener('click', handleClickOutside);
                 });
 
+                const getIframeSrc = (path) => {
+                    // Ensure path starts with /
+                    const cleanPath = path.startsWith('/') ? path : ('/' + path);
+                    // Add iframe token for authentication
+                    const separator = cleanPath.includes('?') ? '&' : '?';
+                    return cleanPath + separator + 'iframe_token=authenticated';
+                };
+
                 return {
                     baseUrl,
                     adminBase,
@@ -518,12 +526,58 @@
                     navigatePalette,
                     selectPaletteItem,
                     selectModule,
-                    handleLogout
+                    handleLogout,
+                    getIframeSrc
                 };
             }
         }).mount('#app');
     </script>
 <script>
+  // Handle iframe communication for API requests
+  window.addEventListener('message', async (event) => {
+    if (event.data.type === 'stats-request') {
+      try {
+        const response = await fetch(event.data.endpoint);
+        const data = await response.json();
+        
+        // Send response back to iframe
+        event.source.postMessage({
+          type: 'stats-response',
+          messageId: event.data.messageId,
+          data: data
+        }, '*');
+      } catch (error) {
+        // Send error back to iframe
+        event.source.postMessage({
+          type: 'stats-response',
+          messageId: event.data.messageId,
+          error: error.message
+        }, '*');
+      }
+    } else if (event.data.type === 'api-request') {
+      try {
+        const response = await fetch(event.data.url, event.data.options);
+        const data = await response.json();
+        
+        // Send response back to iframe
+        event.source.postMessage({
+          type: 'api-response',
+          messageId: event.data.messageId,
+          ok: response.ok,
+          data: data
+        }, '*');
+      } catch (error) {
+        // Send error back to iframe
+        event.source.postMessage({
+          type: 'api-response',
+          messageId: event.data.messageId,
+          ok: false,
+          error: error.message
+        }, '*');
+      }
+    }
+  });
+
   window.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "k") {
       e.preventDefault();
