@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Data Cleanup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+  <style>[v-cloak]{display:none}</style>
+</head>
+<body class="bg-gray-50">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-6" v-cloak>
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold text-gray-900">Data cleanup</h1>
+        <div class="text-sm text-gray-500">Inspect MongoDB storage and run manual cleanup for old documents.</div>
+      </div>
+      <button @click="loadOverview" :disabled="loadingOverview" class="px-3 py-2 rounded bg-gray-800 text-white text-sm hover:bg-gray-900 disabled:opacity-50 disabled:cursor-not-allowed">
+        <i v-if="!loadingOverview" class="ti ti-refresh mr-1"></i>
+        <span v-if="loadingOverview">Refreshing...</span>
+        <span v-else>Refresh</span>
+      </button>
+    </div>
+
+    <div v-if="error" class="mb-4 p-3 rounded border border-red-200 bg-red-50 text-red-700 text-sm">{{ error }}</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white border rounded p-4">
+        <div class="text-xs text-gray-500 uppercase">Collections</div>
+        <div class="text-2xl font-bold text-gray-900">{{ overview.global.collections || 0 }}</div>
+      </div>
+      <div class="bg-white border rounded p-4">
+        <div class="text-xs text-gray-500 uppercase">Data size</div>
+        <div class="text-2xl font-bold text-gray-900">{{ bytes(overview.global.dataSizeBytes) }}</div>
+      </div>
+      <div class="bg-white border rounded p-4">
+        <div class="text-xs text-gray-500 uppercase">Total size</div>
+        <div class="text-2xl font-bold text-gray-900">{{ bytes(overview.global.totalSizeBytes) }}</div>
+      </div>
+    </div>
+
+    <div class="bg-white border rounded mb-6">
+      <div class="p-4 border-b font-semibold text-gray-800">Collections</div>
+      <div class="overflow-auto" style="max-height:320px;">
+        <table class="min-w-full text-sm">
+          <thead class="bg-gray-50 sticky top-0">
+            <tr>
+              <th class="text-left p-2">Collection</th>
+              <th class="text-left p-2">Count</th>
+              <th class="text-left p-2">Data</th>
+              <th class="text-left p-2">Storage</th>
+              <th class="text-left p-2">Indexes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="c in sortedCollections"
+              :key="c.name"
+              class="border-t cursor-pointer hover:bg-gray-50"
+              @click="form.collection = c.name"
+            >
+              <td class="p-2">{{ c.name }}</td>
+              <td class="p-2">{{ c.count }}</td>
+              <td class="p-2">{{ bytes(c.sizeBytes) }}</td>
+              <td class="p-2">{{ bytes(c.storageSizeBytes) }}</td>
+              <td class="p-2">{{ bytes(c.totalIndexSizeBytes) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white border rounded p-4 space-y-3">
+        <h2 class="font-semibold text-gray-900">Dry run</h2>
+        <div>
+          <label class="text-xs text-gray-600">Collection</label>
+          <select v-model="form.collection" class="mt-1 w-full border rounded px-3 py-2">
+            <option value="">Select collection</option>
+            <option v-for="c in overview.collections" :key="c.name" :value="c.name">{{ c.name }}</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs text-gray-600">Older than days</label>
+            <input v-model.number="form.olderThanDays" type="number" min="1" class="mt-1 w-full border rounded px-3 py-2" />
+          </div>
+          <div>
+            <label class="text-xs text-gray-600">Date field</label>
+            <input v-model="form.dateField" class="mt-1 w-full border rounded px-3 py-2" />
+          </div>
+        </div>
+        <div v-if="loadingFields" class="text-xs text-gray-500">Loading fields...</div>
+        <div v-else-if="availableFields.length > 0" class="text-xs text-gray-600">
+          <span class="font-medium">Available fields:</span> {{ availableFields.join(', ') }}
+        </div>
+        <button @click="runDryRun" :disabled="loadingDryRun" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+        <span v-if="loadingDryRun">Running...</span>
+        <span v-else>Run dry run</span>
+      </button>
+
+        <div v-if="dryRun" class="border rounded p-3 bg-blue-50 text-sm space-y-1">
+          <div><strong>Candidates:</strong> {{ dryRun.candidateCount }}</div>
+          <div><strong>Estimated reclaim:</strong> {{ bytes(dryRun.estimatedReclaimableBytes) }}</div>
+          <div><strong>Cutoff:</strong> {{ dryRun.cutoffIso }}</div>
+        </div>
+      </div>
+
+      <div class="bg-white border rounded p-4 space-y-3">
+        <h2 class="font-semibold text-gray-900">Execute cleanup</h2>
+        <p class="text-xs text-orange-700 bg-orange-50 border border-orange-200 rounded p-2">
+          This operation is destructive. Dry run first, then confirm execution.
+        </p>
+        
+        <!-- Recap section -->
+        <div v-if="form.collection" class="bg-gray-50 border rounded p-3 text-sm">
+          <div class="font-medium text-gray-700 mb-2">Operation recap:</div>
+          <div class="space-y-1">
+            <div><strong>Collection:</strong> {{ form.collection }}</div>
+            <div><strong>Older than:</strong> {{ form.olderThanDays }} days</div>
+            <div><strong>Date field:</strong> {{ form.dateField }}</div>
+            <div><strong>Delete limit:</strong> {{ form.limit }}</div>
+          </div>
+        </div>
+        <div v-else class="bg-gray-50 border rounded p-3 text-sm text-gray-500">
+          Select a collection in the dry run section to see operation details.
+        </div>
+        
+        <div>
+          <label class="text-xs text-gray-600">Delete limit for this run</label>
+          <input v-model.number="form.limit" type="number" min="1" class="mt-1 w-full border rounded px-3 py-2" />
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" v-model="form.confirm" /> I understand this deletes data permanently.
+        </label>
+        <button @click="executeCleanup" :disabled="loadingExecute || !form.collection || !form.confirm" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">
+        <span v-if="loadingExecute">Executing...</span>
+        <span v-else>Execute cleanup</span>
+      </button>
+
+        <div v-if="execution" class="border rounded p-3 bg-red-50 text-sm space-y-1">
+          <div><strong>Deleted:</strong> {{ execution.deletedCount }}</div>
+          <div><strong>Duration:</strong> {{ execution.durationMs }} ms</div>
+          <div><strong>Limit:</strong> {{ execution.limitApplied }}</div>
+        </div>
+      </div>
+    </div>
+
+  <!-- Confirmation Dialog - positioned outside main container but still in Vue app -->
+  <div v-if="showConfirmDialog && isMounted" v-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">Confirm Delete Operation</h3>
+      <div class="bg-red-50 border border-red-200 rounded p-3 mb-4 text-sm">
+        <div class="font-medium text-red-800 mb-2">You are about to permanently delete documents from:</div>
+        <div class="space-y-1">
+          <div><strong>Collection:</strong> <span class="text-red-600">{{ form.collection }}</span></div>
+          <div><strong>Older than:</strong> {{ form.olderThanDays }} days</div>
+          <div><strong>Date field:</strong> {{ form.dateField }}</div>
+          <div><strong>Max documents:</strong> {{ form.limit }}</div>
+        </div>
+      </div>
+      <div class="mb-4 text-sm text-gray-600">
+        Type the collection name <strong>"{{ form.collection }}"</strong> to confirm:
+      </div>
+      <input 
+        v-model="confirmCollectionName" 
+        type="text" 
+        class="w-full border rounded px-3 py-2 mb-4"
+        placeholder="Enter collection name to confirm"
+      >
+      <div class="flex gap-3">
+        <button 
+          @click="executeCleanup" 
+          :disabled="confirmCollectionName !== form.collection || loadingExecute"
+          class="flex-1 px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span v-if="loadingExecute">Deleting...</span>
+          <span v-else>Delete Documents</span>
+        </button>
+        <button 
+          @click="cancelExecute" 
+          :disabled="loadingExecute"
+          class="flex-1 px-3 py-2 rounded bg-gray-300 text-gray-700 text-sm hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <script>
+    const { createApp, reactive, ref, computed, watch } = Vue;
+
+    createApp({
+      setup() {
+        const baseUrl = '<%= baseUrl %>';
+        const apiBase = baseUrl + '/api/admin/data-cleanup';
+
+        const error = ref('');
+        const overview = reactive({ global: {}, collections: [] });
+        const dryRun = ref(null);
+        const execution = ref(null);
+        const form = reactive({
+          collection: '',
+          olderThanDays: 30,
+          dateField: 'createdAt',
+          limit: 5000,
+          confirm: false,
+        });
+
+        const sortedCollections = computed(() => {
+          return [...(overview.collections || [])].sort((a, b) => (b.sizeBytes || 0) - (a.sizeBytes || 0));
+        });
+
+        const availableFields = ref([]);
+        const loadingFields = ref(false);
+        const loadingOverview = ref(false);
+        const loadingDryRun = ref(false);
+        const loadingExecute = ref(false);
+        const showConfirmDialog = ref(false);
+        const confirmCollectionName = ref('');
+        const isMounted = ref(false);
+
+        function bytes(v) {
+          const n = Number(v || 0);
+          if (!Number.isFinite(n) || n <= 0) return '0 B';
+          const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+          let i = 0;
+          let x = n;
+          while (x >= 1024 && i < units.length - 1) { x /= 1024; i += 1; }
+          return `${x.toFixed(i === 0 ? 0 : 2)} ${units[i]}`;
+        }
+
+        async function api(path, opts = {}) {
+          error.value = '';
+          const res = await fetch(apiBase + path, {
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            ...opts,
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Request failed');
+          return data;
+        }
+
+        async function loadOverview() {
+          loadingOverview.value = true;
+          try {
+            const data = await api('/overview');
+            overview.global = data.global || {};
+            overview.collections = data.collections || [];
+          } finally {
+            loadingOverview.value = false;
+          }
+        }
+
+        async function runDryRun() {
+          loadingDryRun.value = true;
+          try {
+            dryRun.value = await api('/dry-run', {
+              method: 'POST',
+              body: JSON.stringify({
+                collection: form.collection,
+                olderThanDays: form.olderThanDays,
+                dateField: form.dateField,
+              }),
+            });
+          } finally {
+            loadingDryRun.value = false;
+          }
+        }
+
+        async function loadAvailableFields() {
+          if (!form.collection) {
+            availableFields.value = [];
+            return;
+          }
+          loadingFields.value = true;
+          try {
+            const data = await api(`/infer-fields?collection=${encodeURIComponent(form.collection)}`);
+            availableFields.value = data.fields || [];
+          } catch (e) {
+            availableFields.value = [];
+          } finally {
+            loadingFields.value = false;
+          }
+        }
+
+        async function executeCleanup() {
+          if (!showConfirmDialog.value) {
+            showConfirmDialog.value = true;
+            return;
+          }
+          
+          loadingExecute.value = true;
+          try {
+            execution.value = await api('/execute', {
+              method: 'POST',
+              body: JSON.stringify({
+                collection: form.collection,
+                olderThanDays: form.olderThanDays,
+                dateField: form.dateField,
+                limit: form.limit,
+                confirm: form.confirm,
+              }),
+            });
+            await loadOverview();
+            showConfirmDialog.value = false;
+          } finally {
+            loadingExecute.value = false;
+          }
+        }
+
+        function cancelExecute() {
+          showConfirmDialog.value = false;
+          confirmCollectionName.value = '';
+        }
+
+        loadOverview().catch((e) => { error.value = e.message || String(e); });
+
+        // Add watcher for collection field
+        watch(() => form.collection, () => {
+          loadAvailableFields();
+        });
+
+        // Set mounted state after Vue is ready
+        isMounted.value = true;
+
+        return {
+          error,
+          overview,
+          sortedCollections,
+          dryRun,
+          execution,
+          form,
+          bytes,
+          loadOverview,
+          runDryRun,
+          executeCleanup,
+          cancelExecute,
+          availableFields,
+          loadingFields,
+          loadAvailableFields,
+          loadingOverview,
+          loadingDryRun,
+          loadingExecute,
+          showConfirmDialog,
+          confirmCollectionName,
+          isMounted,
+        };
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
