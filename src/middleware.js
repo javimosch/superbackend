@@ -300,6 +300,38 @@ const telegramService = require("./services/telegram.service");
       });
     });
 
+    router.get(`${adminPath}/data-cleanup`, requireModuleAccessWithIframe('data-cleanup', 'read'), (req, res) => {
+      const templatePath = path.join(
+        __dirname,
+        "..",
+        "views",
+        "admin-data-cleanup.ejs",
+      );
+      fs.readFile(templatePath, "utf8", (err, template) => {
+        if (err) {
+          console.error("Error reading template:", err);
+          return res.status(500).send("Error loading page");
+        }
+        try {
+          const html = ejs.render(
+            template,
+            {
+              baseUrl: req.baseUrl,
+              adminPath,
+              isIframe: req.isIframe || false
+            },
+            {
+              filename: templatePath,
+            },
+          );
+          res.send(html);
+        } catch (renderErr) {
+          console.error("Error rendering template:", renderErr);
+          res.status(500).send("Error rendering page");
+        }
+      });
+    });
+
     router.get(`${adminPath}/console-manager`, requireModuleAccessWithIframe('console-manager', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
@@ -1033,6 +1065,10 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   router.use(
     "/api/admin/db-browser",
     require("./routes/adminDbBrowser.routes"),
+  );
+  router.use(
+    "/api/admin/data-cleanup",
+    require("./routes/adminDataCleanup.routes"),
   );
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/experiments", require("./routes/adminExperiments.routes"));
