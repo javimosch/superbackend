@@ -189,6 +189,87 @@ async function createSuperAdminRole() {
   }
 }
 
+async function createLimitedAdminRole() {
+  try {
+    // Check if limited-admin role already exists
+    const existingRole = await RbacRole.findOne({ key: 'limited-admin' });
+    if (existingRole) {
+      console.log('ℹ️  Limited Admin role already exists, skipping creation');
+      return existingRole;
+    }
+
+    // Create limited-admin role
+    const limitedAdminRole = new RbacRole({
+      key: 'limited-admin',
+      name: 'Limited Admin',
+      description: 'Limited Admin - Access to audit logs and monitoring only',
+      status: 'active',
+      isGlobal: true
+    });
+
+    const savedRole = await limitedAdminRole.save();
+    console.log('✅ Created limited-admin role:', savedRole);
+    return savedRole;
+  } catch (error) {
+    console.error('❌ Failed to create limited-admin role:', error);
+    throw error;
+  }
+}
+
+async function createContentManagerRole() {
+  try {
+    // Check if content-manager role already exists
+    const existingRole = await RbacRole.findOne({ key: 'content-manager' });
+    if (existingRole) {
+      console.log('ℹ️  Content Manager role already exists, skipping creation');
+      return existingRole;
+    }
+
+    // Create content-manager role
+    const contentManagerRole = new RbacRole({
+      key: 'content-manager',
+      name: 'Content Manager',
+      description: 'Content Manager - Manage content, pages, and media',
+      status: 'active',
+      isGlobal: true
+    });
+
+    const savedRole = await contentManagerRole.save();
+    console.log('✅ Created content-manager role:', savedRole);
+    return savedRole;
+  } catch (error) {
+    console.error('❌ Failed to create content-manager role:', error);
+    throw error;
+  }
+}
+
+async function createDeveloperRole() {
+  try {
+    // Check if developer role already exists
+    const existingRole = await RbacRole.findOne({ key: 'developer' });
+    if (existingRole) {
+      console.log('ℹ️  Developer role already exists, skipping creation');
+      return existingRole;
+    }
+
+    // Create developer role
+    const developerRole = new RbacRole({
+      key: 'developer',
+      name: 'Developer',
+      description: 'Developer - Development and debugging tools',
+      status: 'active',
+      isGlobal: true
+    });
+
+    const savedRole = await developerRole.save();
+    console.log('✅ Created developer role:', savedRole);
+    return savedRole;
+  } catch (error) {
+    console.error('❌ Failed to create developer role:', error);
+    throw error;
+  }
+}
+
 async function createSuperAdminGrants(superAdminRole) {
   try {
     // Define superadmin grants (includes all admin grants plus additional system-level grants)
@@ -264,7 +345,7 @@ async function createSuperAdminGrants(superAdminRole) {
         right: 'admin_panel__notifications:write',
         effect: 'allow'
       },
-      // Additional superadmin grants
+      // System-level grants
       {
         subjectType: 'role',
         subjectId: superAdminRole._id,
@@ -288,9 +369,85 @@ async function createSuperAdminGrants(superAdminRole) {
       }
     ];
 
-    console.log(`📋 Creating ${superAdminGrants.length} superadmin grants...`);
+console.log(`📋 Creating ${superAdminGrants.length} superadmin grants...`);
 
-    for (const grantData of superAdminGrants) {
+for (const grantData of superAdminGrants) {
+  // Check if grant already exists
+  const existingGrant = await RbacGrant.findOne({
+    subjectType: grantData.subjectType,
+    subjectId: grantData.subjectId,
+    scopeType: grantData.scopeType,
+    right: grantData.right
+  });
+
+  if (existingGrant) {
+    console.log(`ℹ️  Grant '${grantData.right}' already exists, skipping`);
+    continue;
+  }
+
+  const grant = new RbacGrant(grantData);
+  await grant.save();
+  console.log(`✅ Created grant: ${grantData.right}`);
+}
+
+console.log('✅ All superadmin grants created successfully');
+} catch (error) {
+console.error('❌ Failed to create superadmin grants:', error);
+throw error;
+}
+}
+
+async function createLimitedAdminGrants(limitedAdminRole) {
+  try {
+    // Define limited-admin grants (audit and monitoring only)
+    const limitedAdminGrants = [
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__login',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__dashboard',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__audit:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__errors:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__metrics:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: limitedAdminRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__health-checks:read',
+        effect: 'allow'
+      }
+    ];
+
+    console.log(`📋 Creating ${limitedAdminGrants.length} limited-admin grants...`);
+
+    for (const grantData of limitedAdminGrants) {
       // Check if grant already exists
       const existingGrant = await RbacGrant.findOne({
         subjectType: grantData.subjectType,
@@ -309,9 +466,196 @@ async function createSuperAdminGrants(superAdminRole) {
       console.log(`✅ Created grant: ${grantData.right}`);
     }
 
-    console.log('✅ All superadmin grants created successfully');
+    console.log('✅ All limited-admin grants created successfully');
   } catch (error) {
-    console.error('❌ Failed to create superadmin grants:', error);
+    console.error('❌ Failed to create limited-admin grants:', error);
+    throw error;
+  }
+}
+
+async function createContentManagerGrants(contentManagerRole) {
+  try {
+    // Define content-manager grants
+    const contentManagerGrants = [
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__login',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__dashboard',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__content-config:*',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__pages:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__pages:write',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__blog:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: contentManagerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__blog:write',
+        effect: 'allow'
+      }
+    ];
+
+    console.log(`📋 Creating ${contentManagerGrants.length} content-manager grants...`);
+
+    for (const grantData of contentManagerGrants) {
+      // Check if grant already exists
+      const existingGrant = await RbacGrant.findOne({
+        subjectType: grantData.subjectType,
+        subjectId: grantData.subjectId,
+        scopeType: grantData.scopeType,
+        right: grantData.right
+      });
+
+      if (existingGrant) {
+        console.log(`ℹ️  Grant '${grantData.right}' already exists, skipping`);
+        continue;
+      }
+
+      const grant = new RbacGrant(grantData);
+      await grant.save();
+      console.log(`✅ Created grant: ${grantData.right}`);
+    }
+
+    console.log('✅ All content-manager grants created successfully');
+  } catch (error) {
+    console.error('❌ Failed to create content-manager grants:', error);
+    throw error;
+  }
+}
+
+async function createDeveloperGrants(developerRole) {
+  try {
+    // Define developer grants
+    const developerGrants = [
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__login',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__dashboard',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__ejs-virtual:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__ejs-virtual:write',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__console-manager:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__console-manager:write',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__scripts:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__scripts:write',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__terminals:read',
+        effect: 'allow'
+      },
+      {
+        subjectType: 'role',
+        subjectId: developerRole._id,
+        scopeType: 'global',
+        right: 'admin_panel__terminals:write',
+        effect: 'allow'
+      }
+    ];
+
+    console.log(`📋 Creating ${developerGrants.length} developer grants...`);
+
+    for (const grantData of developerGrants) {
+      // Check if grant already exists
+      const existingGrant = await RbacGrant.findOne({
+        subjectType: grantData.subjectType,
+        subjectId: grantData.subjectId,
+        scopeType: grantData.scopeType,
+        right: grantData.right
+      });
+
+      if (existingGrant) {
+        console.log(`ℹ️  Grant '${grantData.right}' already exists, skipping`);
+        continue;
+      }
+
+      const grant = new RbacGrant(grantData);
+      await grant.save();
+      console.log(`✅ Created grant: ${grantData.right}`);
+    }
+
+    console.log('✅ All developer grants created successfully');
+  } catch (error) {
+    console.error('❌ Failed to create developer grants:', error);
     throw error;
   }
 }
@@ -356,6 +700,21 @@ async function main() {
     console.log('\n📦 Creating superadmin role and grants...');
     const superAdminRole = await createSuperAdminRole();
     await createSuperAdminGrants(superAdminRole);
+
+    // Create limited-admin role and grants
+    console.log('\n📦 Creating limited-admin role and grants...');
+    const limitedAdminRole = await createLimitedAdminRole();
+    await createLimitedAdminGrants(limitedAdminRole);
+
+    // Create content-manager role and grants
+    console.log('\n📦 Creating content-manager role and grants...');
+    const contentManagerRole = await createContentManagerRole();
+    await createContentManagerGrants(contentManagerRole);
+
+    // Create developer role and grants
+    console.log('\n📦 Creating developer role and grants...');
+    const developerRole = await createDeveloperRole();
+    await createDeveloperGrants(developerRole);
 
     // Display summary
     await displaySummary();
