@@ -122,6 +122,108 @@ function clearAllJsonConfigCache() {
   cache.clear();
 }
 
+// Enhanced cache helpers
+function isJsonConfigCached(slug) {
+  const key = String(slug || '').trim();
+  if (!key) return false;
+  const entry = cache.get(key);
+  if (!entry) return false;
+  if (typeof entry.expiresAt === 'number' && Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function getJsonConfigCacheInfo(slug) {
+  const key = String(slug || '').trim();
+  if (!key) return null;
+  const entry = cache.get(key);
+  if (!entry) return { exists: false };
+  
+  const now = Date.now();
+  const isExpired = typeof entry.expiresAt === 'number' && now > entry.expiresAt;
+  if (isExpired) {
+    cache.delete(key);
+    return { exists: false };
+  }
+  
+  return {
+    exists: true,
+    expiresAt: entry.expiresAt,
+    ttlRemaining: entry.expiresAt ? Math.max(0, Math.floor((entry.expiresAt - now) / 1000)) : null,
+    size: JSON.stringify(entry.value).length
+  };
+}
+
+function clearJsonConfigCacheIfExists(slug) {
+  const key = String(slug || '').trim();
+  if (!key) return false;
+  const existed = cache.has(key);
+  cache.delete(key);
+  return existed;
+}
+
+function clearJsonConfigCacheIfExpired(slug) {
+  const info = getJsonConfigCacheInfo(slug);
+  if (!info || !info.exists) return false;
+  if (info.ttlRemaining !== null && info.ttlRemaining <= 0) {
+    cache.delete(String(slug));
+    return true;
+  }
+  return false;
+}
+
+function clearJsonConfigCacheBatch(slugs) {
+  if (!Array.isArray(slugs)) return 0;
+  let cleared = 0;
+  slugs.forEach(slug => {
+    if (clearJsonConfigCacheIfExists(slug)) cleared++;
+  });
+  return cleared;
+}
+
+function clearJsonConfigCacheByPattern(pattern) {
+  if (!pattern || typeof pattern !== 'string') return 0;
+  const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+  let cleared = 0;
+  for (const key of cache.keys()) {
+    if (regex.test(key)) {
+      cache.delete(key);
+      cleared++;
+    }
+  }
+  return cleared;
+}
+
+function getJsonConfigCacheStats() {
+  const now = Date.now();
+  let entries = 0;
+  let expired = 0;
+  let totalSize = 0;
+  
+  for (const [key, entry] of cache.entries()) {
+    entries++;
+    if (typeof entry.expiresAt === 'number' && now > entry.expiresAt) {
+      expired++;
+    } else {
+      totalSize += JSON.stringify(entry.value).length;
+    }
+  }
+  
+  return {
+    totalEntries: entries,
+    expiredEntries: expired,
+    activeEntries: entries - expired,
+    totalSizeBytes: totalSize,
+    keys: Array.from(cache.keys())
+  };
+}
+
+function getJsonConfigCacheKeys() {
+  return Array.from(cache.keys());
+}
+
 async function listJsonConfigs() {
   return JsonConfig.find()
     .sort({ updatedAt: -1 })
@@ -386,16 +488,176 @@ async function getJsonConfigPublicPayload(slug, { raw = false } = {}) {
   };
 }
 
+// Cache-aware update helpers
+async function updateJsonConfigWithCacheInvalidation(id, patch) {
+  logger.log('updateJsonConfigWithCacheInvalidation called with id:', id, 'patch:', patch);
+  
+  const doc = await JsonConfig.findById(id);
+  if (!doc) {
+    const err = new Error('JSON config not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  const oldSlug = doc.slug;
+  const oldAlias = doc.alias;
+
+  // Apply updates using existing update logic
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'title')) {
+    const title = String(patch.title || '').trim();
+    if (!title) {
+      const err = new Error('title is required');
+      err.code = 'VALIDATION';
+      throw err;
+    }
+    doc.title = title;
+  }
+
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'publicEnabled')) {
+    doc.publicEnabled = Boolean(patch.publicEnabled);
+  }
+
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'cacheTtlSeconds')) {
+    const ttl = Number(patch.cacheTtlSeconds || 0);
+    doc.cacheTtlSeconds = Number.isNaN(ttl) ? 0 : Math.max(0, ttl);
+  }
+
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'jsonRaw')) {
+    if (patch.jsonRaw === null || patch.jsonRaw === undefined) {
+      const err = new Error('jsonRaw is required');
+      err.code = 'VALIDATION';
+      throw err;
+    }
+
+    parseJsonOrThrow(patch.jsonRaw);
+    doc.jsonRaw = String(patch.jsonRaw);
+    doc.jsonHash = computeJsonHash(doc.jsonRaw);
+  }
+
+  if (patch && Object.prototype.hasOwnProperty.call(patch, 'alias')) {
+    const newAlias = patch.alias;
+    
+    if (newAlias === null || newAlias === undefined || newAlias === '') {
+      doc.alias = undefined;
+    } else {
+      const normalizedAlias = normalizeAlias(newAlias);
+      
+      if (!normalizedAlias) {
+        const err = new Error('Invalid alias format');
+        err.code = 'VALIDATION';
+        throw err;
+      }
+
+      if (!(await validateAliasUniqueness(normalizedAlias, doc._id))) {
+        const err = new Error('Alias must be unique and not conflict with existing slugs or aliases');
+        err.code = 'ALIAS_NOT_UNIQUE';
+        throw err;
+      }
+
+      doc.alias = normalizedAlias;
+    }
+  }
+
+  await doc.save();
+
+  // Clear all related cache entries
+  clearJsonConfigCache(oldSlug);
+  clearJsonConfigCache(doc.slug);
+  if (oldAlias) {
+    clearJsonConfigCache(oldAlias);
+  }
+  if (doc.alias) {
+    clearJsonConfigCache(doc.alias);
+  }
+
+  return doc.toObject();
+}
+
+async function updateJsonConfigValueBySlug(slug, updateFn, options = {}) {
+  const key = String(slug || '').trim();
+  if (!key) {
+    const err = new Error('slug is required');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+
+  if (typeof updateFn !== 'function') {
+    const err = new Error('updateFn must be a function');
+    err.code = 'VALIDATION';
+    throw err;
+  }
+
+  // Get current value (bypass cache to ensure fresh data)
+  const currentValue = await getJsonConfigValueBySlug(key, { bypassCache: true });
+  
+  // Apply update function
+  let newValue;
+  try {
+    newValue = await updateFn(currentValue);
+  } catch (error) {
+    const err = new Error(`Update function failed: ${error.message}`);
+    err.code = 'UPDATE_FAILED';
+    err.cause = error;
+    throw err;
+  }
+
+  // Validate new value
+  const jsonRaw = JSON.stringify(newValue);
+  parseJsonOrThrow(jsonRaw); // This will throw if invalid JSON
+
+  // Find the document
+  const doc = await JsonConfig.findOne({
+    $or: [
+      { slug: key },
+      { alias: key }
+    ]
+  });
+
+  if (!doc) {
+    const err = new Error('JSON config not found');
+    err.code = 'NOT_FOUND';
+    throw err;
+  }
+
+  // Update the document
+  doc.jsonRaw = jsonRaw;
+  doc.jsonHash = computeJsonHash(jsonRaw);
+  await doc.save();
+
+  // Clear cache if requested (default: true)
+  if (options.invalidateCache !== false) {
+    clearJsonConfigCache(doc.slug);
+    if (doc.alias) {
+      clearJsonConfigCache(doc.alias);
+    }
+    clearJsonConfigCache(key);
+  }
+
+  return newValue;
+}
+
 module.exports = {
   normalizeSlugBase,
   generateUniqueSlugFromTitle,
   parseJsonOrThrow,
   clearJsonConfigCache,
   clearAllJsonConfigCache,
+  // Enhanced cache helpers
+  isJsonConfigCached,
+  getJsonConfigCacheInfo,
+  clearJsonConfigCacheIfExists,
+  clearJsonConfigCacheIfExpired,
+  clearJsonConfigCacheBatch,
+  clearJsonConfigCacheByPattern,
+  getJsonConfigCacheStats,
+  getJsonConfigCacheKeys,
+  // Core functions
   listJsonConfigs,
   getJsonConfigById,
   createJsonConfig,
   updateJsonConfig,
+  updateJsonConfigWithCacheInvalidation,
+  updateJsonConfigValueBySlug,
   regenerateJsonConfigSlug,
   deleteJsonConfig,
   getJsonConfig: getJsonConfigValueBySlug,
