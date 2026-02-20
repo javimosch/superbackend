@@ -309,10 +309,55 @@
     }
 
     const state = { offset: 0, limit: 50, total: 0 };
+    const isIframe = <%= typeof isIframe !== 'undefined' && isIframe %>;
+
+    // Enhanced fetch function for iframe communication
+    async function apiFetch(url, options = {}) {
+      if (isIframe) {
+        // In iframe mode, request data from parent window
+        return new Promise((resolve, reject) => {
+          const messageId = 'api-request-' + Date.now() + '-' + Math.random();
+          
+          const handleMessage = (event) => {
+            if (event.data.type === 'api-response' && event.data.messageId === messageId) {
+              window.removeEventListener('message', handleMessage);
+              if (event.data.error) {
+                reject(new Error(event.data.error));
+              } else {
+                resolve({
+                  ok: event.data.ok,
+                  json: async () => event.data.data,
+                  text: async () => JSON.stringify(event.data.data)
+                });
+              }
+            }
+          };
+          
+          window.addEventListener('message', handleMessage);
+          
+          // Request data from parent
+          window.parent.postMessage({
+            type: 'api-request',
+            messageId: messageId,
+            url: url,
+            options: options
+          }, '*');
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            window.removeEventListener('message', handleMessage);
+            reject(new Error('Timeout waiting for parent response'));
+          }, 10000);
+        });
+      } else {
+        // Normal mode - direct fetch
+        return fetch(url, options);
+      }
+    }
 
     async function loadStats() {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/users/stats`);
+        const res = await apiFetch(`${API_BASE}/api/admin/users/stats`);
         const data = await res.json();
         if (res.ok) {
           document.getElementById('stat-total').textContent = data.total ?? '-';
@@ -339,7 +384,7 @@
 
       try {
         const url = `${API_BASE}/api/admin/users${qs({ q, role, subscriptionStatus, currentPlan, limit: state.limit, offset: state.offset })}`;
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         const data = await res.json();
 
         if (!res.ok) { showToast(data?.error || 'Failed to load users', 'error'); return; }
