@@ -124,7 +124,7 @@ function createMiddleware(options = {}) {
     cronEnabled: options.cron?.enabled
   });
 
-  router.get(`${adminPath}/plugins-system`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/plugins-system`, requireModuleAccessWithIframe('plugins', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -142,6 +142,7 @@ function createMiddleware(options = {}) {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -267,7 +268,7 @@ const telegramService = require("./services/telegram.service");
         return false;
       });
 
-    router.get(`${adminPath}/health-checks`, adminSessionAuth, (req, res) => {
+    router.get(`${adminPath}/health-checks`, requireModuleAccessWithIframe('health-checks', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -285,6 +286,7 @@ const telegramService = require("./services/telegram.service");
             {
               baseUrl: req.baseUrl,
               adminPath,
+              isIframe: req.isIframe || false
             },
             {
               filename: templatePath,
@@ -298,7 +300,7 @@ const telegramService = require("./services/telegram.service");
       });
     });
 
-    router.get(`${adminPath}/console-manager`, adminSessionAuth, (req, res) => {
+    router.get(`${adminPath}/console-manager`, requireModuleAccessWithIframe('console-manager', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -316,6 +318,7 @@ const telegramService = require("./services/telegram.service");
             {
               baseUrl: req.baseUrl,
               adminPath,
+              isIframe: req.isIframe || false
             },
             {
               filename: templatePath,
@@ -716,7 +719,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/experiments`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/experiments`, requireModuleAccessWithIframe('experiments', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -734,6 +737,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -774,7 +778,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/terminals`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/terminals`, requireModuleAccessWithIframe('terminals', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -793,6 +797,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -806,7 +811,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/scripts`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/scripts`, requireModuleAccessWithIframe('scripts', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -825,6 +830,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -838,7 +844,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/crons`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/crons`, requireModuleAccessWithIframe('crons', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-crons.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -851,6 +857,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -864,7 +871,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/cache`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/cache`, requireModuleAccessWithIframe('cache', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-cache.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -877,6 +884,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -890,7 +898,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-    router.get(`${adminPath}/db-browser`, adminSessionAuth, (req, res) => {
+    router.get(`${adminPath}/db-browser`, requireModuleAccessWithIframe('db-browser', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -908,6 +916,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             {
               baseUrl: req.baseUrl,
               adminPath,
+              isIframe: req.isIframe || false
             },
             {
               filename: templatePath,
@@ -921,7 +930,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       });
     });
 
-    router.get(`${adminPath}/telegram`, adminSessionAuth, (req, res) => {
+    router.get(`${adminPath}/telegram`, requireModuleAccessWithIframe('telegram', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -939,6 +948,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             {
               baseUrl: req.baseUrl,
               adminPath,
+              isIframe: req.isIframe || false
             },
             {
               filename: templatePath,
@@ -952,7 +962,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       });
     });
 
-    router.get(`${adminPath}/agents`, adminSessionAuth, (req, res) => {
+    router.get(`${adminPath}/agents`, requireModuleAccessWithIframe('agents', 'read'), (req, res) => {
       const templatePath = path.join(
         __dirname,
         "..",
@@ -970,6 +980,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             {
               baseUrl: req.baseUrl,
               adminPath,
+              isIframe: req.isIframe || false
             },
             {
               filename: templatePath,
@@ -1120,7 +1131,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1146,6 +1157,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1159,7 +1171,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/migration`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/migration`, requireModuleAccessWithIframe('migration', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1177,7 +1189,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
-            endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1192,7 +1204,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin LLM/AI page (protected by basic auth)
-  router.get(`${adminPath}/admin-llm`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/admin-llm`, requireModuleAccessWithIframe('admin-llm', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-llm.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1205,6 +1217,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1233,7 +1246,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1244,7 +1257,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/pages`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/pages`, requireModuleAccessWithIframe('pages', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-pages.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1257,6 +1270,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1270,7 +1284,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/blog`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/blog`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-blog.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1280,7 +1294,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1291,7 +1305,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/blog-automation`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/blog-automation`, requireModuleAccessWithIframe('blog-automation', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1306,7 +1320,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1317,7 +1331,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/blog/new`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/blog/new`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1332,7 +1346,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, postId: "", mode: "new" },
+          { baseUrl: req.baseUrl, adminPath, postId: "", mode: "new", isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1343,7 +1357,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/blog/edit/:id`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/blog/edit/:id`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1363,6 +1377,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             adminPath,
             postId: String(req.params.id || ""),
             mode: "edit",
+            isIframe: req.isIframe || false,
           },
           { filename: templatePath },
         );
@@ -1374,38 +1389,39 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/file-manager`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-file-manager.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
+router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-manager', 'read'), (req, res) => {
+  const templatePath = path.join(
+    __dirname,
+    "..",
+    "views",
+    "admin-file-manager.ejs",
+  );
+  fs.readFile(templatePath, "utf8", (err, template) => {
+    if (err) {
+      console.error("Error reading template:", err);
+      return res.status(500).send("Error loading page");
+    }
+    try {
+      const html = ejs.render(
+        template,
+        {
+          baseUrl: req.baseUrl,
+          adminPath,
+          isIframe: req.isIframe || false
+        },
+        {
+          filename: templatePath,
+        },
+      );
+      res.send(html);
+    } catch (renderErr) {
+      console.error("Error rendering template:", renderErr);
+      res.status(500).send("Error rendering page");
+    }
     });
   });
 
-  router.get(`${adminPath}/ejs-virtual`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/ejs-virtual`, requireModuleAccessWithIframe('ejs-virtual', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1423,6 +1439,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1436,7 +1453,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/seo-config`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/seo-config`, requireModuleAccessWithIframe('seo-config', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1455,6 +1472,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1468,7 +1486,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/i18n`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/i18n`, requireModuleAccessWithIframe('i18n', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-i18n.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1478,7 +1496,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1489,7 +1507,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     });
   });
 
-  router.get(`${adminPath}/i18n/locales`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/i18n/locales`, requireModuleAccessWithIframe('i18n', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1504,7 +1522,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1516,7 +1534,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin forms page (protected by basic auth)
-  router.get(`${adminPath}/forms`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/forms`, requireModuleAccessWithIframe('forms', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-forms.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1530,6 +1548,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1544,7 +1563,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin feature flags page (protected by basic auth)
-  router.get(`${adminPath}/feature-flags`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/feature-flags`, requireModuleAccessWithIframe('feature-flags', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1563,6 +1582,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1577,7 +1597,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin headless CMS page (protected by basic auth)
-  router.get(`${adminPath}/headless`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/headless`, requireModuleAccessWithIframe('headless', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1596,6 +1616,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1610,7 +1631,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin UI Components page (protected by basic auth)
-  router.get(`${adminPath}/ui-components`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/ui-components`, requireModuleAccessWithIframe('ui-components', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1629,6 +1650,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl || '',
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1643,7 +1665,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin JSON configs page (protected by basic auth)
-  router.get(`${adminPath}/json-configs`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/json-configs`, requireModuleAccessWithIframe('json-configs', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1662,6 +1684,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1676,7 +1699,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin markdowns page (protected by basic auth)
-  router.get(`${adminPath}/markdowns`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/markdowns`, requireModuleAccessWithIframe('markdowns', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1695,6 +1718,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1709,7 +1733,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin assets page (protected by basic auth)
-  router.get(`${adminPath}/assets`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/assets`, requireModuleAccessWithIframe('assets', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1728,6 +1752,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,
@@ -1742,7 +1767,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin waiting list page (protected by basic auth)
-  router.get(`${adminPath}/waiting-list`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/waiting-list`, requireModuleAccessWithIframe('waiting-list', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1759,6 +1784,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           baseUrl: req.baseUrl,
           adminPath,
           endpointRegistry,
+          isIframe: req.isIframe || false
         });
         res.send(html);
       } catch (renderErr) {
@@ -1769,7 +1795,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin organizations page (protected by basic auth)
-  router.get(`${adminPath}/organizations`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/organizations`, requireModuleAccessWithIframe('organizations', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1788,6 +1814,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1828,7 +1855,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   });
 
   // Admin notifications page (protected by session auth)
-  router.get(`${adminPath}/notifications`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/notifications`, requireModuleAccessWithIframe('notifications', 'read'), (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -1847,6 +1874,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -1888,34 +1916,33 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
 
-  // Admin metrics page (protected by session auth)
-  router.get(`${adminPath}/metrics`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-metrics.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(template, {
-          baseUrl: req.baseUrl,
-          adminPath,
-          endpointRegistry,
-        });
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
+// Admin metrics page (protected by session auth)
+router.get(`${adminPath}/metrics`, adminSessionAuth, (req, res) => {
+const templatePath = path.join(
+__dirname,
+"..",
+"views",
+"admin-metrics.ejs",
+);
+fs.readFile(templatePath, "utf8", (err, template) => {
+if (err) {
+console.error("Error reading template:", err);
+return res.status(500).send("Error loading page");
+}
+try {
+const html = ejs.render(template, {
+baseUrl: req.baseUrl,
+adminPath,
+endpointRegistry,
+});
+res.send(html);
+} catch (renderErr) {
+console.error("Error rendering template:", renderErr);
+res.status(500).send("Error rendering page");
+}
+});
+});
       }
     });
   });
