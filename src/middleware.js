@@ -26,6 +26,7 @@ const ejs = require("ejs");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const { adminSessionAuth } = require("./middleware/auth");
+const { requireModuleAccess } = require("./middleware/rbac");
 const endpointRegistry = require("./admin/endpointRegistry");
 const {
   createFeatureFlagsEjsMiddleware,
@@ -569,7 +570,7 @@ const telegramService = require("./services/telegram.service");
     require("./routes/waitingListAdmin.routes"),
   );
   router.use("/api/admin/orgs", require("./routes/orgAdmin.routes"));
-  router.use("/api/admin/users", require("./routes/userAdmin.routes"));
+  router.use("/api/admin/users", requireModuleAccessWithIframe('users', 'read'), require("./routes/userAdmin.routes"));
   router.use("/api/admin/rbac", require("./routes/adminRbac.routes"));
   router.use(
     "/api/admin/notifications",
@@ -585,7 +586,107 @@ const telegramService = require("./services/telegram.service");
     adminStatsController.getOverviewStats,
   );
 
-  router.get(`${adminPath}/stats/dashboard-home`, adminSessionAuth, (req, res) => {
+  // Middleware to check if request is from authenticated parent iframe
+function checkIframeAuth(req, res, next) {
+  const referer = req.get('Referer');
+  const origin = req.get('Origin');
+  const adminPath = req.adminPath || '/admin';
+  
+  // Check for iframe token parameter (more reliable than referer)
+  const iframeToken = req.query.iframe_token;
+  if (iframeToken && iframeToken === 'authenticated') {
+    req.isIframe = true;
+    return next();
+  }
+  
+  // Fallback to referer/origin check
+  const isValidReferer = referer && referer.includes(adminPath);
+  const isValidOrigin = origin && origin.includes(req.hostname);
+  
+  if (isValidReferer || isValidOrigin) {
+    req.isIframe = true;
+    return next();
+  }
+  
+  // If not from iframe, require normal authentication
+  return adminSessionAuth(req, res, next);
+}
+
+// Combined middleware for iframe authentication + module access
+function requireModuleAccessWithIframe(moduleId, action = 'read') {
+  return async (req, res, next) => {
+    try {
+      // Check for iframe authentication first
+      const referer = req.get('Referer');
+      const origin = req.get('Origin');
+      const adminPath = req.adminPath || '/admin';
+      const iframeToken = req.query.iframe_token;
+      
+      const isValidIframe = (iframeToken && iframeToken === 'authenticated') ||
+                          (referer && referer.includes(adminPath)) ||
+                          (origin && origin.includes(req.hostname));
+      
+      if (isValidIframe) {
+        req.isIframe = true;
+        // For iframe requests, we'll allow access but mark it as iframe context
+        return next();
+      }
+      
+      // Check for basic auth superadmin bypass
+      if (isBasicAuthSuperAdmin(req)) {
+        return next();
+      }
+
+      // Get user ID from session
+      const userId = req.session?.authData?.userId;
+      if (!userId) {
+        return res.redirect(`${req.adminPath || '/admin'}/login`);
+      }
+
+      // Check RBAC permission for specific module
+      const hasAccess = await rbacService.checkRight({
+        userId,
+        orgId: null, // Global admin permissions
+        right: `admin_panel__${moduleId}:${action}`
+      });
+
+      if (!hasAccess.allowed) {
+        // For API routes, return JSON error
+        if (req.path.startsWith('/api/')) {
+          return res.status(403).json({
+            error: 'Access denied',
+            reason: hasAccess.reason,
+            required: `admin_panel__${moduleId}:${action}`,
+            moduleId,
+            action
+          });
+        }
+
+        // For page routes, render 403 page
+        return res.status(403).render('admin-403', {
+          moduleId,
+          action,
+          required: `admin_panel__${moduleId}:${action}`,
+          reason: hasAccess.reason,
+          user: req.session.authData,
+          adminPath: req.adminPath || '/admin'
+        });
+      }
+
+      next();
+    } catch (error) {
+      console.error('Module access check error:', error);
+      
+      if (req.path.startsWith('/api/')) {
+        return res.status(500).json({ error: 'Access check failed' });
+      } else {
+        return res.status(500).send('Access check failed');
+      }
+    }
+  };
+}
+
+router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
@@ -600,7 +701,11 @@ const telegramService = require("./services/telegram.service");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { 
+            baseUrl: req.baseUrl, 
+            adminPath,
+            isIframe: req.isIframe || false
+          },
           { filename: templatePath },
         );
         res.send(html);
@@ -642,7 +747,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/rbac`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/rbac`, requireModuleAccessWithIframe('rbac', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-rbac.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -655,6 +760,7 @@ const telegramService = require("./services/telegram.service");
           {
             baseUrl: req.baseUrl,
             adminPath,
+            isIframe: req.isIframe || false
           },
           {
             filename: templatePath,
@@ -936,7 +1042,7 @@ const telegramService = require("./services/telegram.service");
   );
   router.use(
     "/api/admin/audit",
-    adminSessionAuth,
+    requireModuleAccessWithIframe('audit', 'read'),
     require("./routes/adminAudit.routes"),
   );
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
@@ -1696,7 +1802,7 @@ const telegramService = require("./services/telegram.service");
   });
 
   // Admin users page (protected by session auth)
-  router.get(`${adminPath}/users`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/users`, requireModuleAccessWithIframe('users', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-users.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1707,13 +1813,11 @@ const telegramService = require("./services/telegram.service");
         const html = ejs.render(
           template,
           {
-            baseUrl: req.baseUrl,
+            baseUrl: req.baseUrl, 
             adminPath,
-            endpointRegistry,
+            isIframe: req.isIframe || false
           },
-          {
-            filename: templatePath,
-          },
+          { filename: templatePath },
         );
         res.send(html);
       } catch (renderErr) {
@@ -1890,7 +1994,7 @@ const telegramService = require("./services/telegram.service");
     });
   });
 
-  router.get(`${adminPath}/audit`, adminSessionAuth, (req, res) => {
+  router.get(`${adminPath}/audit`, requireModuleAccessWithIframe('audit', 'read'), (req, res) => {
     const templatePath = path.join(__dirname, "..", "views", "admin-audit.ejs");
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
@@ -1900,7 +2004,11 @@ const telegramService = require("./services/telegram.service");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { 
+            baseUrl: req.baseUrl, 
+            adminPath,
+            isIframe: req.isIframe || false
+          },
           { filename: templatePath },
         );
         res.send(html);
