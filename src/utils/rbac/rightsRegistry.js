@@ -85,6 +85,8 @@ const DEFAULT_RIGHTS = [
   'admin_panel__cache:write',
   'admin_panel__db-browser:read',
   'admin_panel__db-browser:write',
+  'admin_panel__data-cleanup:read',
+  'admin_panel__data-cleanup:write',
   'admin_panel__migration:read',
   'admin_panel__migration:write',
   'admin_panel__webhooks:read',
