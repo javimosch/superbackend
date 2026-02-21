@@ -44,6 +44,7 @@ const {
 } = require("./middleware/errorCapture");
 const rateLimiter = require("./services/rateLimiter.service");
 const pluginsService = require("./services/plugins.service");
+const telegramService = require("./services/telegram.service");
 
 let errorCaptureInitialized = false;
 
@@ -229,8 +230,6 @@ function createMiddleware(options = {}) {
       maxPoolSize: 10,
     };
 
-const telegramService = require("./services/telegram.service");
-
     // Return a promise that resolves when connection is established
     const connectionPromise = mongoose
       .connect(mongoUri, connectionOptions)
@@ -251,7 +250,19 @@ const telegramService = require("./services/telegram.service");
         // Initialize Telegram bots (check telegram config)
         const telegramEnabled = options.telegram?.enabled !== false;
         if (telegramEnabled) {
-          await telegramService.init();
+          const telegramInitializer =
+            (telegramService && typeof telegramService.initialize === "function"
+              ? telegramService.initialize.bind(telegramService)
+              : null) ||
+            (telegramService && typeof telegramService.init === "function"
+              ? telegramService.init.bind(telegramService)
+              : null);
+
+          if (telegramInitializer) {
+            await telegramInitializer();
+          } else {
+            console.warn("⚠️ Telegram service has no initialize/init method; skipping startup");
+          }
         } else {
           console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled);
         }
@@ -396,9 +407,21 @@ const telegramService = require("./services/telegram.service");
     // Initialize Telegram bots for existing connection (check telegram config)
     const telegramEnabled = options.telegram?.enabled !== false;
     if (telegramEnabled) {
-      telegramService.init().catch(err => {
+      const telegramInitializer =
+        (telegramService && typeof telegramService.initialize === "function"
+          ? telegramService.initialize.bind(telegramService)
+          : null) ||
+        (telegramService && typeof telegramService.init === "function"
+          ? telegramService.init.bind(telegramService)
+          : null);
+
+      if (!telegramInitializer) {
+        console.warn("⚠️ Telegram service has no initialize/init method; skipping startup (existing connection)");
+      } else {
+        telegramInitializer().catch(err => {
         console.error("Failed to initialize Telegram service (existing connection):", err);
-      });
+        });
+      }
     } else {
       console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled, "(existing connection)");
     }
