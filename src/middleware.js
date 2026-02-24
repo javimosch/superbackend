@@ -99,6 +99,12 @@ function createMiddleware(options = {}) {
 
   const bootstrapPluginsRuntime = async () => {
     try {
+      if (options.plugins?.extraRoots) {
+        const roots = Array.isArray(options.plugins.extraRoots) ? options.plugins.extraRoots : [];
+        for (const root of roots) {
+          await pluginsService.loadAllPluginsFromFolder(root, { context: {} });
+        }
+      }
       const superbackend = globalThis.superbackend || globalThis.saasbackend || {};
       await pluginsService.bootstrap({
         context: {
