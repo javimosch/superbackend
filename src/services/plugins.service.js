@@ -12,6 +12,8 @@ const DEFAULT_REGISTRY_ID = 'plugins';
 const exposedServices = {};
 const exposedHelpers = {};
 
+const additionalPluginsRoots = new Set();
+
 function sha256(value) {
   return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 }
@@ -22,6 +24,24 @@ function nowIso() {
 
 function resolvePluginsRoot(customRoot) {
   return customRoot || path.join(process.cwd(), 'plugins');
+}
+
+function listPluginsRoots({ pluginsRoot } = {}) {
+  const roots = [];
+  const primary = resolvePluginsRoot(pluginsRoot);
+  if (primary) roots.push(primary);
+  for (const extra of additionalPluginsRoots) {
+    if (extra && typeof extra === 'string') roots.push(extra);
+  }
+  // de-dup while preserving order
+  return Array.from(new Set(roots));
+}
+
+function registerPluginsRoot(absolutePath) {
+  const root = String(absolutePath || '').trim();
+  if (!root) return { ok: false, reason: 'empty_path' };
+  additionalPluginsRoots.add(root);
+  return { ok: true, root };
 }
 
 function normalizePlugin(rawModule, pluginId, absoluteDir) {
@@ -131,26 +151,38 @@ function readPluginModule(pluginDir) {
 }
 
 async function discoverPlugins({ pluginsRoot } = {}) {
-  const root = resolvePluginsRoot(pluginsRoot);
-  if (!fs.existsSync(root)) return [];
+  const roots = listPluginsRoots({ pluginsRoot });
+  const pluginById = new Map();
 
-  const entries = fs.readdirSync(root, { withFileTypes: true });
-  const plugins = [];
+  for (const root of roots) {
+    if (!fs.existsSync(root)) continue;
+    const entries = fs.readdirSync(root, { withFileTypes: true });
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const pluginId = entry.name;
-    const absoluteDir = path.join(root, pluginId);
-    const loaded = readPluginModule(absoluteDir);
-    if (!loaded) continue;
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const pluginId = entry.name;
+      const absoluteDir = path.join(root, pluginId);
+      const loaded = readPluginModule(absoluteDir);
+      if (!loaded) continue;
 
-    const plugin = normalizePlugin(loaded, pluginId, absoluteDir);
-    if (!plugin.id) continue;
-    plugins.push(plugin);
+      const plugin = normalizePlugin(loaded, pluginId, absoluteDir);
+      if (!plugin.id) continue;
+
+      // First discovered wins (stable and avoids unexpected overrides)
+      if (!pluginById.has(plugin.id)) {
+        pluginById.set(plugin.id, plugin);
+      }
+    }
   }
 
+  const plugins = Array.from(pluginById.values());
   plugins.sort((a, b) => a.id.localeCompare(b.id));
   return plugins;
+}
+
+async function loadAllPluginsFromFolder(absolutePath, { context } = {}) {
+  registerPluginsRoot(absolutePath);
+  return bootstrap({ context });
 }
 
 async function ensurePluginsRegistry() {
@@ -337,6 +369,8 @@ module.exports = {
   PLUGINS_STATE_KEY,
   DEFAULT_REGISTRY_ID,
   ensurePluginsRegistry,
+  registerPluginsRoot,
+  loadAllPluginsFromFolder,
   discoverPlugins,
   bootstrap,
   listPlugins,
