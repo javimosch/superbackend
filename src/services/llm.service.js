@@ -249,6 +249,7 @@ async function logAuditEntry({
         model,
         variables: variables || {},
         requestOptions: requestOptions || {},
+        auditContext: requestOptions?.auditContext || null,
         errorMessage,
         usage: usage || null,
       },
