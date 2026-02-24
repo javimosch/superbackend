@@ -1,6 +1,6 @@
 {
   "name": "@intranefr/superbackend",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Node.js middleware that gives your project backend superpowers",
   "main": "index.js",
   "scripts": {
