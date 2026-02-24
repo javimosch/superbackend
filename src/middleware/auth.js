@@ -131,9 +131,37 @@ const adminSessionAuth = (req, res, next) => {
 
 // Admin authentication middleware that supports both session and basic auth
 const adminAuth = (req, res, next) => {
-  // First try session authentication
-  if (req.session && req.session.authenticated) {
-    return adminSessionAuth(req, res, next);
+  // First try session authentication (only if session exists AND is authenticated)
+  if (req.session && req.session.authenticated === true) {
+    // Verify session is still valid (check login time)
+    const loginTime = new Date(req.session.loginTime);
+    const now = new Date();
+    const sessionAge = (now - loginTime) / (1000 * 60 * 60); // hours
+    
+    // Session expires after 24 hours
+    if (sessionAge > 24) {
+      req.session.destroy((err) => {
+        if (err) console.error('Error destroying expired session:', err);
+      });
+      
+      if (req.xhr || req.headers.accept?.includes('application/json')) {
+        return res.status(401).json({ 
+          error: "Session expired", 
+          redirectTo: `${req.adminPath || '/admin'}/login` 
+        });
+      }
+      
+      return res.redirect(`${req.adminPath || '/admin'}/login?error=Session expired`);
+    }
+
+    // Attach user info to request for consistency with other auth middleware
+    req.user = {
+      authenticated: true,
+      authType: req.session.authType,
+      role: req.session.role
+    };
+    
+    return next();
   }
   
   // Fallback to basic auth for backward compatibility
