@@ -3,232 +3,323 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SuperDemos - Admin</title>
+    <title>SuperDemos — Admin</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>[v-cloak]{display:none}</style>
   </head>
-  <body class="bg-gray-100">
-    <div id="app" class="min-h-screen">
-      <div class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div class="flex justify-between items-center">
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">SuperDemos</h1>
-              <p class="text-sm text-gray-600 mt-1">Create interactive product demos via SDK + WebSocket authoring.</p>
-            </div>
-          </div>
+  <body class="bg-gray-50 text-gray-900">
+    <div id="app" v-cloak class="min-h-screen">
+
+      <!-- Toast -->
+      <div v-if="toast.show" class="fixed top-4 right-4 z-50 pointer-events-none">
+        <div :class="['px-4 py-3 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2', toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white']">
+          <span>{{ toast.type === 'error' ? '✕' : '✓' }}</span>
+          {{ toast.message }}
         </div>
       </div>
 
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        <div v-if="toast.show" class="fixed top-4 right-4 z-50">
-          <div :class="['px-4 py-3 rounded shadow text-sm', toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-green-600 text-white']">
-            {{ toast.message }}
-          </div>
-        </div>
-
-        <div class="bg-white rounded-lg shadow p-4">
-          <div class="flex items-start justify-between gap-4 flex-wrap">
+      <!-- Navbar -->
+      <header class="bg-white border-b border-gray-200 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white text-xs font-bold select-none">SD</div>
             <div>
-              <h2 class="font-semibold text-gray-800">SDK embed (quick)</h2>
-              <p class="text-xs text-gray-500">Paste this in your external app/website. It enables both live + author mode.</p>
+              <h1 class="text-base font-bold text-gray-900 leading-tight">SuperDemos</h1>
+              <p class="text-[11px] text-gray-500 leading-tight">Interactive demo authoring</p>
             </div>
           </div>
-          <pre class="mt-3 text-[11px] bg-gray-50 border border-gray-200 rounded p-2 whitespace-pre-wrap break-words"><code>&lt;script src="{{ origin }}<%= baseUrl %>/public/sdk/superdemos.iife.js"&gt;&lt;/script&gt;
+          <div class="flex items-center gap-2">
+            <a :href="qaPageUrl" target="_blank" rel="noreferrer" class="text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">QA Playground ↗</a>
+            <button @click="refreshAll" class="text-xs px-3 py-1.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium">↻ Refresh</button>
+          </div>
+        </div>
+      </header>
+
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 space-y-4">
+
+        <!-- SDK snippet (collapsible) -->
+        <details class="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <summary class="px-4 py-3 cursor-pointer text-sm font-semibold text-gray-700 flex items-center gap-2 select-none list-none">
+            <span class="text-gray-400">&#123;&#125;</span> SDK embed snippet
+            <span class="ml-auto text-xs font-normal text-gray-400">click to expand</span>
+          </summary>
+          <div class="px-4 pb-4 pt-1">
+            <p class="text-xs text-gray-500 mb-2">Paste in your external app to enable live + author modes.</p>
+            <pre class="text-[11px] bg-gray-50 border border-gray-200 rounded-lg p-3 whitespace-pre-wrap break-words"><code>&lt;script src="{{ origin }}<%= baseUrl %>/public/sdk/superdemos.iife.js"&gt;&lt;/script&gt;
 &lt;script&gt;
   SuperDemos.init({
     projectId: 'sdp_yourproject',
     apiUrl: '{{ origin }}<%= baseUrl %>',
-    apiKey: null, // set if private
+    apiKey: null, // required if private project
     mode: 'live',
   });
 &lt;/script&gt;</code></pre>
+          </div>
+        </details>
+
+        <!-- Context breadcrumb (visible once a project is selected) -->
+        <div v-if="selectedProject" class="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2.5 flex items-center gap-2 text-sm flex-wrap">
+          <span class="text-blue-500 font-medium">Project</span>
+          <span class="font-semibold text-blue-900">{{ selectedProject.name }}</span>
+          <button @click="copyText(selectedProject.projectId, 'Project ID')" class="text-[11px] px-2 py-0.5 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-700 font-mono">{{ selectedProject.projectId }} ⧉</button>
+          <span :class="['text-[10px] px-2 py-0.5 rounded-full font-medium', selectedProject.isPublic ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700']">{{ selectedProject.isPublic ? 'public' : 'private' }}</span>
+          <template v-if="selectedDemo">
+            <span class="text-blue-300 mx-0.5">›</span>
+            <span class="text-blue-500 font-medium">Demo</span>
+            <span class="font-semibold text-blue-900">{{ selectedDemo.name }}</span>
+            <button @click="copyText(selectedDemo.demoId, 'Demo ID')" class="text-[11px] px-2 py-0.5 rounded-md bg-blue-100 hover:bg-blue-200 text-blue-700 font-mono">{{ selectedDemo.demoId }} ⧉</button>
+            <span :class="['text-[10px] px-2 py-0.5 rounded-full font-medium', selectedDemo.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600']">{{ selectedDemo.status }}</span>
+          </template>
+          <template v-else>
+            <span class="text-blue-300 mx-0.5">›</span>
+            <span class="text-xs text-blue-400">select a demo</span>
+          </template>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="bg-white rounded-lg shadow p-4 space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="font-semibold text-gray-800">Projects</h2>
-              <button @click="refreshAll" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Refresh</button>
+        <!-- API key banner (shown once after project creation) -->
+        <div v-if="lastGeneratedKey" class="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-start gap-3">
+          <span class="text-amber-500 text-xl leading-none mt-0.5">&#128273;</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-amber-900 text-sm">New project API key — copy now, it won't be shown again</div>
+            <div class="font-mono text-xs mt-1 break-all text-amber-800">{{ lastGeneratedKey }}</div>
+          </div>
+          <button @click="copyText(lastGeneratedKey, 'API key')" class="flex-shrink-0 text-xs px-3 py-1.5 rounded-md bg-amber-200 hover:bg-amber-300 text-amber-900 font-medium">Copy</button>
+        </div>
+
+        <!-- Three-column main workspace -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+          <!-- ===== PROJECTS PANEL ===== -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+                Projects
+                <span class="text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{{ projects.length }}</span>
+              </h2>
             </div>
 
-            <div class="space-y-2">
-              <input v-model="newProject.name" class="w-full border rounded px-3 py-2 text-sm" placeholder="Project name" />
-              <input v-model="newProject.projectId" class="w-full border rounded px-3 py-2 text-sm" placeholder="projectId (optional, sdp_...)" />
-              <label class="flex items-center gap-2 text-sm">
-                <input type="checkbox" v-model="newProject.isPublic" />
-                Public
-              </label>
-              <button @click="createProject" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded">Create project</button>
+            <!-- New project form (collapsible) -->
+            <div class="px-4 py-3 border-b border-gray-100">
+              <details>
+                <summary class="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-700 select-none list-none">+ New project</summary>
+                <div class="mt-3 space-y-2">
+                  <input v-model="newProject.name" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Project name" />
+                  <input v-model="newProject.projectId" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="projectId (optional, sdp_...)" />
+                  <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" v-model="newProject.isPublic" class="rounded" />
+                    Public (no API key required)
+                  </label>
+                  <button @click="createProject" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded-lg font-medium">Create project</button>
+                </div>
+              </details>
             </div>
 
-            <div v-if="lastGeneratedKey" class="text-xs bg-amber-50 border border-amber-200 rounded p-2">
-              <div class="font-semibold">Project API key (copy now)</div>
-              <div class="flex items-start gap-2">
-                <div class="font-mono break-words flex-1">{{ lastGeneratedKey }}</div>
-                <button @click="copyText(lastGeneratedKey, 'Project API key')" class="text-xs px-2 py-1 rounded bg-amber-200 hover:bg-amber-300">Copy</button>
-              </div>
-            </div>
-
-            <div class="border-t pt-3">
-              <div class="text-xs text-gray-500 mb-2">Select a project:</div>
-              <div class="space-y-1 max-h-[420px] overflow-auto">
-                <button
+            <!-- Project list (divs, not nested buttons) -->
+            <div class="flex-1 overflow-hidden">
+              <div class="p-3 space-y-1 max-h-[360px] overflow-y-auto">
+                <div v-if="!projects.length" class="text-center py-8 text-sm text-gray-400">No projects yet</div>
+                <div
                   v-for="(p, pIdx) in (projects || [])"
                   :key="(p && p.projectId) || ('p-' + pIdx)"
                   @click="selectProject(p)"
-                  :class="['w-full text-left px-3 py-2 rounded text-sm border', selectedProject && p && selectedProject.projectId === p.projectId ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50']"
+                  :class="['group rounded-lg border px-3 py-2.5 cursor-pointer transition-all', selectedProject && p && selectedProject.projectId === p.projectId ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50']"
                 >
-                  <div class="font-medium text-gray-900">{{ (p && p.name) || 'Unnamed project' }}</div>
-                  <div class="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
-                    <span>{{ (p && p.projectId) || '-' }}</span>
-                    <button @click.stop="copyText(p && p.projectId, 'Project ID')" class="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Copy ID</button>
-                    <span>·</span>
-                    <span :class="(p && p.isPublic) ? 'text-green-600' : 'text-amber-600'">{{ (p && p.isPublic) ? 'public' : 'private' }}</span>
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="font-medium text-gray-900 text-sm truncate">{{ (p && p.name) || 'Unnamed' }}</div>
+                    <span :class="['text-[10px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0', (p && p.isPublic) ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700']">{{ (p && p.isPublic) ? 'public' : 'private' }}</span>
                   </div>
-                </button>
+                  <div class="flex items-center gap-2 mt-1">
+                    <span class="text-[11px] text-gray-400 font-mono truncate flex-1">{{ (p && p.projectId) || '—' }}</span>
+                    <button @click.stop="copyText(p && p.projectId, 'Project ID')" class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity">⧉ Copy ID</button>
+                  </div>
+                </div>
               </div>
             </div>
-            <div class="border-t pt-3 space-y-2" v-if="selectedProject">
-              <div class="text-xs font-semibold text-gray-700">Project demo style</div>
-              <select v-model="projectStylePreset" class="w-full border rounded px-2 py-2 text-sm">
+
+            <!-- Style settings (shown when a project is selected) -->
+            <div v-if="selectedProject" class="border-t border-gray-100 p-4 space-y-2 bg-gray-50 rounded-b-xl">
+              <div class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Style settings</div>
+              <select v-model="projectStylePreset" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-300">
                 <option value="default">default</option>
                 <option value="glass-dark">glass-dark</option>
                 <option value="high-contrast">high-contrast</option>
                 <option value="soft-purple">soft-purple</option>
               </select>
-              <textarea v-model="projectStyleOverrides" rows="4" class="w-full border rounded px-2 py-2 text-xs font-mono" placeholder="Custom CSS override (optional)"></textarea>
-              <button @click="saveProjectStyleSettings" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded">Save style settings</button>
+              <textarea v-model="projectStyleOverrides" rows="3" class="w-full border border-gray-200 rounded-lg px-2 py-2 text-xs font-mono bg-white focus:outline-none focus:ring-2 focus:ring-blue-300 resize-none" placeholder="Custom CSS override (optional)"></textarea>
+              <button @click="saveProjectStyleSettings" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-3 py-2 rounded-lg font-medium">Save style</button>
             </div>
           </div>
 
-          <div class="bg-white rounded-lg shadow p-4 space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="font-semibold text-gray-800">Demos</h2>
+          <!-- ===== DEMOS PANEL ===== -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+                Demos
+                <span v-if="selectedProject" class="text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{{ demos.length }}</span>
+              </h2>
             </div>
 
-            <div v-if="!selectedProject" class="text-sm text-gray-500">Select a project to manage demos.</div>
-
-            <div v-if="selectedProject" class="space-y-2">
-              <input v-model="newDemo.name" class="w-full border rounded px-3 py-2 text-sm" placeholder="Demo name" />
-              <input v-model="newDemo.startUrlPattern" class="w-full border rounded px-3 py-2 text-sm" placeholder="startUrlPattern (optional substring)" />
-              <button @click="createDemo" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded">Create demo</button>
+            <div v-if="!selectedProject" class="flex-1 flex items-center justify-center p-8">
+              <div class="text-center text-sm text-gray-400 space-y-2">
+                <div class="text-3xl text-gray-200">&#8592;</div>
+                <div>Select a project first</div>
+              </div>
             </div>
 
-            <div class="border-t pt-3" v-if="selectedProject">
-              <div class="text-xs text-gray-500 mb-2">Select a demo:</div>
-              <div class="space-y-1 max-h-[420px] overflow-auto">
-                <button
-                  v-for="(d, dIdx) in (demos || [])"
-                  :key="(d && d.demoId) || ('d-' + dIdx)"
-                  @click="selectDemo(d)"
-                  :class="['w-full text-left px-3 py-2 rounded text-sm border', selectedDemo && d && selectedDemo.demoId === d.demoId ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:bg-gray-50']"
-                >
-                  <div class="font-medium text-gray-900">{{ (d && d.name) || 'Unnamed demo' }}</div>
-                  <div class="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
-                    <span>{{ (d && d.demoId) || '-' }}</span>
-                    <button @click.stop="copyText(d && d.demoId, 'Demo ID')" class="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200">Copy ID</button>
-                    <span>·</span>
-                    <span :class="(d && d.status) === 'published' ? 'text-green-700' : 'text-gray-600'">{{ (d && d.status) || 'draft' }}</span>
-                    <span>·</span>
-                    <span>v{{ (d && d.publishedVersion) || 0 }}</span>
+            <template v-if="selectedProject">
+              <!-- New demo form (collapsible) -->
+              <div class="px-4 py-3 border-b border-gray-100">
+                <details>
+                  <summary class="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-700 select-none list-none">+ New demo</summary>
+                  <div class="mt-3 space-y-2">
+                    <input v-model="newDemo.name" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Demo name" />
+                    <input v-model="newDemo.startUrlPattern" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="startUrlPattern (optional)" />
+                    <button @click="createDemo" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm px-3 py-2 rounded-lg font-medium">Create demo</button>
                   </div>
+                </details>
+              </div>
+
+              <!-- Demo list (divs, not nested buttons) -->
+              <div class="flex-1 overflow-hidden">
+                <div class="p-3 space-y-1 max-h-[420px] overflow-y-auto">
+                  <div v-if="!demos.length" class="text-center py-8 text-sm text-gray-400">No demos yet</div>
+                  <div
+                    v-for="(d, dIdx) in (demos || [])"
+                    :key="(d && d.demoId) || ('d-' + dIdx)"
+                    @click="selectDemo(d)"
+                    :class="['group rounded-lg border px-3 py-2.5 cursor-pointer transition-all', selectedDemo && d && selectedDemo.demoId === d.demoId ? 'bg-blue-50 border-blue-300' : 'bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50']"
+                  >
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="font-medium text-gray-900 text-sm truncate">{{ (d && d.name) || 'Unnamed' }}</div>
+                      <div class="flex items-center gap-1 flex-shrink-0">
+                        <span v-if="d && d.publishedVersion" class="text-[10px] text-gray-400 font-mono">v{{ d.publishedVersion }}</span>
+                        <span :class="['text-[10px] px-1.5 py-0.5 rounded-full font-medium', (d && d.status) === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500']">{{ (d && d.status) || 'draft' }}</span>
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-1">
+                      <span class="text-[11px] text-gray-400 font-mono truncate flex-1">{{ (d && d.demoId) || '—' }}</span>
+                      <button @click.stop="copyText(d && d.demoId, 'Demo ID')" class="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0 transition-opacity">⧉ Copy ID</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Publish action -->
+              <div v-if="selectedDemo" class="border-t border-gray-100 p-4 bg-gray-50 rounded-b-xl">
+                <button @click="publishDemo" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded-lg font-medium flex items-center justify-center gap-2">
+                  &#9650; Publish demo
                 </button>
               </div>
-            </div>
-
-            <div v-if="selectedDemo" class="border-t pt-3 space-y-2">
-              <button @click="publishDemo" class="w-full bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded">Publish</button>
-            </div>
+            </template>
           </div>
 
-          <div class="bg-white rounded-lg shadow p-4 space-y-4">
-            <div class="flex items-center justify-between">
-              <h2 class="font-semibold text-gray-800">Steps & Authoring</h2>
+          <!-- ===== STEPS & AUTHORING PANEL ===== -->
+          <div class="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col">
+            <div class="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+              <h2 class="font-semibold text-gray-800 flex items-center gap-2">
+                Steps & Authoring
+                <span v-if="selectedDemo" class="text-[11px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{{ steps.length }}</span>
+              </h2>
+              <button v-if="selectedDemo" @click="saveSteps" class="text-xs px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">Save steps</button>
             </div>
 
-            <div v-if="!selectedDemo" class="text-sm text-gray-500">Select a demo to edit steps.</div>
+            <div v-if="!selectedDemo" class="flex-1 flex items-center justify-center p-8">
+              <div class="text-center text-sm text-gray-400 space-y-2">
+                <div class="text-3xl text-gray-200">&#8592;</div>
+                <div>Select a demo first</div>
+              </div>
+            </div>
 
-            <div v-if="selectedDemo" class="space-y-3">
-              <div class="border rounded p-3 space-y-2">
-                <div class="font-semibold text-sm text-gray-800">Authoring session</div>
-                <div class="text-xs bg-blue-50 border border-blue-200 rounded p-2 space-y-1">
-                  <div class="font-semibold text-blue-900">QA quick start</div>
-                  <div>
-                    <a class="text-blue-700 underline break-all" :href="qaPageUrl" target="_blank" rel="noreferrer">{{ qaPageUrl }}</a>
+            <div v-if="selectedDemo" class="flex-1 overflow-y-auto p-4 space-y-4">
+
+              <!-- Authoring session box -->
+              <div class="border border-gray-200 rounded-xl overflow-hidden">
+                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <div class="text-xs font-semibold text-gray-700">Authoring session</div>
+                  <div class="flex items-center gap-1.5">
+                    <span :class="['w-2 h-2 rounded-full', authoring.wsStatus === 'connected' ? 'bg-green-500' : authoring.wsStatus === 'connecting' ? 'bg-amber-400' : authoring.wsStatus === 'error' ? 'bg-red-500' : 'bg-gray-300']"></span>
+                    <span class="text-[10px] text-gray-500 font-mono">{{ authoring.wsStatus }}</span>
                   </div>
+                </div>
+                <div class="p-3 space-y-2">
                   <div class="flex gap-2">
-                    <button @click="setQaTargetUrl" class="text-xs px-2 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white">Use QA page as target</button>
-                    <a :href="qaPageUrl" target="_blank" rel="noreferrer" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Open QA page</a>
+                    <input v-model="authoring.targetUrl" class="flex-1 min-w-0 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300" placeholder="Target URL" />
+                    <button @click="setQaTargetUrl" class="flex-shrink-0 text-xs px-2.5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium">QA</button>
                   </div>
-                </div>
-                <input v-model="authoring.targetUrl" class="w-full border rounded px-3 py-2 text-sm" placeholder="Target URL to open (new window)" />
-                <button @click="startAuthoring" class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm px-3 py-2 rounded">Start authoring</button>
-
-                <div v-if="authoring.connectUrl" class="text-xs bg-gray-50 border border-gray-200 rounded p-2 space-y-2">
-                  <div>
-                    <div class="font-semibold">Open this URL (new tab)</div>
-                    <a class="text-blue-700 underline break-words" :href="authoring.connectUrl" target="_blank" rel="noreferrer">{{ authoring.connectUrl }}</a>
-                  </div>
-                  <div class="text-gray-600">
-                    WS: <span class="font-mono">{{ authoring.wsStatus }}</span>
+                  <button @click="startAuthoring" class="w-full bg-purple-600 hover:bg-purple-700 text-white text-sm px-3 py-2 rounded-lg font-medium">Start authoring session</button>
+                  <div v-if="authoring.connectUrl" class="text-xs bg-purple-50 border border-purple-200 rounded-lg p-2.5 space-y-1">
+                    <div class="font-semibold text-purple-900">Open this URL in your target app:</div>
+                    <a class="text-purple-700 underline break-all block" :href="authoring.connectUrl" target="_blank" rel="noreferrer">{{ authoring.connectUrl }}</a>
                   </div>
                 </div>
               </div>
 
-              <div class="border rounded p-3 space-y-2">
-                <div class="flex items-center justify-between gap-2">
-                  <div>
-                    <div class="font-semibold text-sm text-gray-800">Selected element (from SDK)</div>
-                    <div class="text-xs text-gray-500">Click an element in the target app while authoring.</div>
-                  </div>
-                  <button @click="addStepFromSelection" class="text-xs px-3 py-2 rounded bg-gray-900 hover:bg-gray-800 text-white">Add step</button>
+              <!-- Selected element box -->
+              <div class="border border-gray-200 rounded-xl overflow-hidden">
+                <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <div class="text-xs font-semibold text-gray-700">Selected element</div>
+                  <button
+                    @click="addStepFromSelection"
+                    :disabled="!lastSelection"
+                    :class="['text-xs px-2.5 py-1 rounded-lg font-medium transition-colors', lastSelection ? 'bg-gray-900 hover:bg-gray-700 text-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed']"
+                  >+ Add step</button>
                 </div>
-                <div class="text-xs font-mono bg-gray-50 border border-gray-200 rounded p-2 break-words" v-if="lastSelection">
-                  {{ lastSelection.selector }}
+                <div class="p-3">
+                  <div v-if="lastSelection" class="text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg p-2 break-all text-gray-700">{{ lastSelection.selector }}</div>
+                  <div v-else class="text-xs text-gray-400 text-center py-2">Click an element in the target app to select it.</div>
                 </div>
-                <div class="text-xs text-gray-500" v-else>No selection yet.</div>
               </div>
 
-              <div class="border rounded p-3 space-y-2">
-                <div class="flex items-center justify-between">
-                  <div class="font-semibold text-sm text-gray-800">Steps</div>
-                  <button @click="saveSteps" class="text-xs px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white">Save</button>
-                </div>
-
-                <div class="space-y-2 max-h-[420px] overflow-auto">
-                  <div v-for="(s, idx) in steps" :key="idx" class="border border-gray-200 rounded p-2 space-y-2">
-                    <div class="text-xs text-gray-500">#{{ idx + 1 }}</div>
-                    <input v-model="s.selector" class="w-full border rounded px-2 py-1 text-xs font-mono" placeholder="selector" />
-                    <input v-model="s.message" class="w-full border rounded px-2 py-1 text-sm" placeholder="message" />
+              <!-- Steps list -->
+              <div v-if="steps.length" class="space-y-2">
+                <div v-for="(s, idx) in steps" :key="idx" class="border border-gray-200 rounded-xl overflow-hidden">
+                  <div class="px-3 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    <span class="text-xs font-semibold text-gray-600">Step {{ idx + 1 }}</span>
+                    <div class="flex items-center gap-1">
+                      <button @click="moveStep(idx, -1)" :disabled="idx === 0" :class="['text-xs w-6 h-6 rounded flex items-center justify-center', idx === 0 ? 'text-gray-300' : 'text-gray-500 hover:bg-gray-200']">&#8593;</button>
+                      <button @click="moveStep(idx, 1)" :disabled="idx === steps.length - 1" :class="['text-xs w-6 h-6 rounded flex items-center justify-center', idx === steps.length - 1 ? 'text-gray-300' : 'text-gray-500 hover:bg-gray-200']">&#8595;</button>
+                      <button @click="previewStep(s)" class="text-[10px] px-2 py-1 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-700 font-medium ml-1">Preview</button>
+                      <button @click="removeStep(idx)" class="text-[10px] px-2 py-1 rounded-md bg-red-100 hover:bg-red-200 text-red-700 font-medium">Remove</button>
+                    </div>
+                  </div>
+                  <div class="p-3 space-y-2">
+                    <input v-model="s.selector" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="CSS selector" />
+                    <input v-model="s.message" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Step message" />
                     <div class="grid grid-cols-2 gap-2">
-                      <select v-model="s.placement" class="w-full border rounded px-2 py-1 text-sm">
-                        <option value="auto">auto</option>
-                        <option value="top">top</option>
-                        <option value="bottom">bottom</option>
-                        <option value="left">left</option>
-                        <option value="right">right</option>
-                      </select>
-                      <select v-model="s.advance.type" class="w-full border rounded px-2 py-1 text-sm">
-                        <option value="manualNext">manualNext</option>
-                        <option value="clickTarget">clickTarget</option>
-                        <option value="delayMs">delayMs</option>
-                      </select>
+                      <div>
+                        <label class="text-[10px] text-gray-400 mb-0.5 block">Placement</label>
+                        <select v-model="s.placement" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300">
+                          <option value="auto">auto</option>
+                          <option value="top">top</option>
+                          <option value="bottom">bottom</option>
+                          <option value="left">left</option>
+                          <option value="right">right</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="text-[10px] text-gray-400 mb-0.5 block">Advance</label>
+                        <select v-model="s.advance.type" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-300">
+                          <option value="manualNext">Click Next</option>
+                          <option value="clickTarget">Click target</option>
+                          <option value="delayMs">Auto (delay)</option>
+                        </select>
+                      </div>
                     </div>
-                    <div v-if="s.advance.type === 'delayMs'" class="grid grid-cols-2 gap-2">
-                      <input v-model.number="s.advance.ms" type="number" class="w-full border rounded px-2 py-1 text-sm" placeholder="ms" />
-                    </div>
-                    <div class="flex gap-2">
-                      <button @click="removeStep(idx)" class="text-xs px-2 py-1 rounded bg-red-600 hover:bg-red-700 text-white">Remove</button>
-                      <button @click="moveStep(idx, -1)" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Up</button>
-                      <button @click="moveStep(idx, 1)" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Down</button>
-                      <button @click="previewStep(s)" class="ml-auto text-xs px-2 py-1 rounded bg-purple-600 hover:bg-purple-700 text-white">Preview</button>
+                    <div v-if="s.advance.type === 'delayMs'">
+                      <input v-model.number="s.advance.ms" type="number" class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" placeholder="Delay in ms" />
                     </div>
                   </div>
                 </div>
               </div>
+
+              <div v-if="!steps.length" class="text-center py-5 text-xs text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                No steps yet — start an authoring session and click elements to add steps.
+              </div>
+
             </div>
           </div>
+
         </div>
       </div>
     </div>
