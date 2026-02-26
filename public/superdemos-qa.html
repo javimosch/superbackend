@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SuperDemos QA Playground</title>
+    <style>
+      body {
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+        margin: 0;
+        background: #f6f7fb;
+        color: #111827;
+      }
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 14px;
+        margin-bottom: 14px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+      label {
+        font-size: 12px;
+        color: #374151;
+        display: block;
+        margin-bottom: 4px;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        padding: 8px 10px;
+        font-size: 13px;
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 9px 12px;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .btn {
+        background: #111827;
+        color: #fff;
+      }
+      .btn.secondary {
+        background: #e5e7eb;
+        color: #111827;
+      }
+      .note {
+        font-size: 12px;
+        color: #4b5563;
+      }
+      .stage {
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 12px;
+        margin-top: 8px;
+      }
+      .sidebar {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      .panel {
+        min-height: 460px;
+        background: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 14px;
+      }
+      .fake-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+      }
+      .muted {
+        color: #6b7280;
+        font-size: 12px;
+      }
+      #log {
+        height: 180px;
+        overflow: auto;
+        background: #0b1220;
+        color: #d1e7ff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        border-radius: 10px;
+        padding: 10px;
+      }
+      @media (max-width: 900px) {
+        .row,
+        .stage {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h2 style="margin: 0 0 8px 0">SuperDemos QA Playground</h2>
+        <div class="note">
+          Use this page as target URL from Admin SuperDemos authoring. It also
+          supports live-mode playback with manual config below.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div>
+            <label>API URL</label>
+            <input id="apiUrl" />
+          </div>
+          <div>
+            <label>Project ID</label>
+            <input id="projectId" placeholder="sdp_..." />
+          </div>
+        </div>
+        <div style="margin-top: 10px">
+          <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 0">
+            <input id="force" type="checkbox" style="width: auto" />
+            <span>Force replay even if already seen</span>
+          </label>
+        </div>
+        <div class="row" style="margin-top: 10px">
+          <div>
+            <label>Project API key (private projects only)</label>
+            <input id="apiKey" placeholder="optional" />
+          </div>
+          <div>
+            <label>Mode</label>
+            <select id="mode">
+              <option value="live">live</option>
+              <option value="author">
+                author (usually auto via query params)
+              </option>
+            </select>
+          </div>
+        </div>
+        <div
+          style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap"
+        >
+          <button class="btn" id="btnInit">Init SuperDemos</button>
+          <button class="btn secondary" id="btnSave">Save config</button>
+          <button class="btn secondary" id="btnResetSeen">
+            Reset seen flags
+          </button>
+        </div>
+        <div class="note" style="margin-top: 8px">
+          Author mode is automatically enabled when URL includes
+          <code>sd_session</code> and <code>sd_token</code>.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="stage">
+          <aside class="sidebar">
+            <div class="muted">Navigation</div>
+            <button
+              id="menu-home"
+              class="btn secondary"
+              style="width: 100%; margin-top: 8px"
+            >
+              Home
+            </button>
+            <button
+              id="menu-billing"
+              class="btn secondary"
+              style="width: 100%; margin-top: 8px"
+            >
+              Billing
+            </button>
+            <button
+              id="menu-settings"
+              class="btn secondary"
+              style="width: 100%; margin-top: 8px"
+            >
+              Settings
+            </button>
+          </aside>
+          <main class="panel">
+            <h3 id="hero-title" style="margin-top: 0">Welcome to QA Product</h3>
+            <p id="hero-subtitle" class="muted">
+              This fake app contains stable selectors for SuperDemos authoring
+              and live playback.
+            </p>
+            <div class="fake-card" data-testid="plan-card">
+              <strong id="plan-name">Pro Plan</strong>
+              <p class="muted">
+                Includes unlimited projects and priority support.
+              </p>
+              <button id="upgrade-btn" class="btn">Upgrade now</button>
+            </div>
+            <div class="fake-card" data-testid="invoice-card">
+              <strong>Invoice #A-1024</strong>
+              <p class="muted">Amount due: $149</p>
+              <button id="pay-now-btn" class="btn secondary">Pay now</button>
+            </div>
+            <label for="coupon-input">Coupon</label>
+            <input id="coupon-input" placeholder="SPRING20" />
+            <div style="margin-top: 10px">
+              <button id="apply-coupon-btn" class="btn secondary">
+                Apply coupon
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top: 0">Runtime log</h3>
+        <pre id="log"></pre>
+      </div>
+    </div>
+
+    <script src="/public/sdk/superdemos.iife.js"></script>
+    <script>
+      (function () {
+        const logEl = document.getElementById("log");
+        const append = (msg) => {
+          const line = "[" + new Date().toISOString() + "] " + msg;
+          logEl.textContent += line + "\n";
+          logEl.scrollTop = logEl.scrollHeight;
+        };
+
+        const defaultApiUrl = window.location.origin;
+        const keys = {
+          apiUrl: "superdemos.qa.apiUrl",
+          projectId: "superdemos.qa.projectId",
+          apiKey: "superdemos.qa.apiKey",
+          mode: "superdemos.qa.mode",
+          force: "superdemos.qa.force",
+        };
+
+        const apiUrlEl = document.getElementById("apiUrl");
+        const projectIdEl = document.getElementById("projectId");
+        const apiKeyEl = document.getElementById("apiKey");
+        const modeEl = document.getElementById("mode");
+        const forceEl = document.getElementById("force");
+
+        apiUrlEl.value = localStorage.getItem(keys.apiUrl) || defaultApiUrl;
+        projectIdEl.value = localStorage.getItem(keys.projectId) || "";
+        apiKeyEl.value = localStorage.getItem(keys.apiKey) || "";
+        modeEl.value = localStorage.getItem(keys.mode) || "live";
+        forceEl.checked = localStorage.getItem(keys.force) === "1";
+
+        document.getElementById("btnSave").addEventListener("click", () => {
+          localStorage.setItem(keys.apiUrl, apiUrlEl.value || defaultApiUrl);
+          localStorage.setItem(keys.projectId, projectIdEl.value || "");
+          localStorage.setItem(keys.apiKey, apiKeyEl.value || "");
+          localStorage.setItem(keys.mode, modeEl.value || "live");
+          localStorage.setItem(keys.force, forceEl.checked ? "1" : "0");
+          append("Saved config.");
+        });
+
+        document
+          .getElementById("btnResetSeen")
+          .addEventListener("click", () => {
+            const toDelete = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith("superdemos.seen.")) toDelete.push(k);
+            }
+            toDelete.forEach((k) => localStorage.removeItem(k));
+            append("Cleared seen keys: " + toDelete.length);
+          });
+
+        document
+          .getElementById("btnInit")
+          .addEventListener("click", async () => {
+            try {
+              append("Init requested...");
+              const result = await window.superDemos.init({
+                apiUrl: apiUrlEl.value || defaultApiUrl,
+                projectId: projectIdEl.value,
+                apiKey: apiKeyEl.value || null,
+                mode: modeEl.value || "live",
+                force: forceEl.checked,
+              });
+              append("Init result: " + JSON.stringify(result));
+            } catch (e) {
+              append("Init error: " + (e && e.message ? e.message : String(e)));
+            }
+          });
+
+        // some interactions to make QA page feel like an app
+        const clickLog = (id, text) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener("click", () => append(text));
+        };
+        clickLog("upgrade-btn", "Clicked upgrade");
+        clickLog("pay-now-btn", "Clicked pay now");
+        clickLog("apply-coupon-btn", "Clicked apply coupon");
+        clickLog("menu-home", "Navigated Home");
+        clickLog("menu-billing", "Navigated Billing");
+        clickLog("menu-settings", "Navigated Settings");
+
+        append("QA page loaded.");
+      })();
+    </script>
+  </body>
+</html>
