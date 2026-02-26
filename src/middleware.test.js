@@ -102,6 +102,8 @@ jest.mock('./middleware/auth', () => ({
     next();
   }),
   requireAdmin: jest.fn((req, res, next) => next()),
+  adminSessionAuth: jest.fn((req, res, next) => next()),
+  adminAuth: jest.fn((req, res, next) => next()),
 }));
 
 jest.mock('./controllers/billing.controller', () => ({

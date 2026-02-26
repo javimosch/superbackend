@@ -26,7 +26,7 @@ const ejs = require("ejs");
 const session = require("express-session");
 const MongoStore = require("connect-mongo");
 const { adminSessionAuth } = require("./middleware/auth");
-const { requireModuleAccess } = require("./middleware/rbac");
+const { requireModuleAccess, isBasicAuthSuperAdmin } = require("./middleware/rbac");
 const endpointRegistry = require("./admin/endpointRegistry");
 const {
   createFeatureFlagsEjsMiddleware,
@@ -96,6 +96,7 @@ function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
   const pagesPrefix = options.pagesPrefix || "/";
+  const isJest = Boolean(process.env.JEST_WORKER_ID);
 
   const bootstrapPluginsRuntime = async () => {
     try {
@@ -209,6 +210,11 @@ function createMiddleware(options = {}) {
       attachExperimentsWebsocketServer,
     } = require("./services/experimentsWs.service");
     attachExperimentsWebsocketServer(server);
+
+    const {
+      attachSuperDemosWebsocketServer,
+    } = require("./services/superDemosWs.service");
+    attachSuperDemosWebsocketServer(server);
   };
 
   if (!errorCaptureInitialized) {
@@ -243,19 +249,19 @@ function createMiddleware(options = {}) {
         console.log("✅ Middleware: Connected to MongoDB");
         
         // Start cron scheduler after DB connection (only if enabled)
-        if (options.cron?.enabled !== false) {
+        if (!isJest && options.cron?.enabled !== false) {
           await cronScheduler.start();
           await healthChecksScheduler.start();
           await healthChecksBootstrap.bootstrap();
           await blogCronsBootstrap.bootstrap();
           await require("./services/experimentsCronsBootstrap.service").bootstrap();
         } else {
-          console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled);
+          console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, isJest ? '(jest)' : '');
         }
         
         // Initialize Telegram bots (check telegram config)
         const telegramEnabled = options.telegram?.enabled !== false;
-        if (telegramEnabled) {
+        if (!isJest && telegramEnabled) {
           const telegramInitializer =
             (telegramService && typeof telegramService.initialize === "function"
               ? telegramService.initialize.bind(telegramService)
@@ -273,7 +279,9 @@ function createMiddleware(options = {}) {
           console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled);
         }
 
-        await bootstrapPluginsRuntime();
+        if (!isJest) {
+          await bootstrapPluginsRuntime();
+        }
 
         // Console manager is already initialized early in the middleware
         console.log("[Console Manager] MongoDB connection established");
@@ -387,7 +395,7 @@ function createMiddleware(options = {}) {
     console.log("✅ Middleware: Using existing MongoDB connection");
     
     // Start cron scheduler for existing connection (only if enabled)
-    if (options.cron?.enabled !== false) {
+    if (!isJest && options.cron?.enabled !== false) {
       cronScheduler.start().catch((err) => {
         console.error("Failed to start cron scheduler:", err);
       });
@@ -407,12 +415,12 @@ function createMiddleware(options = {}) {
           console.error("Failed to bootstrap experiments crons:", err);
         });
     } else {
-      console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, "(existing connection)");
+      console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, "(existing connection)", isJest ? '(jest)' : '');
     }
     
     // Initialize Telegram bots for existing connection (check telegram config)
     const telegramEnabled = options.telegram?.enabled !== false;
-    if (telegramEnabled) {
+    if (!isJest && telegramEnabled) {
       const telegramInitializer =
         (telegramService && typeof telegramService.initialize === "function"
           ? telegramService.initialize.bind(telegramService)
@@ -432,9 +440,11 @@ function createMiddleware(options = {}) {
       console.log("🔍 Telegram bots disabled - telegram.enabled:", options.telegram?.enabled, "(existing connection)");
     }
 
-    bootstrapPluginsRuntime().catch((err) => {
-      console.error("Failed to bootstrap plugins runtime (existing connection):", err);
-    });
+    if (!isJest) {
+      bootstrapPluginsRuntime().catch((err) => {
+        console.error("Failed to bootstrap plugins runtime (existing connection):", err);
+      });
+    }
     
     // Initialize console manager AFTER database is already connected
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
@@ -530,6 +540,15 @@ function createMiddleware(options = {}) {
   }
 
   // Session middleware for admin authentication
+  const sessionMongoUrl = options.mongodbUri || process.env.MONGODB_URI || process.env.MONGO_URI;
+  const sessionStore = !isJest && sessionMongoUrl
+    ? MongoStore.create({
+      mongoUrl: sessionMongoUrl,
+      collectionName: 'admin_sessions',
+      ttl: 24 * 60 * 60 // 24 hours in seconds
+    })
+    : undefined;
+
   const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || 'superbackend-session-secret-fallback',
     resave: false,
@@ -540,11 +559,7 @@ function createMiddleware(options = {}) {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax'
     },
-    store: MongoStore.create({
-      mongoUrl: options.mongodbUri || process.env.MONGODB_URI,
-      collectionName: 'admin_sessions',
-      ttl: 24 * 60 * 60 // 24 hours in seconds
-    }),
+    store: sessionStore,
     name: 'superbackend.admin.session'
   });
 
@@ -1110,6 +1125,10 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
     "/api/admin/ui-components",
     require("./routes/adminUiComponents.routes"),
   );
+  router.use(
+    "/api/admin/superdemos",
+    require("./routes/adminSuperDemos.routes"),
+  );
   router.use("/api/admin/migration", require("./routes/adminMigration.routes"));
   router.use(
     "/api/admin/errors",
@@ -1151,6 +1170,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   router.use("/api/log", require("./routes/log.routes"));
   router.use("/api/error-tracking", require("./routes/errorTracking.routes"));
   router.use("/api/ui-components", require("./routes/uiComponentsPublic.routes"));
+  router.use("/api/superdemos", require("./routes/superDemos.routes"));
   router.use("/api/rbac", require("./routes/rbac.routes"));
   router.use("/registry", require("./routes/registry.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
@@ -1716,6 +1736,40 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
             adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
+          },
+          {
+            filename: templatePath,
+          },
+        );
+        res.send(html);
+      } catch (renderErr) {
+        console.error("Error rendering template:", renderErr);
+        res.status(500).send("Error rendering page");
+      }
+    });
+  });
+
+  // Admin SuperDemos page
+  router.get(`${adminPath}/superdemos`, requireModuleAccessWithIframe('superdemos', 'read'), (req, res) => {
+    const templatePath = path.join(
+      __dirname,
+      "..",
+      "views",
+      "admin-superdemos.ejs",
+    );
+    fs.readFile(templatePath, "utf8", (err, template) => {
+      if (err) {
+        console.error("Error reading template:", err);
+        return res.status(500).send("Error loading page");
+      }
+      try {
+        const html = ejs.render(
+          template,
+          {
+            baseUrl: req.baseUrl || '',
+            adminPath,
+            endpointRegistry,
+            isIframe: req.isIframe || false,
           },
           {
             filename: templatePath,

@@ -61,6 +61,8 @@ const DEFAULT_RIGHTS = [
   'admin_panel__file-manager:write',
   'admin_panel__ui-components:read',
   'admin_panel__ui-components:write',
+  'admin_panel__superdemos:read',
+  'admin_panel__superdemos:write',
   'admin_panel__headless:read',
   'admin_panel__headless:write',
   'admin_panel__pages:read',
