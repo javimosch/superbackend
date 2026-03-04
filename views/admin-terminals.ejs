@@ -42,6 +42,7 @@
       <div class="flex items-center gap-2">
         <button id="btn-new" class="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700">New</button>
         <button id="btn-close" class="px-3 py-2 rounded bg-red-600 text-white text-sm hover:bg-red-700">Close</button>
+        <button id="btn-reconnect" class="px-3 py-2 rounded bg-yellow-600 text-white text-sm hover:bg-yellow-700">Reconnect</button>
         <button id="btn-fullscreen" class="px-3 py-2 rounded bg-gray-600 text-white text-sm hover:bg-gray-700">Fullscreen</button>
       </div>
     </div>
@@ -49,8 +50,13 @@
     <div class="bg-white border border-gray-200 rounded-lg">
       <div class="border-b border-gray-200 flex items-center justify-between px-3 py-2">
         <div id="tabs" class="flex items-center gap-2 overflow-auto"></div>
-        <div class="text-xs text-gray-500 whitespace-nowrap">
-          Ctrl+Shift+T new · Ctrl+Shift+W close · Ctrl+Tab next · Ctrl+Shift+Tab prev · Alt+1..9 switch
+        <div class="flex items-center gap-4">
+          <div id="connection-status" class="text-xs text-gray-500 whitespace-nowrap">
+            <span id="status-indicator">○</span> <span id="status-text">No connection</span>
+          </div>
+          <div class="text-xs text-gray-500 whitespace-nowrap">
+            Ctrl+Shift+T new · Ctrl+Shift+W close · Ctrl+Tab next · Ctrl+Shift+Tab prev · Alt+1..9 switch
+          </div>
         </div>
       </div>
       <div id="terminal-container" class="h-[70vh]"></div>
@@ -62,17 +68,299 @@
   <script>
     window.BASE_URL = '<%= baseUrl %>';
     window.ADMIN_PATH = '<%= adminPath %>';
+    window.SERVER_PORT = '<%= serverPort %>';
 
     const state = {
       sessions: [],
       activeId: null,
     };
 
+    // WebSocket connection states
+    const ConnectionStates = {
+      DISCONNECTED: 'disconnected',
+      CONNECTING: 'connecting', 
+      CONNECTED: 'connected',
+      RECONNECTING: 'reconnecting',
+      FAILED: 'failed'
+    };
+
+    // WebSocket Manager for robust connection handling
+    class WebSocketManager {
+      constructor(sessionId, term, onMessage, onClose, onError) {
+        this.sessionId = sessionId;
+        this.term = term;
+        this.onMessage = onMessage;
+        this.onClose = onClose;
+        this.onError = onError;
+        this.ws = null;
+        this.state = ConnectionStates.DISCONNECTED;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 10;
+        this.reconnectDelay = 1000; // Start with 1 second
+        this.maxReconnectDelay = 30000; // Max 30 seconds
+        this.heartbeatInterval = null;
+        this.heartbeatTimeout = null;
+        this.isManualClose = false;
+        this.connectionDebounce = null;
+        
+        // Connection quality metrics
+        this.latency = 0;
+        this.lastPingTime = 0;
+        this.connectionQuality = 'good'; // good, poor, bad
+        this.messageCount = 0;
+        this.errorCount = 0;
+      }
+
+      connect() {
+        if (this.connectionDebounce) {
+          clearTimeout(this.connectionDebounce);
+        }
+
+        this.connectionDebounce = setTimeout(() => {
+          this._doConnect();
+        }, 100);
+      }
+
+      _doConnect() {
+        if (this.state === ConnectionStates.CONNECTING || this.state === ConnectionStates.CONNECTED) {
+          return;
+        }
+
+        this.state = ConnectionStates.CONNECTING;
+        this.updateConnectionUI();
+
+        try {
+          const wsUrl = baseWsUrl() + '/api/admin/terminals/ws?sessionId=' + encodeURIComponent(this.sessionId);
+          console.log(`[WS] Connecting to ${wsUrl}`);
+          
+          this.ws = new WebSocket(wsUrl);
+          this.setupEventHandlers();
+        } catch (error) {
+          console.error('[WS] Connection error:', error);
+          this.handleError(error);
+        }
+      }
+
+      setupEventHandlers() {
+        if (!this.ws) return;
+
+        this.ws.onopen = () => {
+          console.log(`[WS] Connected for session ${this.sessionId}`);
+          this.state = ConnectionStates.CONNECTED;
+          this.reconnectAttempts = 0;
+          this.reconnectDelay = 1000;
+          this.startHeartbeat();
+          this.updateConnectionUI();
+          this.term.write('\r\n[connected]\r\n');
+        };
+
+        this.ws.onmessage = (event) => {
+          this.resetHeartbeat();
+          this.messageCount++;
+          
+          try {
+            const msg = JSON.parse(String(event.data || ''));
+            if (msg && typeof msg === 'object') {
+              // Track latency for pong responses
+              if (msg.type === 'pong' && this.lastPingTime > 0) {
+                this.latency = Date.now() - this.lastPingTime;
+                
+                // Update connection quality based on latency
+                if (this.latency < 100) {
+                  this.connectionQuality = 'good';
+                } else if (this.latency < 500) {
+                  this.connectionQuality = 'poor';
+                } else {
+                  this.connectionQuality = 'bad';
+                }
+                
+                console.log(`[WS] Latency: ${this.latency}ms, Quality: ${this.connectionQuality}`);
+              }
+              
+              this.onMessage(msg);
+            }
+          } catch (error) {
+            console.error('[WS] Message parse error:', error);
+            this.errorCount++;
+          }
+        };
+
+        this.ws.onclose = (event) => {
+          console.log(`[WS] Connection closed for session ${this.sessionId}, code: ${event.code}, reason: ${event.reason}`);
+          this.stopHeartbeat();
+          this.ws = null;
+          
+          if (!this.isManualClose) {
+            this.handleDisconnect();
+          } else {
+            this.state = ConnectionStates.DISCONNECTED;
+            this.updateConnectionUI();
+          }
+          
+          if (this.onClose) {
+            this.onClose(event);
+          }
+        };
+
+        this.ws.onerror = (error) => {
+          console.error(`[WS] Error for session ${this.sessionId}:`, error);
+          this.handleError(error);
+          if (this.onError) {
+            this.onError(error);
+          }
+        };
+      }
+
+      startHeartbeat() {
+        this.stopHeartbeat();
+        
+        // Send ping every 30 seconds
+        this.heartbeatInterval = setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            try {
+              this.lastPingTime = Date.now();
+              this.ws.send(JSON.stringify({ type: 'ping' }));
+              
+              // Set timeout to detect if pong is received
+              this.heartbeatTimeout = setTimeout(() => {
+                console.warn('[WS] Heartbeat timeout, reconnecting...');
+                this.connectionQuality = 'bad';
+                this.reconnect();
+              }, 5000);
+            } catch (error) {
+              console.error('[WS] Heartbeat send error:', error);
+              this.connectionQuality = 'bad';
+              this.reconnect();
+            }
+          }
+        }, 30000);
+      }
+
+      stopHeartbeat() {
+        if (this.heartbeatInterval) {
+          clearInterval(this.heartbeatInterval);
+          this.heartbeatInterval = null;
+        }
+        if (this.heartbeatTimeout) {
+          clearTimeout(this.heartbeatTimeout);
+          this.heartbeatTimeout = null;
+        }
+      }
+
+      resetHeartbeat() {
+        if (this.heartbeatTimeout) {
+          clearTimeout(this.heartbeatTimeout);
+          this.heartbeatTimeout = null;
+        }
+      }
+
+      handleDisconnect() {
+        this.state = ConnectionStates.RECONNECTING;
+        this.updateConnectionUI();
+        this.term.write('\r\n[disconnected, attempting to reconnect...]\r\n');
+        this.reconnect();
+      }
+
+      handleError(error) {
+        this.state = ConnectionStates.FAILED;
+        this.updateConnectionUI();
+        this.term.write(`\r\n[connection error: ${error.message}]\r\n`);
+      }
+
+      reconnect() {
+        if (this.isManualClose) return;
+        
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          console.error('[WS] Max reconnect attempts reached');
+          this.state = ConnectionStates.FAILED;
+          this.updateConnectionUI();
+          this.term.write('\r\n[connection failed - max retries reached]\r\n');
+          return;
+        }
+
+        this.reconnectAttempts++;
+        const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay);
+        
+        console.log(`[WS] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
+        
+        setTimeout(() => {
+          if (!this.isManualClose) {
+            this._doConnect();
+          }
+        }, delay);
+      }
+
+      send(data) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          try {
+            this.ws.send(JSON.stringify(data));
+            return true;
+          } catch (error) {
+            console.error('[WS] Send error:', error);
+            return false;
+          }
+        }
+        return false;
+      }
+
+      close() {
+        this.isManualClose = true;
+        this.stopHeartbeat();
+        if (this.connectionDebounce) {
+          clearTimeout(this.connectionDebounce);
+          this.connectionDebounce = null;
+        }
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
+        }
+        this.state = ConnectionStates.DISCONNECTED;
+        this.updateConnectionUI();
+      }
+
+      updateConnectionUI() {
+        // Update tab appearance based on connection state
+        renderTabs();
+      }
+
+      getConnectionStatus() {
+        return {
+          state: this.state,
+          attempts: this.reconnectAttempts,
+          maxAttempts: this.maxReconnectAttempts
+        };
+      }
+    }
+
     function baseWsUrl() {
-      const base = window.BASE_URL || '';
-      const u = new URL(base || window.location.origin);
+      // Use window.location.origin as primary source since it's always correct
+      const origin = window.location.origin;
+      console.log('[WS] Using origin:', origin);
+      console.log('[WS] BASE_URL fallback:', window.BASE_URL);
+      console.log('[WS] SERVER_PORT:', window.SERVER_PORT);
+      
+      // If BASE_URL contains a different port than SERVER_PORT, override it
+      let finalOrigin = origin;
+      if (window.BASE_URL && window.SERVER_PORT) {
+        try {
+          const baseUrlObj = new URL(window.BASE_URL);
+          const serverPort = window.SERVER_PORT.toString();
+          
+          if (baseUrlObj.port !== serverPort) {
+            console.log(`[WS] Overriding BASE_URL port ${baseUrlObj.port} with SERVER_PORT ${serverPort}`);
+            finalOrigin = `${baseUrlObj.protocol}//${baseUrlObj.hostname}:${serverPort}`;
+          }
+        } catch (error) {
+          console.warn('[WS] Failed to parse BASE_URL, using origin:', error);
+        }
+      }
+      
+      const u = new URL(finalOrigin);
       const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
-      return proto + '//' + u.host + u.pathname.replace(/\/$/, '');
+      const wsUrl = proto + '//' + u.host + u.pathname.replace(/\/$/, '');
+      
+      console.log('[WS] Constructed WebSocket URL:', wsUrl);
+      return wsUrl;
     }
 
     function apiUrl(path) {
@@ -98,23 +386,60 @@
       state.sessions.forEach((s, idx) => {
         const btn = document.createElement('button');
         const active = s.sessionId === state.activeId;
-        btn.className = `px-3 py-1.5 rounded text-sm border ${active ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`;
-        btn.textContent = `#${idx + 1} ${s.sessionId.slice(0, 6)}`;
+        const wsManager = s.wsManager;
+        let statusIndicator = '';
+        let statusClass = '';
+        
+        if (wsManager) {
+          const status = wsManager.getConnectionStatus();
+          switch (status.state) {
+            case ConnectionStates.CONNECTED:
+              statusIndicator = '●';
+              statusClass = 'text-green-500';
+              break;
+            case ConnectionStates.CONNECTING:
+            case ConnectionStates.RECONNECTING:
+              statusIndicator = '○';
+              statusClass = 'text-yellow-500';
+              break;
+            case ConnectionStates.FAILED:
+              statusIndicator = '✗';
+              statusClass = 'text-red-500';
+              break;
+            default:
+              statusIndicator = '○';
+              statusClass = 'text-gray-400';
+          }
+        }
+        
+        btn.className = `px-3 py-1.5 rounded text-sm border flex items-center gap-1 ${active ? 'bg-blue-50 border-blue-200 text-blue-800' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`;
+        btn.innerHTML = `
+          <span class="${statusClass}">${statusIndicator}</span>
+          <span>#${idx + 1} ${s.sessionId.slice(0, 6)}</span>
+        `;
         btn.addEventListener('click', () => activateSession(s.sessionId));
         tabs.appendChild(btn);
       });
     }
 
     function destroySessionClient(s) {
-      try { if (s.ws) s.ws.close(); } catch {}
+      try { 
+        if (s.wsManager) {
+          s.wsManager.close();
+        } else if (s.ws) {
+          s.ws.close(); 
+        }
+      } catch {}
       try { if (s.term) s.term.dispose(); } catch {}
       s.ws = null;
+      s.wsManager = null;
       s.term = null;
     }
 
     function activateSession(sessionId) {
       state.activeId = sessionId;
       renderTabs();
+      updateConnectionStatus();
 
       const container = qs('terminal-container');
       container.innerHTML = '';
@@ -133,7 +458,7 @@
 
     function resizeActive() {
       const s = state.sessions.find((x) => x.sessionId === state.activeId);
-      if (!s || !s.term || !s.ws) return;
+      if (!s || !s.term) return;
 
       const el = s.termElement;
       const container = el.parentElement;
@@ -146,9 +471,14 @@
         s.term.resize(cols, rows);
       } catch {}
 
-      try {
-        s.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-      } catch {}
+      // Use WebSocketManager if available, fallback to direct WebSocket
+      if (s.wsManager) {
+        s.wsManager.send({ type: 'resize', cols, rows });
+      } else if (s.ws) {
+        try {
+          s.ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+        } catch {}
+      }
     }
 
     async function newTerminal() {
@@ -169,40 +499,53 @@
               const termElement = document.createElement('div');
               termElement.className = 'w-full h-full';
 
-              const ws = new WebSocket(baseWsUrl() + '/api/admin/terminals/ws?sessionId=' + encodeURIComponent(sessionId));
+              // Create WebSocketManager instead of direct WebSocket
+              const wsManager = new WebSocketManager(
+                sessionId,
+                term,
+                (msg) => {
+                  if (msg.type === 'output') {
+                    term.write(msg.data || '');
+                  } else if (msg.type === 'pong') {
+                    // Heartbeat response received
+                    console.log('[WS] Heartbeat pong received');
+                  } else if (msg.type === 'error') {
+                    term.write(`\r\n[server error: ${msg.error || 'unknown'}]\r\n`);
+                  }
+                },
+                (event) => {
+                  term.write('\r\n[connection closed]\r\n');
+                },
+                (error) => {
+                  term.write(`\r\n[connection error]\r\n`);
+                }
+              );
 
-              const s = { sessionId, term, ws, termElement };
+              const s = { sessionId, term, wsManager, termElement };
               state.sessions.push(s);
               state.activeId = sessionId;
               renderTabs();
 
-              ws.onopen = () => {
-                activateSession(sessionId);
-              };
-
-              ws.onmessage = (ev) => {
-                let msg;
-                try { msg = JSON.parse(String(ev.data || '')); } catch { return; }
-                if (!msg || typeof msg !== 'object') return;
-
-                if (msg.type === 'output') {
-                  term.write(msg.data || '');
-                }
-              };
-
-              ws.onclose = () => {
-                term.write('\r\n[disconnected]\r\n');
-              };
+              // Start the connection
+              wsManager.connect();
 
               term.onData((data) => {
-                try {
-                  ws.send(JSON.stringify({ type: 'input', data }));
-                } catch {}
+                wsManager.send({ type: 'input', data });
               });
 
               window.addEventListener('resize', () => {
                 if (state.activeId === sessionId) resizeActive();
               });
+
+              // Activate session when connection is established
+              const checkConnection = setInterval(() => {
+                if (wsManager.state === ConnectionStates.CONNECTED) {
+                  clearInterval(checkConnection);
+                  activateSession(sessionId);
+                } else if (wsManager.state === ConnectionStates.FAILED) {
+                  clearInterval(checkConnection);
+                }
+              }, 100);
 
               resolve();
             } catch (e) {
@@ -280,6 +623,91 @@
 
     qs('btn-new').addEventListener('click', () => newTerminal());
     qs('btn-close').addEventListener('click', () => closeActive());
+    qs('btn-reconnect').addEventListener('click', () => reconnectActive());
+
+    function updateConnectionStatus() {
+      const s = state.sessions.find((x) => x.sessionId === state.activeId);
+      const indicator = qs('status-indicator');
+      const text = qs('status-text');
+      
+      if (!s || !s.wsManager) {
+        indicator.textContent = '○';
+        indicator.className = 'text-gray-400';
+        text.textContent = 'No connection';
+        return;
+      }
+      
+      const status = s.wsManager.getConnectionStatus();
+      const latency = s.wsManager.latency;
+      const quality = s.wsManager.connectionQuality;
+      
+      let statusText = '';
+      let qualityColor = '';
+      
+      switch (status.state) {
+        case ConnectionStates.CONNECTED:
+          indicator.textContent = '●';
+          indicator.className = 'text-green-500';
+          statusText = `Connected (${latency}ms)`;
+          
+          // Add quality indicator
+          if (quality === 'good') {
+            qualityColor = 'text-green-600';
+            statusText += ' ●';
+          } else if (quality === 'poor') {
+            qualityColor = 'text-yellow-600';
+            statusText += ' ○';
+          } else {
+            qualityColor = 'text-red-600';
+            statusText += ' ○';
+          }
+          break;
+        case ConnectionStates.CONNECTING:
+          indicator.textContent = '○';
+          indicator.className = 'text-yellow-500';
+          statusText = 'Connecting...';
+          break;
+        case ConnectionStates.RECONNECTING:
+          indicator.textContent = '○';
+          indicator.className = 'text-yellow-500';
+          statusText = `Reconnecting... (${status.attempts}/${status.maxAttempts})`;
+          break;
+        case ConnectionStates.FAILED:
+          indicator.textContent = '✗';
+          indicator.className = 'text-red-500';
+          statusText = 'Connection failed';
+          break;
+        default:
+          indicator.textContent = '○';
+          indicator.className = 'text-gray-400';
+          statusText = 'Disconnected';
+      }
+      
+      text.textContent = statusText;
+      if (qualityColor) {
+        text.className = qualityColor;
+      } else {
+        text.className = 'text-gray-500';
+      }
+    }
+
+    function reconnectActive() {
+      const s = state.sessions.find((x) => x.sessionId === state.activeId);
+      if (s && s.wsManager) {
+        console.log('[UI] Manual reconnect triggered');
+        s.wsManager.close();
+        setTimeout(() => {
+          s.wsManager.connect();
+        }, 100);
+      }
+    }
+
+    // Override the WebSocketManager's updateConnectionUI to also update status
+    const originalUpdateConnectionUI = WebSocketManager.prototype.updateConnectionUI;
+    WebSocketManager.prototype.updateConnectionUI = function() {
+      originalUpdateConnectionUI.call(this);
+      updateConnectionStatus();
+    };
 
     (async function init() {
       const listed = await api('/api/admin/terminals/sessions');

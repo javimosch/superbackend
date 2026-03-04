@@ -29,7 +29,7 @@ function attachTerminalWebsocketServer(server, options = {}) {
     const parsed = url.parse(req.url, true);
     if (!parsed || parsed.pathname !== wsPath) return;
 
-    console.log(`[Terminals] WebSocket upgrade request for ${parsed.pathname}`);
+    //console.log(`[Terminals] WebSocket upgrade request for ${parsed.pathname}`);
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit('connection', ws, req, parsed);
     });
@@ -62,6 +62,7 @@ function attachTerminalWebsocketServer(server, options = {}) {
 
     s.pty.onData(onData);
 
+    // Enhanced message handler with ping/pong support
     ws.on('message', (raw) => {
       touch(sessionId);
       let msg;
@@ -79,18 +80,49 @@ function attachTerminalWebsocketServer(server, options = {}) {
       if (msg.type === 'resize') {
         resizeSession(sessionId, msg.cols, msg.rows);
       }
+
+      // Handle ping messages with pong response
+      if (msg.type === 'ping') {
+        try {
+          ws.send(JSON.stringify({ type: 'pong' }));
+          console.log(`[Terminals] Pong sent for session ${sessionId}`);
+        } catch (error) {
+          console.error(`[Terminals] Failed to send pong for session ${sessionId}:`, error);
+        }
+      }
     });
+
+    ws.on('close', (code, reason) => {
+      console.log(`[Terminals] WebSocket closed for session ${sessionId}, code: ${code}, reason: ${reason}`);
+      try {
+        s.pty.offData(onData);
+      } catch {}
+    });
+
+    ws.on('error', (error) => {
+      console.error(`[Terminals] WebSocket error for session ${sessionId}:`, error);
+      try {
+        s.pty.offData(onData);
+      } catch {}
+    });
+
+    // Set up connection timeout detection
+    const pingInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        } catch (error) {
+          console.error(`[Terminals] Failed to send server ping for session ${sessionId}:`, error);
+          clearInterval(pingInterval);
+          ws.close();
+        }
+      } else {
+        clearInterval(pingInterval);
+      }
+    }, 45000); // Server ping every 45 seconds
 
     ws.on('close', () => {
-      try {
-        s.pty.offData(onData);
-      } catch {}
-    });
-
-    ws.on('error', () => {
-      try {
-        s.pty.offData(onData);
-      } catch {}
+      clearInterval(pingInterval);
     });
   });
 
