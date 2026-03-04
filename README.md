@@ -26,6 +26,8 @@ Node.js middleware that gives your project backend superpowers. Handles authenti
 - **Workflows System**: Node-based automation with LLM integration, conditionals, and HTTP calls
 - **LLM UI Integration**: AI-powered UI components and conversational interfaces
 - **Admin Scripts & Terminals**: Operational tooling for script execution and terminal management
+- **AI Agent System**: Configurable AI agents with tool integration and multi-interface support
+- **CLI Tools**: Terminal-based agent interaction and management commands
 - **Migration System**: Database migration and data transfer between environments
 - **Upload Namespaces**: Advanced file organization with customizable storage rules
 - **UI Components**: Project-scoped reusable UI widgets with browser SDK integration
@@ -82,6 +84,22 @@ const backend = new SuperBackend({
   audit: true,
 });
 ```
+
+---
+
+## CLI Tools
+
+SuperBackend includes command-line tools for AI agent interaction:
+
+```bash
+# List available agents
+npx @intranefr/superbackend agent-list
+
+# Start interactive chat with an agent
+npx @intranefr/superbackend agent-chat
+```
+
+See [CLI-README.md](CLI-README.md) for detailed CLI usage.
 
 ---
 
