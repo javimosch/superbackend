@@ -873,7 +873,8 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             baseUrl: req.baseUrl,
             adminPath,
             endpointRegistry,
-            isIframe: req.isIframe || false
+            isIframe: req.isIframe || false,
+            serverPort: process.env.PORT || 3000
           },
           {
             filename: templatePath,
@@ -1201,13 +1202,36 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   }, require("./routes/adminLogin.routes"));
 
   // Admin dashboard (redirect to login if not authenticated)
-  router.get(adminPath, adminSessionAuth, (req, res) => {
+  router.get(adminPath, adminSessionAuth, async (req, res) => {
     const templatePath = path.join(
       __dirname,
       "..",
       "views",
       "admin-dashboard.ejs",
     );
+    
+    // Get max tabs configuration
+    let maxTabs = 5; // default
+    try {
+      // Environment variable takes priority
+      if (process.env.ADMIN_MAX_TABS) {
+        const envValue = parseInt(process.env.ADMIN_MAX_TABS, 10);
+        if (!isNaN(envValue) && envValue > 0) {
+          maxTabs = envValue;
+        }
+      } else {
+        // Fallback to global settings
+        const settingValue = await globalSettingsService.getSettingValue("ADMIN_MAX_TABS", "5");
+        const parsedValue = parseInt(settingValue, 10);
+        if (!isNaN(parsedValue) && parsedValue > 0) {
+          maxTabs = parsedValue;
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching max tabs configuration:", error);
+      // Use default value
+    }
+    
     fs.readFile(templatePath, "utf8", (err, template) => {
       if (err) {
         console.error("Error reading template:", err);
@@ -1216,7 +1240,12 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { 
+            baseUrl: req.baseUrl, 
+            adminPath, 
+            isIframe: req.isIframe || false,
+            maxTabs
+          },
           { filename: templatePath },
         );
         res.send(html);
