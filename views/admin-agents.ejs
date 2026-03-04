@@ -7,6 +7,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+    <style>
+        [v-cloak] { display: none; }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <div id="app" class="p-6 max-w-6xl mx-auto" v-cloak>
@@ -15,13 +18,19 @@
                 <h1 class="text-2xl font-bold text-gray-800">AI Agents</h1>
                 <p class="text-gray-500">Configure your intelligent agent gateway</p>
             </div>
-            <button @click="openCreateModal" class="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition">
+            <button v-if="activeTab === 'agents'" @click="openCreateModal" class="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-indigo-700 transition">
                 <i class="ti ti-plus"></i>
                 Create Agent
             </button>
         </div>
 
-        <!-- Agent List -->
+        <div class="mb-6 bg-white border border-gray-200 rounded-lg p-1 inline-flex gap-1">
+            <button @click="activeTab = 'agents'" class="px-4 py-2 rounded-md text-sm font-medium" :class="activeTab === 'agents' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'">Agents</button>
+            <button @click="activeTab = 'chat'" class="px-4 py-2 rounded-md text-sm font-medium" :class="activeTab === 'chat' ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'">Chat UI</button>
+        </div>
+
+        <div v-if="activeTab === 'agents'">
+
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <div v-for="agent in agents" :key="agent._id" class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
                 <div class="p-6">
@@ -59,7 +68,6 @@
             </div>
         </div>
 
-        <!-- Empty State -->
         <div v-if="agents.length === 0" class="bg-white rounded-xl border-2 border-dashed border-gray-200 p-12 text-center">
             <i class="ti ti-robot text-6xl text-gray-200 mb-4 inline-block"></i>
             <h3 class="text-lg font-medium text-gray-800">No agents found</h3>
@@ -68,8 +76,12 @@
                 Create Agent
             </button>
         </div>
+        </div>
 
-        <!-- Modal -->
+        <div v-if="activeTab === 'chat'">
+            <%- include('partials/admin/agents-chat') %>
+        </div>
+
         <div v-if="showModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div class="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center shrink-0">
@@ -140,7 +152,7 @@
     </div>
 
     <script>
-        const { createApp, ref, onMounted } = Vue;
+        const { createApp, ref, reactive, onMounted, nextTick } = Vue;
 
         createApp({
             setup() {
@@ -149,6 +161,7 @@
                 const showModal = ref(false);
                 const editingAgent = ref(null);
                 const saving = ref(false);
+                const activeTab = ref('agents');
                 
                 const availableTools = ['query_database', 'get_system_stats', 'raw_db_query', 'exec'];
                 
@@ -164,24 +177,248 @@
 
                 const baseUrl = '<%= baseUrl %>';
 
+                const chatScrollEl = ref(null);
+                const chat = reactive({
+                    selectedAgentId: '',
+                    chatId: '',
+                    input: '',
+                    messages: [],
+                    sessions: [],
+                    showSessions: false,
+                    sending: false,
+                    status: 'idle',
+                    usage: null,
+                    isFullscreen: false,
+                    dbName: ''
+                });
+
+                let activeSseController = null;
+
+                const selectedAgent = () => agents.value.find(a => a._id === chat.selectedAgentId);
+
+                const scrollChatToBottom = async () => {
+                    await nextTick();
+                    if (chatScrollEl.value) chatScrollEl.value.scrollTop = chatScrollEl.value.scrollHeight;
+                };
+
                 const fetchAgents = async () => {
                     const res = await fetch(`${baseUrl}/api/admin/agents`);
                     const data = await res.json();
                     agents.value = data.items;
+                    if (!chat.selectedAgentId && agents.value.length > 0) {
+                        chat.selectedAgentId = agents.value[0]._id;
+                    }
+                };
+
+                const fetchChatHealth = async () => {
+                    try {
+                        const res = await fetch(`${baseUrl}/api/admin/agents/chat/health`);
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        chat.dbName = data.dbName || '';
+                    } catch (_) {
+                        // no-op
+                    }
+                };
+
+                const newSession = async () => {
+                    if (!chat.selectedAgentId) return;
+                    const res = await fetch(`${baseUrl}/api/admin/agents/chat/session/new`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentId: chat.selectedAgentId })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) return alert(data.error || 'Failed to create session');
+                    chat.chatId = data.chatId;
+                    chat.messages = [];
+                    chat.status = 'idle';
+                };
+
+                const loadSessions = async () => {
+                    if (!chat.selectedAgentId) return;
+                    const res = await fetch(`${baseUrl}/api/admin/agents/chat/sessions?agentId=${encodeURIComponent(chat.selectedAgentId)}`);
+                    const data = await res.json();
+                    if (!res.ok) return alert(data.error || 'Failed to load sessions');
+                    chat.sessions = data.items || [];
+                    chat.showSessions = true;
+                };
+
+                const switchSession = async (sessionId) => {
+                    console.log('[switchSession] Switching to session:', sessionId);
+                    chat.chatId = sessionId;
+                    chat.messages = [];
+                    chat.status = 'loading';
+                    
+                    try {
+                        const url = `${baseUrl}/api/admin/agents/chat/session/${encodeURIComponent(sessionId)}/messages`;
+                        console.log('[switchSession] Fetching from:', url);
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        
+                        console.log('[switchSession] Response status:', res.status, 'data:', data);
+                        
+                        if (!res.ok) {
+                            console.error('Failed to load session:', data.error);
+                            chat.status = 'error';
+                            return;
+                        }
+                        
+                        chat.messages = data.messages || [];
+                        chat.status = 'idle';
+                        console.log('[switchSession] Loaded', chat.messages.length, 'messages');
+                        await scrollChatToBottom();
+                    } catch (err) {
+                        console.error('Error loading session:', err);
+                        chat.status = 'error';
+                    }
+                    
+                    chat.showSessions = false;
+                };
+
+                const promptRenameSession = async () => {
+                    if (!chat.chatId) return;
+                    const label = prompt('Session label');
+                    if (!label) return;
+                    const res = await fetch(`${baseUrl}/api/admin/agents/chat/session/rename`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatId: chat.chatId, label })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) return alert(data.error || 'Failed to rename session');
+                    await loadSessions();
+                };
+
+                const compactSession = async () => {
+                    if (!chat.selectedAgentId || !chat.chatId) return;
+                    const res = await fetch(`${baseUrl}/api/admin/agents/chat/session/compact`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ agentId: chat.selectedAgentId, chatId: chat.chatId })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) return alert(data.error || 'Failed to compact session');
+                    alert(`Snapshot created: ${data.snapshotId}`);
+                };
+
+                const stopGeneration = () => {
+                    if (activeSseController) activeSseController.abort();
+                    chat.sending = false;
+                    chat.status = 'stopped';
+                };
+
+                const sendChatMessage = async () => {
+                    if (!chat.selectedAgentId || !chat.input.trim() || chat.sending) return;
+                    if (!chat.chatId) await newSession();
+                    if (!chat.chatId) return;
+
+                    const promptText = chat.input;
+                    chat.input = '';
+                    chat.messages.push({ role: 'user', text: promptText });
+
+                    const currentAgent = selectedAgent();
+                    const assistantMsg = { role: 'assistant', text: '', agentName: currentAgent?.name || 'Agent' };
+                    chat.messages.push(assistantMsg);
+                    chat.sending = true;
+                    chat.status = 'starting';
+                    await scrollChatToBottom();
+
+                    const controller = new AbortController();
+                    activeSseController = controller;
+
+                    try {
+                        const res = await fetch(`${baseUrl}/api/admin/agents/chat/stream`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                agentId: chat.selectedAgentId,
+                                chatId: chat.chatId,
+                                content: promptText
+                            }),
+                            signal: controller.signal,
+                        });
+
+                        if (!res.ok || !res.body) {
+                            const data = await res.json().catch(() => ({}));
+                            throw new Error(data.error || 'Failed to stream response');
+                        }
+
+                        const reader = res.body.getReader();
+                        const decoder = new TextDecoder();
+                        let buffer = '';
+
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buffer += decoder.decode(value, { stream: true });
+                            const chunks = buffer.split('\n\n');
+                            buffer = chunks.pop() || '';
+
+                            for (const chunk of chunks) {
+                                const lines = chunk.split('\n');
+                                let event = 'message';
+                                let data = '';
+                                for (const line of lines) {
+                                    if (line.startsWith('event: ')) event = line.slice(7).trim();
+                                    if (line.startsWith('data: ')) data += line.slice(6);
+                                }
+
+                                let parsed = {};
+                                try { parsed = JSON.parse(data || '{}'); } catch (_) { parsed = {}; }
+
+                                if (event === 'progress') {
+                                    chat.status = parsed.status || chat.status;
+                                    if (parsed.status === 'streaming_content' && typeof parsed.token === 'string') {
+                                        assistantMsg.text += parsed.token;
+                                        await scrollChatToBottom();
+                                    }
+                                }
+
+                                if (event === 'done') {
+                                    chat.chatId = parsed.chatId || chat.chatId;
+                                    if (!assistantMsg.text) assistantMsg.text = parsed.text || '';
+                                    chat.usage = parsed.usage
+                                        ? { total: parsed.usage.total_tokens || ((parsed.usage.prompt_tokens || 0) + (parsed.usage.completion_tokens || 0)) }
+                                        : null;
+                                    chat.status = 'done';
+                                }
+
+                                if (event === 'error') {
+                                    throw new Error(parsed.error || 'Streaming failed');
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            assistantMsg.text = assistantMsg.text || `Error: ${err.message}`;
+                            chat.status = 'error';
+                        }
+                    } finally {
+                        if (activeSseController === controller) activeSseController = null;
+                        chat.sending = false;
+                    }
+                };
+
+                const onChatInputKeydown = (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendChatMessage();
+                    }
+                };
+
+                const toggleChatFullscreen = () => {
+                    chat.isFullscreen = !chat.isFullscreen;
                 };
 
                 const fetchLLMConfig = async () => {
-                    // We need an endpoint to get LLM providers. 
-                    // For now, let's try to get it from the LLM admin API if it exists
                     try {
                         const res = await fetch(`${baseUrl}/api/admin/llm/providers`);
                         if (res.ok) {
                             const data = await res.json();
                             providers.value = data.providers || {};
                         }
-                    } catch (e) {
-                        console.warn('Failed to fetch LLM providers');
-                    }
+                    } catch (e) { console.warn('Failed to fetch LLM providers'); }
                 };
 
                 const openCreateModal = () => {
@@ -251,6 +488,7 @@
                 onMounted(() => {
                     fetchAgents();
                     fetchLLMConfig();
+                    fetchChatHealth();
                 });
 
                 return {
@@ -260,11 +498,23 @@
                     editingAgent,
                     formData,
                     saving,
+                    activeTab,
                     availableTools,
+                    chat,
+                    chatScrollEl,
                     openCreateModal,
                     editAgent,
                     confirmDelete,
-                    saveAgent
+                    saveAgent,
+                    newSession,
+                    loadSessions,
+                    switchSession,
+                    promptRenameSession,
+                    compactSession,
+                    sendChatMessage,
+                    onChatInputKeydown,
+                    stopGeneration,
+                    toggleChatFullscreen
                 };
             }
         }).mount('#app');
