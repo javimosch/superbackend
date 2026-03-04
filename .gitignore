@@ -1,7 +1,8 @@
 #ref-*
 uploads
 node_modules/
-.env
+.env*
+!.env.example
 .DS_Store
 npm-debug.log
 *.log
