@@ -19,6 +19,12 @@
     <div v-if="activeTabId === tab.id" class="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-blue-600"></div>
   </div>
   
+  <!-- Tab Count Display -->
+  <div v-if="tabs.length > 0" class="flex items-center px-3 text-[11px]" :class="isTabLimitReached ? 'text-blue-600 font-medium' : 'text-gray-500'">
+    {{ tabCountDisplay }}
+    <i v-if="isTabLimitReached" class="ti ti-arrows-autorenew-right ml-1 text-[10px]" title="Oldest tab will be auto-closed when limit is reached"></i>
+  </div>
+  
   <!-- Empty State Tab Placeholder if needed -->
   <div v-if="tabs.length === 0" class="flex items-center px-4 text-[11px] text-gray-400 italic">
     No open tabs
