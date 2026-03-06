@@ -1,28 +1,27 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const blogPostSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
-    slug: { type: String, required: true, index: true },
+    slug: { type: String, required: true },
     status: {
       type: String,
-      enum: ['draft', 'scheduled', 'published', 'archived'],
-      default: 'draft',
-      index: true,
+      enum: ["draft", "scheduled", "published", "archived"],
+      default: "draft",
     },
-    excerpt: { type: String, default: '' },
-    markdown: { type: String, default: '' },
-    html: { type: String, default: '' },
-    coverImageUrl: { type: String, default: '' },
-    category: { type: String, default: '' },
+    excerpt: { type: String, default: "" },
+    markdown: { type: String, default: "" },
+    html: { type: String, default: "" },
+    coverImageUrl: { type: String, default: "" },
+    category: { type: String, default: "" },
     tags: { type: [String], default: [] },
-    authorName: { type: String, default: '' },
-    seoTitle: { type: String, default: '' },
-    seoDescription: { type: String, default: '' },
+    authorName: { type: String, default: "" },
+    seoTitle: { type: String, default: "" },
+    seoDescription: { type: String, default: "" },
     scheduledAt: { type: Date },
     publishedAt: { type: Date },
   },
-  { timestamps: true, collection: 'blog_posts' },
+  { timestamps: true, collection: "blog_posts" },
 );
 
 blogPostSchema.index({ status: 1, publishedAt: -1 });
@@ -34,9 +33,10 @@ blogPostSchema.index(
   {
     unique: true,
     partialFilterExpression: {
-      status: { $in: ['draft', 'scheduled', 'published'] },
+      status: { $in: ["draft", "scheduled", "published"] },
     },
   },
 );
 
-module.exports = mongoose.models.BlogPost || mongoose.model('BlogPost', blogPostSchema);
+module.exports =
+  mongoose.models.BlogPost || mongoose.model("BlogPost", blogPostSchema);

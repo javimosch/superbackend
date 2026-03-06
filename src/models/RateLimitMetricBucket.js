@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const rateLimitMetricBucketSchema = new mongoose.Schema(
   {
@@ -9,12 +9,17 @@ const rateLimitMetricBucketSchema = new mongoose.Schema(
     allowed: { type: Number, default: 0 },
     blocked: { type: Number, default: 0 },
 
-    expiresAt: { type: Date, default: null, index: true },
+    expiresAt: { type: Date, default: null },
   },
-  { timestamps: true, collection: 'rate_limit_metric_buckets' },
+  { timestamps: true, collection: "rate_limit_metric_buckets" },
 );
 
-rateLimitMetricBucketSchema.index({ limiterId: 1, bucketStart: 1 }, { unique: true });
+rateLimitMetricBucketSchema.index(
+  { limiterId: 1, bucketStart: 1 },
+  { unique: true },
+);
 rateLimitMetricBucketSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
-module.exports = mongoose.models.RateLimitMetricBucket || mongoose.model('RateLimitMetricBucket', rateLimitMetricBucketSchema);
+module.exports =
+  mongoose.models.RateLimitMetricBucket ||
+  mongoose.model("RateLimitMetricBucket", rateLimitMetricBucketSchema);

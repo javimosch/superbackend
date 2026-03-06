@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const jsonConfigSchema = new mongoose.Schema(
   {
@@ -10,13 +10,11 @@ const jsonConfigSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
-      index: true,
     },
     alias: {
       type: String,
       unique: true,
       sparse: true,
-      index: true,
     },
     publicEnabled: {
       type: Boolean,
@@ -43,4 +41,4 @@ const jsonConfigSchema = new mongoose.Schema(
 // jsonConfigSchema.index({ slug: 1 }); // Removed duplicate index
 // jsonConfigSchema.index({ alias: 1 }); // Removed duplicate index
 
-module.exports = mongoose.model('JsonConfig', jsonConfigSchema);
+module.exports = mongoose.model("JsonConfig", jsonConfigSchema);
