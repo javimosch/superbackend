@@ -12,12 +12,22 @@ const CACHE_TTL = 60000; // 1 minute
 
 // Helper to get setting with cache
 const getSetting = async (key, defaultValue) => {
+  // Try to initialize Resend if not already initialized
+  if (!resendClient && key === "RESEND_API_KEY") {
+    // We'll let the lazy init handle it below to avoid recursion
+  }
+
   const cached = settingsCache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     return cached.value;
   }
 
   try {
+    // If we're not connected yet, avoid buffering and return default
+    if (mongoose.connection.readyState !== 1) {
+      return defaultValue;
+    }
+
     const setting = await GlobalSetting.findOne({ key }).lean();
     const value = setting ? setting.value : defaultValue;
     settingsCache.set(key, { value, timestamp: Date.now() });
@@ -40,6 +50,9 @@ const replaceTemplateVars = (template, variables) => {
 
 // Initialize Resend client if API key is available
 const initResend = async () => {
+  // Only init if we have a connection
+  if (mongoose.connection.readyState !== 1) return;
+
   // Try to get API key from settings first, then fall back to env
   const apiKey = await getSetting("RESEND_API_KEY", process.env.RESEND_API_KEY);
 
@@ -57,9 +70,6 @@ const initResend = async () => {
   }
 };
 
-// Initialize on module load
-initResend().catch((err) => console.error("Error initializing Resend:", err));
-
 const sendEmail = async ({
   to,
   subject,
@@ -70,6 +80,11 @@ const sendEmail = async ({
   type = "other",
   metadata,
 }) => {
+  // Lazy initialize Resend if needed
+  if (!resendClient) {
+    await initResend();
+  }
+
   const defaultFrom =
     from ||
     (await getSetting(
