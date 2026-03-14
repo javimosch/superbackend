@@ -1,11 +1,12 @@
 {
   "name": "@intranefr/superbackend",
-  "version": "1.6.7",
+  "version": "1.7.7",
   "description": "Node.js middleware that gives your project backend superpowers",
   "main": "index.js",
   "bin": {
     "agent-chat": "src/cli/agent-chat.js",
-    "agent-list": "src/cli/agent-list.js"
+    "agent-list": "src/cli/agent-list.js",
+    "api": "src/cli/api.js"
   },
   "scripts": {
     "start": "node server.js",
@@ -17,7 +18,8 @@
     "build:sdk:superdemos:browser": "esbuild sdk/superdemos/browser/src/index.js --bundle --format=iife --global-name=SuperDemos --outfile=public/sdk/superdemos.iife.js",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "image:deploy": "docker build -t javimosch/superbackend:latest . && docker push javimosch/superbackend:latest"
   },
   "keywords": [
     "substack",
@@ -37,6 +39,7 @@
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
+    "@intranefr/superbackend": "^1.7.7",
     "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "cheerio": "^1.0.0-rc.12",
