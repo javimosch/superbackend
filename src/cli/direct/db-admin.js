@@ -4,10 +4,11 @@
  * Database administration: db-info, db-users, slow-queries, profiling
  */
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const dbInfo = {
   async execute(options, context) {
+    if (options.command && options.command !== "execute") return;
     const db = context.db;
     const info = await db.admin().serverInfo();
     const stats = await db.admin().serverStatus();
@@ -18,7 +19,10 @@ const dbInfo = {
       uptime: stats.uptime,
       uptimeMillis: stats.uptimeMillis,
       localTime: stats.localTime,
-      connections: { current: stats.connections.current, available: stats.connections.available },
+      connections: {
+        current: stats.connections.current,
+        available: stats.connections.available,
+      },
       memory: stats.mem,
       assertions: stats.assertions,
     };
@@ -27,6 +31,7 @@ const dbInfo = {
 
 const dbUsers = {
   async execute(options, context) {
+    if (options.command && options.command !== "execute") return;
     const db = context.db;
     const users = await db.admin().getUsers();
     return { users: users.users };
@@ -38,8 +43,17 @@ const slowQueries = {
     const db = context.db;
     const profileMs = parseInt(options.value) || 100;
 
-    const result = await db.collection('system.profile').find({ millis: { $gt: profileMs } }).sort({ ts: -1 }).limit(50).toArray();
-    return { profileMs, slowQueries: result.length, samples: result.slice(0, 10) };
+    const result = await db
+      .collection("system.profile")
+      .find({ millis: { $gt: profileMs } })
+      .sort({ ts: -1 })
+      .limit(50)
+      .toArray();
+    return {
+      profileMs,
+      slowQueries: result.length,
+      samples: result.slice(0, 10),
+    };
   },
 };
 
@@ -56,8 +70,14 @@ const disableProfiling = {
   async execute(options, context) {
     const db = context.db;
     await db.setProfilingLevel(0);
-    return { level: 0, message: 'Profiling disabled' };
+    return { level: 0, message: "Profiling disabled" };
   },
 };
 
-module.exports = { dbInfo, dbUsers, slowQueries, enableProfiling, disableProfiling };
+module.exports = {
+  dbInfo,
+  dbUsers,
+  slowQueries,
+  enableProfiling,
+  disableProfiling,
+};
