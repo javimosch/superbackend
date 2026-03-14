@@ -58,6 +58,10 @@ const registerUser = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
+  if (role !== 'user' && role !== 'admin') {
+    return res.status(400).json({ error: 'Role must be either "user" or "admin"' });
+  }
+
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
     return res.status(400).json({ error: 'Invalid email format' });
