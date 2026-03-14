@@ -33,13 +33,14 @@ const dbUsers = {
   async execute(options, context) {
     if (options.command && options.command !== "execute") return;
     const db = context.db;
-    const users = await db.admin().getUsers();
-    return { users: users.users };
+    const users = await db.admin().command({ usersInfo: 1 });
+    return { users: users.users || [] };
   },
 };
 
 const slowQueries = {
   async execute(options, context) {
+    if (options.command && options.command !== "execute") return;
     const db = context.db;
     const profileMs = parseInt(options.value) || 100;
 

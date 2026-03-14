@@ -7,7 +7,7 @@
 
 ## Recent Fixes (2026-03-14)
 
-### MongoDB Timeout Issues - RESOLVED
+### MongoDB Timeout Issues - RESOLVED ✅
 
 **Problem:** Read-only operations were timing out during manual testing.
 
@@ -22,13 +22,29 @@
 3. **Simplified db-stats** - Uses `countDocuments()` instead of `collStats`
 4. **Better logging** - Progress messages for debugging
 
+### Write Operations Issues - RESOLVED ✅
+
+**Problem:** Create operations failing due to missing required fields.
+
+**Fixes Applied:**
+
+| Resource | Issue | Fix |
+|----------|-------|-----|
+| `agents create` | Missing `providerKey` | Added `--key` parameter for providerKey |
+| `users create` | Password not hashed | Added bcrypt hashing for password |
+| `health-checks create` | Missing `createdBy`, `checkType`, `cronExpression` | Added required parameters |
+
 **Test Results:**
 ```bash
-# agents list - ✅ Works (~2s)
-npm run direct -- agents list
+# All write operations now working with cleanup
+npm run direct -- agents create --name test --model gpt-4o-mini --key OpenRouter
+npm run direct -- agents delete <id>  # ✓ Cleanup works
 
-# db-stats - ✅ Works (~5s for 71 collections)
-npm run direct -- db-stats
+npm run direct -- users create --email test@test.com --password pass123
+npm run direct -- users delete <id>  # ✓ Cleanup works
+
+npm run direct -- health-checks create --name test --value "0 * * * *" --key internal
+npm run direct -- health-checks delete <id>  # ✓ Cleanup works
 ```
 
 ---

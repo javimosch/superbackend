@@ -205,9 +205,18 @@ const healthChecks = {
       }
       case "create": {
         if (!options.name) throw new Error("--name is required");
+        if (!options.value)
+          throw new Error("--value (cron expression) is required");
+        if (!options.key)
+          throw new Error(
+            "--key (checkType: http/script/internal) is required",
+          );
         const check = await HealthCheck.create({
           name: options.name,
           description: options.description || "",
+          cronExpression: options.value,
+          checkType: options.key,
+          createdBy: "cli",
           enabled: true,
         });
         return check;
