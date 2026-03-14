@@ -40,16 +40,10 @@ const topCollections = {
     const stats = [];
 
     for (const coll of collections) {
-      const s = await db.collection(coll.name).stats();
-      stats.push({
-        name: coll.name,
-        count: s.count,
-        size: s.size,
-        storageSize: s.storageSize,
-      });
+      const count = await db.collection(coll.name).countDocuments();
+      stats.push({ name: coll.name, count });
     }
 
-    stats.sort((a, b) => b.size - a.size);
     return {
       topCollections: stats.slice(0, limit),
       totalCollections: collections.length,
