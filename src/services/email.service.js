@@ -1,6 +1,7 @@
 // Email service wrapper using Resend
 // Note: Resend package needs to be installed: npm install resend
 
+const mongoose = require("mongoose");
 const GlobalSetting = require("../models/GlobalSetting");
 const EmailLog = require("../models/EmailLog");
 

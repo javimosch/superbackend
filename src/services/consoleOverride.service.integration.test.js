@@ -48,6 +48,7 @@ describe('Console Override Service Integration Tests', () => {
       
       consoleOverride.init({ logFile: testLogFile });
       
+      // Wait for async initialization (10ms + buffer)
       setTimeout(() => {
         expect(consoleOverride.isActive()).toBe(true);
         
@@ -64,7 +65,7 @@ describe('Console Override Service Integration Tests', () => {
           expect(logContent).toContain('Integration test error');
           
           done();
-        }, 50);
+        }, 100); // Increased timeout to ensure file writing completes
       }, 50);
     });
 

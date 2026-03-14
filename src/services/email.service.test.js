@@ -13,6 +13,13 @@ jest.mock('resend', () => {
   };
 });
 
+// Mock mongoose connection to be ready
+jest.mock('mongoose', () => ({
+  connection: {
+    readyState: 1 // Connected state
+  }
+}));
+
 // Mock EmailLog model since that's what the service actually uses
 jest.mock('../models/EmailLog', () => ({
   create: jest.fn()
