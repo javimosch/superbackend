@@ -4,27 +4,25 @@
  * Database utilities: db-stats, db-indexes, db-cleanup, and collection operations
  */
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const dbStats = {
   async execute(options, context) {
     const db = context.db;
     const collections = await db.listCollections().toArray();
     const stats = {};
-    let totalDocs = 0, totalSize = 0;
+    let totalDocs = 0,
+      totalSize = 0;
 
     for (const coll of collections) {
-      const s = await db.collection(coll.name).stats();
-      stats[coll.name] = { count: s.count, size: s.size, storageSize: s.storageSize };
-      totalDocs += s.count;
-      totalSize += s.size;
+      const count = await db.collection(coll.name).countDocuments();
+      stats[coll.name] = { count };
+      totalDocs += count;
     }
 
     return {
       collections: collections.length,
       totalDocuments: totalDocs,
-      totalSize,
-      totalSizeFormatted: (totalSize / 1024 / 1024).toFixed(2) + ' MB',
       byCollection: stats,
     };
   },
@@ -35,7 +33,7 @@ const dbIndexes = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) {
+    if (options.command === "execute" || !collectionName) {
       const collections = await db.listCollections().toArray();
       const result = [];
       for (const coll of collections) {
@@ -43,7 +41,11 @@ const dbIndexes = {
         result.push({
           collection: coll.name,
           indexCount: indexes.length,
-          indexes: indexes.map(idx => ({ name: idx.name, key: idx.key, unique: idx.unique || false })),
+          indexes: indexes.map((idx) => ({
+            name: idx.name,
+            key: idx.key,
+            unique: idx.unique || false,
+          })),
         });
       }
       return result;
@@ -53,7 +55,11 @@ const dbIndexes = {
     return {
       collection: collectionName,
       indexCount: indexes.length,
-      indexes: indexes.map(idx => ({ name: idx.name, key: idx.key, unique: idx.unique || false })),
+      indexes: indexes.map((idx) => ({
+        name: idx.name,
+        key: idx.key,
+        unique: idx.unique || false,
+      })),
     };
   },
 };
@@ -65,12 +71,18 @@ const dbCleanup = {
     const days = parseInt(options.value) || 30;
     const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
-    const result = await collection.deleteMany({ createdAt: { $lt: cutoffDate } });
+    const result = await collection.deleteMany({
+      createdAt: { $lt: cutoffDate },
+    });
 
-    return { collection: collectionName, deletedCount: result.deletedCount, olderThan: cutoffDate.toISOString() };
+    return {
+      collection: collectionName,
+      deletedCount: result.deletedCount,
+      olderThan: cutoffDate.toISOString(),
+    };
   },
 };
 
@@ -78,17 +90,22 @@ const batchDelete = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const filterKey = options.description || '_id';
+    const filterKey = options.description || "_id";
     const idsArg = options.value;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
-    if (!idsArg) throw new Error('--value (comma-separated IDs) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
+    if (!idsArg) throw new Error("--value (comma-separated IDs) is required");
 
-    const ids = idsArg.split(',').map(id => id.trim());
+    const ids = idsArg.split(",").map((id) => id.trim());
     const filter = { [filterKey]: { $in: ids } };
     const result = await db.collection(collectionName).deleteMany(filter);
 
-    return { collection: collectionName, deletedCount: result.deletedCount, requestedCount: ids.length, filter };
+    return {
+      collection: collectionName,
+      deletedCount: result.deletedCount,
+      requestedCount: ids.length,
+      filter,
+    };
   },
 };
 
@@ -98,14 +115,23 @@ const batchUpdate = {
     const collectionName = options.key;
     const updateJson = options.value;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
-    if (!updateJson) throw new Error('--value (update JSON) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
+    if (!updateJson) throw new Error("--value (update JSON) is required");
 
     let update;
-    try { update = JSON.parse(updateJson); } catch (e) { throw new Error('--value must be valid JSON'); }
+    try {
+      update = JSON.parse(updateJson);
+    } catch (e) {
+      throw new Error("--value must be valid JSON");
+    }
 
     const result = await db.collection(collectionName).updateMany({}, update);
-    return { collection: collectionName, matchedCount: result.matchedCount, modifiedCount: result.modifiedCount, update };
+    return {
+      collection: collectionName,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      update,
+    };
   },
 };
 
@@ -123,7 +149,11 @@ const collectionCount = {
         counts[coll.name] = count;
         total += count;
       }
-      return { totalDocuments: total, collectionCount: collections.length, byCollection: counts };
+      return {
+        totalDocuments: total,
+        collectionCount: collections.length,
+        byCollection: counts,
+      };
     }
 
     const count = await db.collection(collectionName).countDocuments();
@@ -136,21 +166,35 @@ const collectionSchema = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
     const sample = await collection.findOne();
     const indexes = await collection.indexes();
 
     if (!sample) {
-      return { collection: collectionName, message: 'Collection is empty', indexes: indexes.map(idx => ({ name: idx.name, key: idx.key })) };
+      return {
+        collection: collectionName,
+        message: "Collection is empty",
+        indexes: indexes.map((idx) => ({ name: idx.name, key: idx.key })),
+      };
     }
 
     const schema = {};
     for (const [key, value] of Object.entries(sample)) {
       schema[key] = {
-        type: value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value,
-        example: value === null ? null : (typeof value === 'string' && value.length > 50 ? value.slice(0, 50) + '...' : value),
+        type:
+          value === null
+            ? "null"
+            : Array.isArray(value)
+              ? "array"
+              : typeof value,
+        example:
+          value === null
+            ? null
+            : typeof value === "string" && value.length > 50
+              ? value.slice(0, 50) + "..."
+              : value,
       };
     }
 
@@ -158,7 +202,11 @@ const collectionSchema = {
       collection: collectionName,
       sampleSize: 1,
       schema,
-      indexes: indexes.map(idx => ({ name: idx.name, key: idx.key, unique: idx.unique || false })),
+      indexes: indexes.map((idx) => ({
+        name: idx.name,
+        key: idx.key,
+        unique: idx.unique || false,
+      })),
     };
   },
 };
@@ -170,14 +218,19 @@ const exportCollection = {
     const limit = parseInt(options.value) || 1000;
     const outputFile = options.description || `${collectionName}-export.json`;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
-    const fs = require('fs');
+    const fs = require("fs");
     const collection = db.collection(collectionName);
     const documents = await collection.find({}).limit(limit).toArray();
     fs.writeFileSync(outputFile, JSON.stringify(documents, null, 2));
 
-    return { collection: collectionName, exportedCount: documents.length, outputFile, limit };
+    return {
+      collection: collectionName,
+      exportedCount: documents.length,
+      outputFile,
+      limit,
+    };
   },
 };
 
@@ -185,19 +238,32 @@ const findDuplicates = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const field = options.description || 'email';
+    const field = options.description || "email";
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
-    const duplicates = await collection.aggregate([
-      { $group: { _id: `$${field}`, count: { $sum: 1 }, ids: { $push: '$_id' } } },
-      { $match: { count: { $gt: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: 100 },
-    ]).toArray();
+    const duplicates = await collection
+      .aggregate([
+        {
+          $group: {
+            _id: `$${field}`,
+            count: { $sum: 1 },
+            ids: { $push: "$_id" },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 100 },
+      ])
+      .toArray();
 
-    return { collection: collectionName, field, duplicateCount: duplicates.length, duplicates };
+    return {
+      collection: collectionName,
+      field,
+      duplicateCount: duplicates.length,
+      duplicates,
+    };
   },
 };
 
@@ -205,15 +271,23 @@ const removeDuplicates = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const field = options.description || 'email';
+    const field = options.description || "email";
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
-    const duplicates = await collection.aggregate([
-      { $group: { _id: `$${field}`, count: { $sum: 1 }, ids: { $push: '$_id' } } },
-      { $match: { count: { $gt: 1 } } },
-    ]).toArray();
+    const duplicates = await collection
+      .aggregate([
+        {
+          $group: {
+            _id: `$${field}`,
+            count: { $sum: 1 },
+            ids: { $push: "$_id" },
+          },
+        },
+        { $match: { count: { $gt: 1 } } },
+      ])
+      .toArray();
 
     let removedCount = 0;
     for (const dup of duplicates) {
@@ -222,7 +296,12 @@ const removeDuplicates = {
       removedCount += result.deletedCount;
     }
 
-    return { collection: collectionName, field, groupsProcessed: duplicates.length, removedCount };
+    return {
+      collection: collectionName,
+      field,
+      groupsProcessed: duplicates.length,
+      removedCount,
+    };
   },
 };
 
@@ -230,14 +309,16 @@ const validateRefs = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const refField = options.description || 'userId';
-    const refCollection = options.value || 'users';
+    const refField = options.description || "userId";
+    const refCollection = options.value || "users";
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
     const refCollectionObj = db.collection(refCollection);
-    const docs = await collection.find({ [refField]: { $exists: true, $ne: null } }).toArray();
+    const docs = await collection
+      .find({ [refField]: { $exists: true, $ne: null } })
+      .toArray();
     const invalidRefs = [];
 
     for (const doc of docs) {
@@ -246,7 +327,14 @@ const validateRefs = {
       if (!exists) invalidRefs.push({ docId: doc._id, [refField]: refId });
     }
 
-    return { collection: collectionName, refField, refCollection, totalDocs: docs.length, invalidRefs: invalidRefs.length, samples: invalidRefs.slice(0, 20) };
+    return {
+      collection: collectionName,
+      refField,
+      refCollection,
+      totalDocs: docs.length,
+      invalidRefs: invalidRefs.length,
+      samples: invalidRefs.slice(0, 20),
+    };
   },
 };
 
@@ -254,31 +342,42 @@ const repairRefs = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const refField = options.description || 'userId';
-    const refCollection = options.value || 'users';
-    const action = options.name || 'nullify';
+    const refField = options.description || "userId";
+    const refCollection = options.value || "users";
+    const action = options.name || "nullify";
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
     const refCollectionObj = db.collection(refCollection);
-    const docs = await collection.find({ [refField]: { $exists: true, $ne: null } }).toArray();
+    const docs = await collection
+      .find({ [refField]: { $exists: true, $ne: null } })
+      .toArray();
     let repairedCount = 0;
 
     for (const doc of docs) {
       const refId = doc[refField];
       const exists = await refCollectionObj.findOne({ _id: refId });
       if (!exists) {
-        if (action === 'delete') {
+        if (action === "delete") {
           await collection.deleteOne({ _id: doc._id });
         } else {
-          await collection.updateOne({ _id: doc._id }, { $set: { [refField]: null } });
+          await collection.updateOne(
+            { _id: doc._id },
+            { $set: { [refField]: null } },
+          );
         }
         repairedCount++;
       }
     }
 
-    return { collection: collectionName, refField, refCollection, action, repairedCount };
+    return {
+      collection: collectionName,
+      refField,
+      refCollection,
+      action,
+      repairedCount,
+    };
   },
 };
 
@@ -288,12 +387,15 @@ const addIndex = {
     const collectionName = options.key;
     const fields = options.value;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
-    if (!fields) throw new Error('--value (comma-separated fields) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
+    if (!fields)
+      throw new Error("--value (comma-separated fields) is required");
 
     const collection = db.collection(collectionName);
     const indexSpec = {};
-    fields.split(',').forEach(f => { indexSpec[f.trim()] = 1; });
+    fields.split(",").forEach((f) => {
+      indexSpec[f.trim()] = 1;
+    });
     const indexName = await collection.createIndex(indexSpec);
 
     return { collection: collectionName, indexName, indexSpec };
@@ -306,8 +408,8 @@ const dropIndex = {
     const collectionName = options.key;
     const indexName = options.value;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
-    if (!indexName) throw new Error('--value (index name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
+    if (!indexName) throw new Error("--value (index name) is required");
 
     const collection = db.collection(collectionName);
     await collection.dropIndex(indexName);
@@ -320,11 +422,16 @@ const reindex = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const collection = db.collection(collectionName);
     const result = await collection.reIndex();
-    return { collection: collectionName, nIndexesWas: result.nIndexesWas, nIndexes: result.nIndexes, ok: result.ok };
+    return {
+      collection: collectionName,
+      nIndexesWas: result.nIndexesWas,
+      nIndexes: result.nIndexes,
+      ok: result.ok,
+    };
   },
 };
 
@@ -333,10 +440,14 @@ const compact = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const result = await db.command({ compact: collectionName });
-    return { collection: collectionName, bytesFreed: result.bytesFreed, ok: result.ok };
+    return {
+      collection: collectionName,
+      bytesFreed: result.bytesFreed,
+      ok: result.ok,
+    };
   },
 };
 
@@ -345,10 +456,16 @@ const validateCollection = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const result = await db.command({ validate: collectionName });
-    return { collection: collectionName, valid: result.valid, errors: result.errors || [], warnings: result.warnings || [], ok: result.ok };
+    return {
+      collection: collectionName,
+      valid: result.valid,
+      errors: result.errors || [],
+      warnings: result.warnings || [],
+      ok: result.ok,
+    };
   },
 };
 
@@ -358,8 +475,8 @@ const renameCollection = {
     const collectionName = options.key;
     const newName = options.value;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
-    if (!newName) throw new Error('--value (new name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
+    if (!newName) throw new Error("--value (new name) is required");
 
     const collection = db.collection(collectionName);
     await collection.rename(newName);
@@ -375,7 +492,14 @@ const listCollections = {
 
     for (const coll of collections) {
       const stats = await db.collection(coll.name).stats();
-      details.push({ name: coll.name, type: coll.type, count: stats.count, size: stats.size, storageSize: stats.storageSize, indexes: stats.nindexes });
+      details.push({
+        name: coll.name,
+        type: coll.type,
+        count: stats.count,
+        size: stats.size,
+        storageSize: stats.storageSize,
+        indexes: stats.nindexes,
+      });
     }
 
     return { totalCollections: collections.length, collections: details };
@@ -386,10 +510,10 @@ const createCollection = {
   async execute(options, context) {
     const db = context.db;
     const collectionName = options.key;
-    const capped = options.description === 'capped';
+    const capped = options.description === "capped";
     const size = parseInt(options.value) || 1048576;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     const opts = capped ? { capped: true, size } : {};
     await db.createCollection(collectionName, opts);
@@ -402,7 +526,7 @@ const dropCollection = {
     const db = context.db;
     const collectionName = options.key;
 
-    if (!collectionName) throw new Error('--key (collection name) is required');
+    if (!collectionName) throw new Error("--key (collection name) is required");
 
     await db.collection(collectionName).drop();
     return { name: collectionName, success: true };
@@ -410,7 +534,25 @@ const dropCollection = {
 };
 
 module.exports = {
-  dbStats, dbIndexes, dbCleanup, batchDelete, batchUpdate, collectionCount, collectionSchema, exportCollection,
-  findDuplicates, removeDuplicates, validateRefs, repairRefs, addIndex, dropIndex, reindex, compact,
-  validateCollection, renameCollection, listCollections, createCollection, dropCollection,
+  dbStats,
+  dbIndexes,
+  dbCleanup,
+  batchDelete,
+  batchUpdate,
+  collectionCount,
+  collectionSchema,
+  exportCollection,
+  findDuplicates,
+  removeDuplicates,
+  validateRefs,
+  repairRefs,
+  addIndex,
+  dropIndex,
+  reindex,
+  compact,
+  validateCollection,
+  renameCollection,
+  listCollections,
+  createCollection,
+  dropCollection,
 };
