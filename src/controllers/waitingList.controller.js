@@ -129,12 +129,14 @@ exports.adminList = async (req, res) => {
     const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
 
     // Use JSON Configs service for admin data with filtering and pagination
+    // Always bypass cache for admin list to ensure fresh data
     const result = await waitingListService.getWaitingListEntriesAdmin({
       status,
       type,
       email,
       limit: parsedLimit,
-      offset: parsedOffset
+      offset: parsedOffset,
+      bypassCache: true
     });
 
     return res.json(result);
@@ -224,10 +226,10 @@ exports.bulkRemove = async (req, res) => {
       return res.status(400).json({ error: 'entryIds must be a non-empty array' });
     }
 
-    const { removeWaitingListEntry, getWaitingListEntries } = require('../services/waitingListJson.service');
+    const { removeWaitingListEntry, getWaitingListEntries, clearWaitingListCache } = require('../services/waitingListJson.service');
 
-    // Get all entries to verify IDs exist
-    const { entries } = await getWaitingListEntries();
+    // Get all entries to verify IDs exist (bypass cache)
+    const { entries } = await getWaitingListEntries({ bypassCache: true });
     const validIds = new Set(entries.map(e => e.id));
     
     const removed = [];
@@ -248,6 +250,11 @@ exports.bulkRemove = async (req, res) => {
         notFound.push(entryId);
       }
     }
+
+    // Force clear cache after all removals
+    await clearWaitingListCache();
+
+    console.log(`[BulkRemove] Removed ${removed.length} entries, ${notFound.length} not found`);
 
     res.json({
       message: `Successfully removed ${removed.length} entr${removed.length === 1 ? 'y' : 'ies'}`,

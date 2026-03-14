@@ -290,9 +290,9 @@ async function getWaitingListStats(options = {}) {
  * Get paginated waiting list entries for admin
  */
 async function getWaitingListEntriesAdmin(filters = {}) {
-  const { status, type, email, limit = 50, offset = 0 } = filters;
+  const { status, type, email, limit = 50, offset = 0, bypassCache = false } = filters;
   
-  const { entries } = await getWaitingListEntries();
+  const { entries } = await getWaitingListEntries({ bypassCache });
   
   // Apply filters
   let filteredEntries = entries;
