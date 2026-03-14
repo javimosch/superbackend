@@ -7,24 +7,53 @@ const userSchema = new mongoose.Schema({
     required: true,
     unique: true,
     lowercase: true,
-    trim: true,
-    index: true
+    trim: true
   },
   clerkUserId: {
     type: String,
-    index: true,
     sparse: true
   },
   passwordHash: {
     type: String,
     required: function () {
-      return !this.clerkUserId;
+      // Password is optional for OAuth users (GitHub, Clerk)
+      return !this.clerkUserId && !this.githubId;
     }
   },
   name: {
     type: String,
     trim: true
   },
+
+  // GitHub OAuth Integration
+  githubId: {
+    type: String,
+    sparse: true
+  },
+  githubUsername: {
+    type: String,
+    sparse: true
+  },
+  githubAccessToken: {
+    type: String,
+    select: false // Don't return by default
+  },
+  githubRefreshToken: {
+    type: String,
+    select: false // Don't return by default
+  },
+  githubEmail: {
+    type: String,
+    sparse: true
+  },
+  avatar: {
+    type: String
+  },
+  emailVerified: {
+    type: Boolean,
+    default: false
+  },
+
   subscriptionStatus: {
     type: String,
     enum: ['none', 'active', 'cancelled', 'past_due', 'incomplete', 'incomplete_expired', 'trialing', 'unpaid'],
@@ -63,7 +92,10 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// userSchema.index({ email: 1 }); // Removed duplicate index
+// Indexes
+userSchema.index({ email: 1 });
+userSchema.index({ githubId: 1 });
+userSchema.index({ clerkUserId: 1 });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
@@ -82,6 +114,8 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
 userSchema.methods.toJSON = function() {
   const obj = this.toObject();
   delete obj.passwordHash;
+  delete obj.githubAccessToken;
+  delete obj.githubRefreshToken;
   delete obj.__v;
   return obj;
 };
