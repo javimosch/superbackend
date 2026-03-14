@@ -78,8 +78,22 @@
             <p id="entries-subtitle" class="text-sm text-gray-600 mt-1">Loading...</p>
           </div>
           <div class="flex gap-2">
+            <button id="btn-export-csv" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              Export CSV
+            </button>
             <button id="btn-copy-visible" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Copy visible</button>
             <button id="btn-refresh-entries" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Type Filter Cards -->
+        <div class="mt-6">
+          <h3 class="text-sm font-medium text-gray-700 mb-3">Filter by Type</h3>
+          <div id="type-filter-cards" class="flex flex-wrap gap-3">
+            <!-- Cards will be rendered here -->
           </div>
         </div>
 
@@ -111,6 +125,9 @@
           <button id="btn-entries-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
           <button id="btn-entries-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
           <div class="flex-1"></div>
+          <button id="btn-bulk-remove" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+            Delete Selected (<span id="selected-count">0</span>)
+          </button>
           <button id="btn-entries-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Prev</button>
           <button id="btn-entries-next" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Next</button>
         </div>
@@ -119,6 +136,9 @@
           <table class="min-w-full divide-y divide-gray-200">
             <thead class="bg-gray-50">
               <tr>
+                <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <input type="checkbox" id="select-all-entries" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                </th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
@@ -166,6 +186,48 @@
           <pre id="subscribe-response" class="bg-gray-100 p-4 rounded overflow-auto max-h-96"></pre>
         </div>
       </div>
+
+      <!-- Integration -->
+      <div class="bg-white rounded-lg shadow p-6">
+        <details class="group">
+          <summary class="flex items-center justify-between cursor-pointer list-none">
+            <div>
+              <h2 class="text-xl font-bold text-gray-900">Integration</h2>
+              <p class="text-sm text-gray-600 mt-1">cURL example for external apps</p>
+            </div>
+            <span class="transition-transform group-open:rotate-180">
+              <svg class="w-6 h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              </svg>
+            </span>
+          </summary>
+          
+          <div class="mt-6">
+            <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-mono text-gray-400">bash</span>
+                <button id="btn-copy-curl" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-3 py-1 rounded flex items-center gap-1">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                  </svg>
+                  Copy
+                </button>
+              </div>
+              <pre id="curl-example" class="text-green-400 font-mono text-sm whitespace-pre-wrap break-all"></pre>
+            </div>
+            
+            <div class="mt-4 text-sm text-gray-600">
+              <p class="mb-2"><strong class="text-gray-900">Endpoint:</strong> <code class="bg-gray-100 px-2 py-1 rounded">POST /api/waiting-list/subscribe</code></p>
+              <p class="mb-2"><strong class="text-gray-900">Fields:</strong></p>
+              <ul class="list-disc list-inside space-y-1 ml-2">
+                <li><code class="bg-gray-100 px-2 py-0.5 rounded text-sm">email</code> (required) - User email address</li>
+                <li><code class="bg-gray-100 px-2 py-0.5 rounded text-sm">type</code> (required) - Interest type (e.g., buyer, seller, both)</li>
+                <li><code class="bg-gray-100 px-2 py-0.5 rounded text-sm">referralSource</code> (optional) - Traffic source (default: website)</li>
+              </ul>
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
   </div>
 
@@ -178,6 +240,27 @@
     const WAITING_LIST_SUBSCRIBE_PATH = '/api/waiting-list/subscribe';
     const WAITING_LIST_ADMIN_LIST_PATH = '/api/admin/waiting-list';
     
+    // Generate cURL example with all fields
+    function generateCurlExample() {
+      const baseUrl = window.location.origin;
+      const curlCommand = `curl -X POST ${baseUrl}/api/waiting-list/subscribe \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "email": "user@example.com",
+    "type": "buyer",
+    "referralSource": "website"
+  }'`;
+      return curlCommand;
+    }
+
+    // Render cURL example on page load
+    function renderCurlExample() {
+      const curlEl = document.getElementById('curl-example');
+      if (curlEl) {
+        curlEl.textContent = generateCurlExample();
+      }
+    }
+
     function showToast(message, type = 'success') {
       const container = document.getElementById('toast-container');
       const toast = document.createElement('div');
@@ -272,6 +355,162 @@
 
     let entriesState = { offset: 0, total: 0, limit: 50 };
     let lastEntries = [];
+    let selectedType = null; // Track selected type filter
+    let selectedEntryIds = new Set(); // Track selected entry IDs for bulk delete
+
+    async function updateBulkDeleteButton() {
+      const btn = document.getElementById('btn-bulk-remove');
+      const countEl = document.getElementById('selected-count');
+      if (btn && countEl) {
+        const count = selectedEntryIds.size;
+        countEl.textContent = count;
+        btn.disabled = count === 0;
+      }
+    }
+
+    function toggleEntrySelection(entryId, isChecked) {
+      if (isChecked) {
+        selectedEntryIds.add(entryId);
+      } else {
+        selectedEntryIds.delete(entryId);
+      }
+      updateBulkDeleteButton();
+    }
+
+    function toggleSelectAll(isChecked) {
+      if (isChecked) {
+        // Select all visible entries
+        lastEntries.forEach(entry => {
+          if (entry && entry.id) {
+            selectedEntryIds.add(entry.id);
+          }
+        });
+      } else {
+        // Deselect only visible entries
+        lastEntries.forEach(entry => {
+          if (entry && entry.id) {
+            selectedEntryIds.delete(entry.id);
+          }
+        });
+      }
+      updateBulkDeleteButton();
+      
+      // Update individual checkboxes to match select-all state
+      document.querySelectorAll('.entry-checkbox').forEach(cb => {
+        cb.checked = isChecked;
+      });
+    }
+
+    async function loadTypes() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/waiting-list/types`, { 
+          headers: { 'Accept': 'application/json' } 
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error('Failed to load types:', data?.error);
+          return;
+        }
+
+        const container = document.getElementById('type-filter-cards');
+        if (!container) return;
+
+        const types = data?.types || [];
+        
+        // Render ALL card
+        let html = `
+          <button 
+            class="type-filter-card px-4 py-3 rounded-lg border-2 transition-all ${
+              selectedType === null 
+                ? 'border-blue-500 bg-blue-50 shadow-md' 
+                : 'border-gray-200 bg-white hover:border-gray-300'
+            }"
+            data-type=""
+          >
+            <div class="text-sm font-medium text-gray-600">ALL</div>
+            <div class="text-2xl font-bold text-gray-900 mt-1">${data?.total || 0}</div>
+          </button>
+        `;
+
+        // Render type cards
+        types.forEach(({ type, count }) => {
+          const isSelected = selectedType === type;
+          const safeType = String(type)
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+          
+          html += `
+            <button 
+              class="type-filter-card px-4 py-3 rounded-lg border-2 transition-all ${
+                isSelected 
+                  ? 'border-blue-500 bg-blue-50 shadow-md' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              }"
+              data-type="${safeType}"
+            >
+              <div class="text-sm font-medium text-gray-600">${safeType}</div>
+              <div class="text-2xl font-bold text-gray-900 mt-1">${count}</div>
+            </button>
+          `;
+        });
+
+        container.innerHTML = html;
+
+        // Bind click events
+        container.querySelectorAll('.type-filter-card').forEach((card) => {
+          card.addEventListener('click', () => handleTypeFilterClick(card));
+        });
+      } catch (e) {
+        console.error('Error loading types:', e);
+      }
+    }
+
+    function handleTypeFilterClick(card) {
+      const type = card.getAttribute('data-type');
+      selectedType = type || null;
+      
+      // Update UI - highlight selected card
+      document.querySelectorAll('.type-filter-card').forEach((c) => {
+        c.classList.remove('border-blue-500', 'bg-blue-50', 'shadow-md');
+        c.classList.add('border-gray-200', 'hover:border-gray-300');
+      });
+      
+      card.classList.remove('border-gray-200', 'hover:border-gray-300');
+      card.classList.add('border-blue-500', 'bg-blue-50', 'shadow-md');
+      
+      // Update hidden input and reload entries
+      const typeInput = document.getElementById('entries-type');
+      if (typeInput) typeInput.value = selectedType || '';
+      
+      // Reset pagination and reload
+      entriesState.offset = 0;
+      loadEntries();
+    }
+
+    function exportCsv() {
+      // Get current filter values
+      const status = document.getElementById('entries-status')?.value?.trim();
+      const type = document.getElementById('entries-type')?.value?.trim();
+      const email = document.getElementById('entries-email')?.value?.trim();
+      
+      // Build query string with current filters
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      if (type) params.set('type', type);
+      if (email) params.set('email', email);
+      
+      // Create download link and trigger it
+      const downloadUrl = `${API_BASE}/api/admin/waiting-list/export-csv?${params.toString()}`;
+      
+      // Open in new tab to trigger download
+      window.open(downloadUrl, '_blank');
+      
+      showToast('CSV export started', 'success');
+    }
 
     async function loadEntries() {
       const status = document.getElementById('entries-status')?.value?.trim();
@@ -332,9 +571,19 @@
               const statusCell = escapeHtml(e?.status);
               const refCell = escapeHtml(e?.referralSource || '');
               const rawEmail = String(e?.email || '');
+              const entryId = e?.id || '';
+              const isChecked = selectedEntryIds.has(entryId) ? 'checked' : '';
 
               return `
-                <tr>
+                <tr class="${isChecked ? 'bg-blue-50' : ''}">
+                  <td class="px-4 py-3 text-sm text-center">
+                    <input 
+                      type="checkbox" 
+                      class="entry-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                      data-entry-id="${escapeHtml(entryId)}"
+                      ${isChecked}
+                    >
+                  </td>
                   <td class="px-4 py-3 text-sm text-gray-900 whitespace-nowrap">${createdAt}</td>
                   <td class="px-4 py-3 text-sm text-gray-900">${emailCell}</td>
                   <td class="px-4 py-3 text-sm text-gray-700">${typeCell}</td>
@@ -347,6 +596,16 @@
               `;
             }).join('');
 
+            // Bind checkbox events
+            tbody.querySelectorAll('.entry-checkbox').forEach((cb) => {
+              cb.addEventListener('change', (e) => {
+                const entryId = e.target.getAttribute('data-entry-id');
+                toggleEntrySelection(entryId, e.target.checked);
+                // Highlight row
+                e.target.closest('tr').classList.toggle('bg-blue-50', e.target.checked);
+              });
+            });
+
             tbody.querySelectorAll('[data-copy-email]').forEach((btn) => {
               btn.addEventListener('click', () => copyText(btn.getAttribute('data-copy-email') || ''));
             });
@@ -357,9 +616,54 @@
         const nextBtn = document.getElementById('btn-entries-next');
         if (prevBtn) prevBtn.disabled = usedOffset <= 0;
         if (nextBtn) nextBtn.disabled = usedOffset + usedLimit >= total;
+        
+        // Update select-all checkbox state based on current selection
+        const selectAllCb = document.getElementById('select-all-entries');
+        if (selectAllCb && entries.length > 0) {
+          const allVisibleSelected = entries.every(e => selectedEntryIds.has(e.id));
+          selectAllCb.checked = allVisibleSelected;
+          selectAllCb.indeterminate = !allVisibleSelected && entries.some(e => selectedEntryIds.has(e.id));
+        }
       } catch (e) {
         showToast(e.message || 'Failed to load entries', 'error');
         if (subtitle) subtitle.textContent = 'Failed to load.';
+      }
+    }
+
+    async function bulkRemoveEntries() {
+      if (selectedEntryIds.size === 0) {
+        showToast('No entries selected', 'error');
+        return;
+      }
+
+      const count = selectedEntryIds.size;
+      if (!confirm(`Are you sure you want to delete ${count} entr${count === 1 ? 'y' : 'ies'}? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/waiting-list/bulk-remove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ entryIds: Array.from(selectedEntryIds) }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to delete entries', 'error');
+          return;
+        }
+
+        showToast(`Successfully deleted ${data.removed?.count || 0} entrie(s)`, 'success');
+        
+        // Clear selection and reload
+        selectedEntryIds.clear();
+        updateBulkDeleteButton();
+        loadEntries();
+        loadTypes(); // Refresh type counts
+      } catch (e) {
+        showToast(e.message || 'Failed to delete entries', 'error');
       }
     }
 
@@ -428,7 +732,28 @@
       if (refreshBtn) refreshBtn.onclick = loadStats;
 
       const refreshEntriesBtn = document.getElementById('btn-refresh-entries');
-      if (refreshEntriesBtn) refreshEntriesBtn.onclick = loadEntries;
+      if (refreshEntriesBtn) refreshEntriesBtn.onclick = () => {
+        selectedType = null; // Reset type filter on refresh
+        loadEntries();
+        loadTypes(); // Reload types to update counts
+      };
+
+      const exportCsvBtn = document.getElementById('btn-export-csv');
+      if (exportCsvBtn) {
+        exportCsvBtn.onclick = exportCsv;
+      }
+
+      const bulkRemoveBtn = document.getElementById('btn-bulk-remove');
+      if (bulkRemoveBtn) {
+        bulkRemoveBtn.onclick = bulkRemoveEntries;
+      }
+
+      const selectAllCb = document.getElementById('select-all-entries');
+      if (selectAllCb) {
+        selectAllCb.addEventListener('change', (e) => {
+          toggleSelectAll(e.target.checked);
+        });
+      }
 
       const applyEntriesBtn = document.getElementById('btn-entries-apply');
       if (applyEntriesBtn) {
@@ -445,8 +770,12 @@
           document.getElementById('entries-type').value = '';
           document.getElementById('entries-email').value = '';
           document.getElementById('entries-limit').value = '50';
+          selectedType = null; // Reset type filter
+          selectedEntryIds.clear(); // Clear selection
           entriesState.offset = 0;
           loadEntries();
+          loadTypes(); // Reload types to update UI
+          updateBulkDeleteButton();
         };
       }
 
@@ -488,6 +817,14 @@
           document.getElementById('sub-ref').value = '';
           const out = document.getElementById('subscribe-response');
           if (out) out.textContent = '';
+        };
+      }
+
+      const copyCurlBtn = document.getElementById('btn-copy-curl');
+      if (copyCurlBtn) {
+        copyCurlBtn.onclick = () => {
+          const curlCommand = generateCurlExample();
+          copyText(curlCommand);
         };
       }
 
@@ -533,7 +870,9 @@
 
     bindEvents();
     loadStats();
+    loadTypes();
     loadEntries();
+    renderCurlExample();
   </script>
 <script>
   window.addEventListener("keydown", (e) => {

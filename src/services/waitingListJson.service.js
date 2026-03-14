@@ -334,6 +334,32 @@ async function getWaitingListEntriesAdmin(filters = {}) {
 }
 
 /**
+ * Get available types with counts
+ */
+async function getAvailableTypes() {
+  const { entries } = await getWaitingListEntries();
+  
+  // Count entries by type
+  const typeCounts = entries.reduce((acc, entry) => {
+    const type = String(entry.type || 'unknown').trim();
+    if (type) {
+      acc[type] = (acc[type] || 0) + 1;
+    }
+    return acc;
+  }, {});
+  
+  // Convert to sorted array
+  const types = Object.entries(typeCounts)
+    .map(([type, count]) => ({ type, count }))
+    .sort((a, b) => b.count - a.count);
+  
+  return {
+    types,
+    total: entries.length
+  };
+}
+
+/**
  * Clear all waiting list related caches
  */
 function clearWaitingListCache() {
@@ -352,6 +378,8 @@ function getWaitingListCacheInfo() {
 
 /**
  * Initialize waiting list data structure if it doesn't exist
+ * Note: cacheTtlSeconds MUST be 0 for persistence use cases (waiting list, rate limiters)
+ * to ensure real-time data consistency. Caching would cause stale reads.
  */
 async function initializeWaitingListData() {
   try {
@@ -368,7 +396,7 @@ async function initializeWaitingListData() {
           lastUpdated: new Date().toISOString()
         }),
         publicEnabled: false,
-        cacheTtlSeconds: 300
+        cacheTtlSeconds: 0 // No caching - required for real-time persistence
       });
     } else {
       throw error;
@@ -384,6 +412,7 @@ module.exports = {
   removeWaitingListEntry,
   getWaitingListStats,
   getWaitingListEntriesAdmin,
+  getAvailableTypes,
   
   // Cache management
   clearWaitingListCache,
