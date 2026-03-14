@@ -177,12 +177,22 @@ authPasswordResetLimiter: {
 
 ### Public API Limiters
 ```javascript
-// Waiting list subscription
-waitingListLimiter: {
-  label: "Waiting List",
+// Waiting list subscription (prevents spam signups)
+waitingListSubscribeLimiter: {
+  label: "Waiting List Subscribe",
   config: {
-    limit: { max: 1, windowMs: 3600000 }, // 1/hour per email/IP
+    limit: { max: 1, windowMs: 3600000 }, // 1/hour per IP
     mode: "enforce",
+    identity: { type: "ip" }
+  }
+}
+
+// Waiting list stats (prevent scraping/abuse)
+waitingListStatsLimiter: {
+  label: "Waiting List Stats",
+  config: {
+    limit: { max: 60, windowMs: 60000 }, // 60/minute per IP
+    mode: "reportOnly", // Start with monitoring
     identity: { type: "ip" }
   }
 }
@@ -288,9 +298,10 @@ router.post('/register', rateLimiter.limit("authRegisterLimiter"), authControlle
 4. **Week 3**: Enable public API limiters based on metrics
 5. **Week 4**: Full deployment with all limiters active
 
-## Implementation Details (Completed - AI Operations Only)
+## Implementation Details (Completed - AI Operations + Waiting List)
 
 ### Phase 1: AI/LLM Routes - COMPLETED ✅
+### Phase 3: Public APIs (Waiting List) - COMPLETED ✅
 
 All AI/LLM routes have been protected with rate limiters. The limiters will auto-bootstrap as disabled and can be enabled via the Admin UI.
 
@@ -336,6 +347,10 @@ All AI/LLM routes have been protected with rate limiters. The limiters will auto
 10. **EJS Virtual AI Routes** (`/api/admin/ejs-virtual`)
     - `POST /vibe` - `aiOperationsLimiter`
 
+11. **Waiting List Public Routes** (`/api/waiting-list`)
+    - `POST /waiting-list/subscribe` - `waitingListSubscribeLimiter` (1/hour, enforce)
+    - `GET /waiting-list/stats` - `waitingListStatsLimiter` (60/min, reportOnly)
+
 #### Limiter IDs and Default Configurations:
 
 ```javascript
@@ -346,7 +361,9 @@ All AI/LLM routes have been protected with rate limiters. The limiters will auto
     "blogAiLimiter": { "enabled": false },
     "seoAiLimiter": { "enabled": false },
     "i18nAiLimiter": { "enabled": false },
-    "aiOperationsLimiter": { "enabled": false }
+    "aiOperationsLimiter": { "enabled": false },
+    "waitingListSubscribeLimiter": { "enabled": false },
+    "waitingListStatsLimiter": { "enabled": false }
   }
 }
 ```
@@ -370,17 +387,20 @@ All AI/LLM routes have been protected with rate limiters. The limiters will auto
 - `src/routes/adminBlogAutomation.routes.js`
 - `src/routes/blogInternal.routes.js`
 - `src/routes/adminEjsVirtual.routes.js`
+- `src/routes/waitingList.routes.js` (Waiting List public endpoints)
 
 ### Security Benefits:
 
 - **Cost Control**: Prevents runaway AI usage and unexpected costs
 - **Resource Protection**: Ensures AI services aren't overwhelmed
 - **Abuse Prevention**: Stops potential abuse of AI features
+- **Spam Prevention**: Protects waiting list from bot submissions
 - **Visibility**: Provides metrics on AI usage patterns
 
 ## Success Metrics
 
 - ✅ All 25+ AI/LLM endpoints now rate limited
+- ✅ Waiting list public endpoints protected from spam
 - ✅ Limiters will auto-bootstrap on first use
 - ✅ Configurable via Admin UI
 - ✅ Zero breaking changes (disabled by default)

@@ -128,6 +128,31 @@ function registerLimiter(limiterId, { label, integration, inferredMountPath } = 
   return next;
 }
 
+function getLimiterDefaultConfig(limiterId) {
+  // Default configuration for specific limiters
+  const defaults = {
+    // Waiting list endpoints - strict rate limiting to prevent spam
+    waitingListSubscribeLimiter: {
+      enabled: true,
+      mode: 'enforce',
+      algorithm: 'fixedWindow',
+      limit: { max: 1, windowMs: 60000 }, // 1 request per minute
+      identity: { type: 'ip' },
+      metrics: { enabled: true, bucketMs: 60000, retentionDays: 14 }
+    },
+    waitingListStatsLimiter: {
+      enabled: true,
+      mode: 'reportOnly', // Start with monitoring
+      algorithm: 'fixedWindow',
+      limit: { max: 60, windowMs: 60000 }, // 60 requests per minute
+      identity: { type: 'ip' },
+      metrics: { enabled: true, bucketMs: 60000, retentionDays: 14 }
+    }
+  };
+
+  return defaults[limiterId] || null;
+}
+
 async function ensureLimiterOverrideExists(limiterId) {
   const id = normalizeLimiterId(limiterId);
 
@@ -156,10 +181,13 @@ async function ensureLimiterOverrideExists(limiterId) {
       return;
     }
 
+    // Get default config for this limiter, or use minimal enabled: false
+    const defaultConfig = getLimiterDefaultConfig(id) || { enabled: false };
+
     const updated = {
       version: Number(data?.version || 1) || 1,
       defaults: data?.defaults || {},
-      limiters: { ...(data?.limiters || {}), [id]: { enabled: false } },
+      limiters: { ...(data?.limiters || {}), [id]: defaultConfig },
     };
 
     doc.jsonRaw = JSON.stringify(updated, null, 2);
