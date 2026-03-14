@@ -529,6 +529,8 @@ const noCommandResources = [
   "migration-status",
   "empty-collections",
   "top-collections",
+  "collection-count",
+  "slow-queries",
 ];
 
 if (!options.command && !noCommandResources.includes(options.resource)) {

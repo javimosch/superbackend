@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const rbacRoleSchema = new mongoose.Schema(
   {
-    key: { type: String, required: true, trim: true, lowercase: true, index: true },
+    key: { type: String, required: true, trim: true, lowercase: true },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '', trim: true },
     status: { type: String, enum: ['active', 'disabled'], default: 'active', index: true },

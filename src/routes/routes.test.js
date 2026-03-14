@@ -7,6 +7,9 @@ const mockAuthController = {
   login: jest.fn((req, res) => res.json({ message: 'logged in' })),
   refresh: jest.fn((req, res) => res.json({ message: 'refreshed' })),
   me: jest.fn((req, res) => res.json({ message: 'user info' })),
+  githubLogin: jest.fn((req, res) => res.redirect('https://github.com')),
+  githubCallback: jest.fn((req, res) => res.json({ message: 'github callback' })),
+  githubRefreshToken: jest.fn((req, res) => res.json({ message: 'github token refreshed' })),
 };
 
 const mockUserController = {

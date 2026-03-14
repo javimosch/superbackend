@@ -1,5 +1,6 @@
+.beads
 #ref-*
-*autochangelog
+*autochangelog*
 uploads
 node_modules/
 .env*

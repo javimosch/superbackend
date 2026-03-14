@@ -1,0 +1,16 @@
+services:
+  superbackend:
+    image: javimosch/superbackend:latest
+    expose:
+      - "3000"
+    env_file:
+      - .env.vps
+    volumes:
+      - .:/app
+      - /app/node_modules
+    networks:
+      - coolify-shared
+
+networks:
+  coolify-shared:
+    external: true
