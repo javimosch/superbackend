@@ -6,7 +6,8 @@
   "bin": {
     "agent-chat": "src/cli/agent-chat.js",
     "agent-list": "src/cli/agent-list.js",
-    "api": "src/cli/api.js"
+    "api": "src/cli/api.js",
+    "direct": "src/cli/direct.js"
   },
   "scripts": {
     "start": "node server.js",
@@ -19,7 +20,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "image:deploy": "docker build -t javimosch/superbackend:latest . && docker push javimosch/superbackend:latest"
+    "image:deploy": "docker build -t javimosch/superbackend:latest . && docker push javimosch/superbackend:latest",
+    "api": "node src/cli/api.js",
+    "direct": "node src/cli/direct.js"
   },
   "keywords": [
     "substack",
