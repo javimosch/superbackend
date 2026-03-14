@@ -8,11 +8,11 @@ jest.mock('../services/pages.service', () => ({
 }));
 
 jest.mock('../middleware/auth', () => ({
-  basicAuth: jest.fn((req, res, next) => next()),
+  adminSessionAuth: jest.fn((req, res, next) => next()),
 }));
 
 const pagesService = require('../services/pages.service');
-const { basicAuth } = require('../middleware/auth');
+const { adminSessionAuth } = require('../middleware/auth');
 const pagesRouter = require('./pages.routes');
 
 describe('pages.routes', () => {
@@ -36,7 +36,7 @@ describe('pages.routes', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('ok');
-    expect(basicAuth).not.toHaveBeenCalled();
+    expect(adminSessionAuth).not.toHaveBeenCalled();
     expect(pagesService.findPageByRoutePath).toHaveBeenCalledWith('/home', expect.objectContaining({
       statuses: ['published'],
       tenantId: null,
@@ -44,21 +44,21 @@ describe('pages.routes', () => {
     }));
   });
 
-  test('draft=1 requires basicAuth and allows draft status', async () => {
+  test('draft=1 requires adminSessionAuth and allows draft status', async () => {
     pagesService.findPageByRoutePath.mockResolvedValue({ _id: 'p1', slug: 'home' });
     pagesService.renderPage.mockResolvedValue('<html>ok</html>');
 
     const res = await request(app).get('/home?draft=1');
 
     expect(res.status).toBe(200);
-    expect(basicAuth).toHaveBeenCalled();
+    expect(adminSessionAuth).toHaveBeenCalled();
     expect(pagesService.findPageByRoutePath).toHaveBeenCalledWith('/home', expect.objectContaining({
       statuses: ['published', 'draft'],
     }));
   });
 
-  test('draft=1 with failed basicAuth ends request and does not render', async () => {
-    basicAuth.mockImplementationOnce((req, res) => {
+  test('draft=1 with failed adminSessionAuth ends request and does not render', async () => {
+    adminSessionAuth.mockImplementationOnce((req, res) => {
       res.status(401).json({ error: 'Authentication required' });
     });
 

@@ -47,16 +47,11 @@ const mockBillingController = {
 const mockGlobalSettingsController = {
   getPublicSettings: jest.fn((req, res) => res.json({ message: 'public settings' })),
   getAllSettings: jest.fn((req, res) => res.json({ message: 'all settings' })),
-  getGlobalSettings: jest.fn((req, res) => res.json({ message: 'global settings' })),
-  updateGlobalSettings: jest.fn((req, res) => res.json({ message: 'global settings updated' })),
-  resetGlobalSettings: jest.fn((req, res) => res.json({ message: 'global settings reset' })),
-  getGlobalSetting: jest.fn((req, res) => res.json({ message: 'global setting' })),
-  setGlobalSetting: jest.fn((req, res) => res.json({ message: 'global setting set' })),
+  getSetting: jest.fn((req, res) => res.json({ message: 'global setting' })),
   updateSetting: jest.fn((req, res) => res.json({ message: 'global setting updated' })),
   createSetting: jest.fn((req, res) => res.json({ message: 'global setting set' })),
   revealSetting: jest.fn((req, res) => res.json({ message: 'setting revealed' })),
   deleteSetting: jest.fn((req, res) => res.json({ message: 'setting deleted' })),
-  getSetting: jest.fn((req, res) => res.json({ message: 'global setting' })),
 };
 
 const mockNotificationsController = {
@@ -74,7 +69,8 @@ const mockWaitingListController = {
 // Mock middleware
 const mockAuth = {
   basicAuth: jest.fn((req, res, next) => next()),
-  authenticate: jest.fn((req, res, next) => next())
+  authenticate: jest.fn((req, res, next) => next()),
+  adminSessionAuth: jest.fn((req, res, next) => next())
 };
 
 jest.mock('../middleware/auth', () => mockAuth);
@@ -222,7 +218,7 @@ describe('Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.message).toBe('users list');
-      expect(mockAuth.basicAuth).toHaveBeenCalled();
+      expect(mockAuth.adminSessionAuth).toHaveBeenCalled();
       expect(mockAdminController.getUsers).toHaveBeenCalled();
     });
 
