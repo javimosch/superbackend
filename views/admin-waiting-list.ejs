@@ -71,7 +71,7 @@
       </div>
 
       <!-- Entries table (admin) -->
-      <div class="bg-white rounded-lg shadow p-6 mb-8">
+      <div class="bg-white rounded-lg shadow p-6 mb-8 relative">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 class="text-xl font-bold text-gray-900">Entries</h2>
@@ -86,6 +86,17 @@
             </button>
             <button id="btn-copy-visible" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Copy visible</button>
             <button id="btn-refresh-entries" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="entries-loading" class="hidden absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+          <div class="flex items-center gap-2 text-gray-600">
+            <svg class="animate-spin h-5 w-5 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Loading...</span>
           </div>
         </div>
 
@@ -125,7 +136,11 @@
           <button id="btn-entries-apply" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply</button>
           <button id="btn-entries-reset" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Reset</button>
           <div class="flex-1"></div>
-          <button id="btn-bulk-remove" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+          <button id="btn-bulk-remove" class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2" disabled>
+            <svg id="bulk-remove-spinner" class="animate-spin h-4 w-4 hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
             Delete Selected (<span id="selected-count">0</span>)
           </button>
           <button id="btn-entries-prev" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Prev</button>
@@ -357,6 +372,15 @@
     let lastEntries = [];
     let selectedType = null; // Track selected type filter
     let selectedEntryIds = new Set(); // Track selected entry IDs for bulk delete
+    let isLoading = false;
+
+    function showLoading(show) {
+      const loadingEl = document.getElementById('entries-loading');
+      if (loadingEl) {
+        loadingEl.classList.toggle('hidden', !show);
+      }
+      isLoading = show;
+    }
 
     async function updateBulkDeleteButton() {
       const btn = document.getElementById('btn-bulk-remove');
@@ -364,7 +388,7 @@
       if (btn && countEl) {
         const count = selectedEntryIds.size;
         countEl.textContent = count;
-        btn.disabled = count === 0;
+        btn.disabled = count === 0 || isLoading;
       }
     }
 
@@ -513,6 +537,8 @@
     }
 
     async function loadEntries() {
+      if (isLoading) return; // Prevent concurrent loads
+      
       const status = document.getElementById('entries-status')?.value?.trim();
       const type = document.getElementById('entries-type')?.value?.trim();
       const email = document.getElementById('entries-email')?.value?.trim();
@@ -520,16 +546,20 @@
 
       const subtitle = document.getElementById('entries-subtitle');
       const tbody = document.getElementById('entries-tbody');
+      
+      showLoading(true);
       if (subtitle) subtitle.textContent = 'Loading...';
       if (tbody) tbody.innerHTML = '';
 
       try {
+        // Add timestamp to bypass browser cache
         const url = `${API_BASE}${WAITING_LIST_ADMIN_LIST_PATH}${qs({
           status: status || undefined,
           type: type || undefined,
           email: email || undefined,
           limit,
           offset: entriesState.offset,
+          _t: Date.now() // Cache buster
         })}`;
 
         const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -627,6 +657,8 @@
       } catch (e) {
         showToast(e.message || 'Failed to load entries', 'error');
         if (subtitle) subtitle.textContent = 'Failed to load.';
+      } finally {
+        showLoading(false);
       }
     }
 
@@ -642,6 +674,12 @@
       }
 
       try {
+        showLoading(true);
+        const btn = document.getElementById('btn-bulk-remove');
+        const spinner = document.getElementById('bulk-remove-spinner');
+        if (btn) btn.disabled = true;
+        if (spinner) spinner.classList.remove('hidden');
+
         const res = await fetch(`${API_BASE}/api/admin/waiting-list/bulk-remove`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -664,6 +702,12 @@
         loadTypes(); // Refresh type counts
       } catch (e) {
         showToast(e.message || 'Failed to delete entries', 'error');
+      } finally {
+        showLoading(false);
+        const btn = document.getElementById('btn-bulk-remove');
+        const spinner = document.getElementById('bulk-remove-spinner');
+        if (btn) btn.disabled = true; // Will be re-enabled when selection changes
+        if (spinner) spinner.classList.add('hidden');
       }
     }
 
