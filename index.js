@@ -1,4 +1,6 @@
-require("dotenv").config({ path: process.env.ENV_FILE || ".env" });
+if (!process.env.SUPERBACKEND_AS_MIDDLEWARE) {
+  require("dotenv").config({ path: process.env.ENV_FILE || ".env" });
+}
 const express = require("express");
 
 /**
