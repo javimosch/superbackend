@@ -167,6 +167,85 @@
         </div>
       </div>
 
+      <!-- Public Exports Management -->
+      <div class="bg-white rounded-lg shadow p-6 mb-8">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 class="text-xl font-bold text-gray-900">Public Exports</h2>
+            <p class="text-sm text-gray-600 mt-1">Create and manage shareable export links</p>
+          </div>
+          <div class="flex gap-2">
+            <button id="btn-create-export" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Create Export</button>
+            <button id="btn-refresh-exports" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Refresh</button>
+          </div>
+        </div>
+
+        <!-- Create Export Form (Hidden by default) -->
+        <div id="create-export-form" class="hidden mt-6 p-4 border rounded-lg bg-gray-50">
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Create New Export</h3>
+          <form id="export-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Export Name *</label>
+              <div class="flex gap-2">
+                <input id="export-name" type="text" class="flex-1 border rounded px-3 py-2" placeholder="e.g., cerise" required>
+                <button type="button" id="btn-generate-name" class="bg-gray-200 text-gray-700 px-3 py-2 rounded hover:bg-gray-300 text-sm">Generate</button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Waitlist Type *</label>
+              <select id="export-type" class="w-full border rounded px-3 py-2" required>
+                <option value="">Select type...</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Password (Optional)</label>
+              <input id="export-password" type="password" class="w-full border rounded px-3 py-2" placeholder="Leave empty for no protection">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Default Format</label>
+              <select id="export-format" class="w-full border rounded px-3 py-2">
+                <option value="csv">CSV</option>
+                <option value="json">JSON</option>
+              </select>
+            </div>
+          </form>
+          <div class="mt-4 flex gap-2 justify-end">
+            <button type="button" id="btn-cancel-export" class="bg-gray-100 text-gray-800 px-4 py-2 rounded hover:bg-gray-200">Cancel</button>
+            <button type="submit" form="export-form" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Create Export</button>
+          </div>
+        </div>
+
+        <!-- Exports Table -->
+        <div class="mt-6">
+          <div id="exports-loading" class="hidden text-center py-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <p class="mt-2 text-gray-600">Loading exports...</p>
+          </div>
+          <div id="exports-container" class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Format</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Access Count</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Accessed</th>
+                  <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="exports-tbody" class="bg-white divide-y divide-gray-200">
+                <!-- Exports will be loaded here -->
+              </tbody>
+            </table>
+            <div id="no-exports" class="text-center py-8 text-gray-500">
+              <p>No public exports created yet</p>
+              <p class="text-sm mt-2">Click "Create Export" to get started</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Subscribe tester -->
       <div class="bg-white rounded-lg shadow p-6">
         <div>
@@ -254,6 +333,8 @@
     const WAITING_LIST_STATS_PATH = '/api/waiting-list/stats';
     const WAITING_LIST_SUBSCRIBE_PATH = '/api/waiting-list/subscribe';
     const WAITING_LIST_ADMIN_LIST_PATH = '/api/admin/waiting-list';
+    const WAITING_LIST_PUBLIC_EXPORTS_PATH = '/api/admin/waiting-list/public-exports';
+    const WAITING_LIST_PUBLIC_EXPORT_URL = '/api/waiting-list/share/export';
     
     // Generate cURL example with all fields
     function generateCurlExample() {
@@ -349,22 +430,250 @@
     async function copyText(text) {
       try {
         await navigator.clipboard.writeText(text);
-        showToast('Copied to clipboard', 'success');
-      } catch (e) {
+        showToast('Copied to clipboard!', 'success');
+      } catch (err) {
+        console.error('Failed to copy text: ', err);
+        // Fallback for older browsers
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
         try {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.left = '-9999px';
-          document.body.appendChild(ta);
-          ta.focus();
-          ta.select();
           document.execCommand('copy');
-          ta.remove();
           showToast('Copied to clipboard', 'success');
-        } catch (err) {
+        } catch (fallbackErr) {
           showToast('Failed to copy', 'error');
         }
+        ta.remove();
+      }
+    }
+
+    // Public Exports Management
+    let publicExports = [];
+    let availableTypes = [];
+
+    async function loadPublicExports() {
+      try {
+        const loadingEl = document.getElementById('exports-loading');
+        const containerEl = document.getElementById('exports-container');
+        const noExportsEl = document.getElementById('no-exports');
+        
+        if (loadingEl) loadingEl.classList.remove('hidden');
+        if (containerEl) containerEl.classList.add('hidden');
+        if (noExportsEl) noExportsEl.classList.add('hidden');
+
+        const res = await fetch(`${API_BASE}${WAITING_LIST_PUBLIC_EXPORTS_PATH}`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error('Failed to load public exports:', data?.error);
+          showToast('Failed to load public exports', 'error');
+          return;
+        }
+
+        publicExports = data?.exports || [];
+        renderPublicExports();
+        
+        if (loadingEl) loadingEl.classList.add('hidden');
+        if (containerEl) containerEl.classList.remove('hidden');
+        
+        if (publicExports.length === 0) {
+          if (containerEl) containerEl.classList.add('hidden');
+          if (noExportsEl) noExportsEl.classList.remove('hidden');
+        } else {
+          if (noExportsEl) noExportsEl.classList.add('hidden');
+        }
+      } catch (e) {
+        console.error('Error loading public exports:', e);
+        showToast('Error loading public exports', 'error');
+      }
+    }
+
+    function renderPublicExports() {
+      const tbody = document.getElementById('exports-tbody');
+      if (!tbody) return;
+
+      const html = publicExports.map(export_ => {
+        const exportUrl = `${API_BASE}${WAITING_LIST_PUBLIC_EXPORT_URL}?type=${encodeURIComponent(export_.name)}&format=${export_.format}`;
+        
+        return `
+          <tr>
+            <td class="px-4 py-3 text-sm">
+              <div class="font-medium text-gray-900">${escapeHtml(export_.name)}</div>
+              <div class="text-gray-500 text-xs mt-1">Created ${formatDateTime(export_.createdAt)}</div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900">${escapeHtml(export_.type)}</td>
+            <td class="px-4 py-3 text-sm">
+              <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                export_.format === 'csv' 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-blue-100 text-blue-800'
+              }">
+                ${export_.format.toUpperCase()}
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm">
+              ${export_.password 
+                ? '<span class="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">Protected</span>' 
+                : '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Public</span>'
+              }
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-900">${export_.accessCount || 0}</td>
+            <td class="px-4 py-3 text-sm text-gray-500">
+              ${export_.lastAccessed ? formatDateTime(export_.lastAccessed) : 'Never'}
+            </td>
+            <td class="px-4 py-3 text-sm">
+              <div class="flex gap-1 flex-wrap">
+                <button onclick="copyExportUrl('${escapeHtml(export_.name)}', '${export_.format}')" class="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600">Copy Link</button>
+                <button onclick="copyExportCurl('${escapeHtml(export_.name)}', '${export_.format}')" class="bg-gray-500 text-white px-2 py-1 rounded text-xs hover:bg-gray-600">Copy cURL</button>
+                <button onclick="deletePublicExport('${export_.id}', '${escapeHtml(export_.name)}')" class="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.innerHTML = html;
+    }
+
+    async function copyExportUrl(name, format) {
+      const baseUrl = `${window.location.origin}/share/export/${encodeURIComponent(name)}?format=${format}`;
+      await copyText(baseUrl);
+    }
+
+    async function copyExportCurl(name, format) {
+      const exportConfig = publicExports.find(e => e.name === name);
+      const apiUrl = `${API_BASE}${WAITING_LIST_PUBLIC_EXPORT_URL}?type=${encodeURIComponent(name)}&format=${format}`;
+      
+      if (exportConfig && exportConfig.password) {
+        // For password-protected exports, provide template with password placeholder
+        await copyText(`curl -u :PASSWORD "${apiUrl}"  # Replace PASSWORD with the actual password`);
+      } else {
+        // For public exports, simple curl
+        await copyText(`curl "${apiUrl}"`);
+      }
+    }
+
+    async function deletePublicExport(id, name) {
+      if (!confirm(`Are you sure you want to delete the export "${name}"? This action cannot be undone.`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE}${WAITING_LIST_PUBLIC_EXPORTS_PATH}/${id}`, {
+          method: 'DELETE',
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to delete export', 'error');
+          return;
+        }
+
+        showToast('Export deleted successfully', 'success');
+        await loadPublicExports();
+      } catch (e) {
+        console.error('Error deleting public export:', e);
+        showToast('Error deleting public export', 'error');
+      }
+    }
+
+    async function createPublicExport(formData) {
+      try {
+        const res = await fetch(`${API_BASE}${WAITING_LIST_PUBLIC_EXPORTS_PATH}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          showToast(data?.error || 'Failed to create export', 'error');
+          return;
+        }
+
+        showToast('Export created successfully', 'success');
+        hideCreateExportForm();
+        await loadPublicExports();
+      } catch (e) {
+        console.error('Error creating public export:', e);
+        showToast('Error creating public export', 'error');
+      }
+    }
+
+    function showCreateExportForm() {
+      const formEl = document.getElementById('create-export-form');
+      if (formEl) formEl.classList.remove('hidden');
+      loadTypesForExportForm();
+    }
+
+    function hideCreateExportForm() {
+      const formEl = document.getElementById('create-export-form');
+      if (formEl) formEl.classList.add('hidden');
+      // Reset form
+      const form = document.getElementById('export-form');
+      if (form) form.reset();
+    }
+
+    async function loadTypesForExportForm() {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin/waiting-list/types`, {
+          headers: { 'Accept': 'application/json' }
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          console.error('Failed to load types:', data?.error);
+          return;
+        }
+
+        const select = document.getElementById('export-type');
+        if (!select) return;
+
+        const types = data?.types || [];
+        let html = '<option value="">Select type...</option>';
+        
+        types.forEach(({ type }) => {
+          const safeType = escapeHtml(type);
+          html += `<option value="${safeType}">${safeType}</option>`;
+        });
+
+        select.innerHTML = html;
+      } catch (e) {
+        console.error('Error loading types for export form:', e);
+      }
+    }
+
+    async function generateExportName() {
+      try {
+        const adjectives = ['black', 'white', 'golden', 'silver', 'red', 'blue', 'green', 'purple', 'silent', 'loud', 'fast', 'slow', 'big', 'small', 'tall', 'short', 'brave', 'shy', 'wise', 'clever', 'strong', 'gentle', 'wild', 'calm', 'happy', 'sad', 'angry', 'peaceful', 'bright', 'dark', 'light', 'heavy'];
+        const animals = ['bear', 'eagle', 'wolf', 'lion', 'tiger', 'elephant', 'giraffe', 'zebra', 'monkey', 'dolphin', 'whale', 'shark', 'hawk', 'owl', 'falcon', 'fox', 'deer', 'rabbit', 'squirrel', 'mouse', 'cat', 'dog', 'horse', 'cow', 'pig', 'sheep', 'goat', 'chicken', 'duck', 'goose'];
+        
+        let attempts = 0;
+        const maxAttempts = 50;
+        
+        while (attempts < maxAttempts) {
+          const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
+          const animal = animals[Math.floor(Math.random() * animals.length)];
+          const name = `${adjective}-${animal}`;
+          
+          // Check if name already exists
+          if (!publicExports.some(e => e.name === name)) {
+            const input = document.getElementById('export-name');
+            if (input) input.value = name;
+            return;
+          }
+          
+          attempts++;
+        }
+        
+        showToast('Failed to generate unique name', 'error');
+      } catch (e) {
+        console.error('Error generating export name:', e);
+        showToast('Error generating export name', 'error');
       }
     }
 
@@ -910,12 +1219,53 @@
           }
         };
       }
+
+      // Public Exports event bindings
+      const createExportBtn = document.getElementById('btn-create-export');
+      if (createExportBtn) {
+        createExportBtn.onclick = showCreateExportForm;
+      }
+
+      const refreshExportsBtn = document.getElementById('btn-refresh-exports');
+      if (refreshExportsBtn) {
+        refreshExportsBtn.onclick = loadPublicExports;
+      }
+
+      const cancelExportBtn = document.getElementById('btn-cancel-export');
+      if (cancelExportBtn) {
+        cancelExportBtn.onclick = hideCreateExportForm;
+      }
+
+      const generateNameBtn = document.getElementById('btn-generate-name');
+      if (generateNameBtn) {
+        generateNameBtn.onclick = generateExportName;
+      }
+
+      const exportForm = document.getElementById('export-form');
+      if (exportForm) {
+        exportForm.onsubmit = async (event) => {
+          event.preventDefault();
+
+          const name = document.getElementById('export-name')?.value?.trim();
+          const type = document.getElementById('export-type')?.value;
+          const password = document.getElementById('export-password')?.value;
+          const format = document.getElementById('export-format')?.value;
+
+          if (!name || !type) {
+            showToast('Name and type are required', 'error');
+            return;
+          }
+
+          await createPublicExport({ name, type, password, format });
+        };
+      }
     }
 
     bindEvents();
     loadStats();
     loadTypes();
     loadEntries();
+    loadPublicExports();
     renderCurlExample();
   </script>
 <script>
