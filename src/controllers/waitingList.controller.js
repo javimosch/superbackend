@@ -1,5 +1,7 @@
 const waitingListService = require('../services/waitingListJson.service');
+const waitingListPublicExportsService = require('../services/waitingListPublicExports.service');
 const { validateEmail, sanitizeString } = require('../utils/validation');
+const basicAuth = require('basic-auth');
 
 // Subscribe to waiting list
 exports.subscribe = async (req, res) => {
@@ -270,5 +272,305 @@ exports.bulkRemove = async (req, res) => {
   } catch (error) {
     console.error('Waiting list bulk remove error:', error);
     return res.status(500).json({ error: 'Failed to bulk remove entries' });
+  }
+};
+
+// Public export endpoint
+exports.publicExport = async (req, res) => {
+  try {
+    const { type, format = 'csv', password: queryPassword } = req.query;
+
+    // Validate required parameters
+    if (!type) {
+      return res.status(400).json({ 
+        error: 'Type parameter is required',
+        field: 'type'
+      });
+    }
+
+    // Validate format
+    if (!['csv', 'json'].includes(format)) {
+      return res.status(400).json({ 
+        error: 'Format must be either "csv" or "json"',
+        field: 'format'
+      });
+    }
+
+    // Find export configuration by type
+    const exportConfig = await waitingListPublicExportsService.getPublicExportByName(type);
+    if (!exportConfig) {
+      return res.status(404).json({ 
+        error: 'Export configuration not found',
+        field: 'type'
+      });
+    }
+
+    // Check password protection (support multiple authentication methods)
+    let providedPassword = null;
+    let authMethod = 'none';
+
+    if (exportConfig.password) {
+      // First check session authentication (web form)
+      if (req.session && req.session.exportAuth && req.session.exportAuth[type] && 
+          req.session.exportAuth[type].authenticated && 
+          req.session.exportAuth[type].format === format) {
+        // Session is valid (5 minute expiry)
+        const sessionAge = Date.now() - req.session.exportAuth[type].timestamp;
+        if (sessionAge < 5 * 60 * 1000) { // 5 minutes
+          authMethod = 'session';
+        } else {
+          // Session expired, remove it
+          delete req.session.exportAuth[type];
+        }
+      }
+
+      // If no valid session, check query parameter
+      if (authMethod === 'none' && queryPassword) {
+        providedPassword = queryPassword;
+        authMethod = 'query';
+      } else if (authMethod === 'none') {
+        // Fall back to Basic Auth
+        const auth = basicAuth(req);
+        if (auth && auth.pass) {
+          providedPassword = auth.pass;
+          authMethod = 'basic';
+        }
+      }
+
+      // Validate password if we have one
+      if (authMethod !== 'session') {
+        if (!providedPassword || !await waitingListPublicExportsService.validateExportPassword(exportConfig, providedPassword)) {
+          // For Basic Auth, send proper challenge
+          if (authMethod === 'none' || authMethod === 'basic') {
+            res.setHeader('WWW-Authenticate', 'Basic realm="Waiting List Export"');
+          }
+          return res.status(401).json({ 
+            error: 'Authentication required',
+            field: 'password',
+            authMethod: authMethod === 'query' ? 'query' : 'basic'
+          });
+        }
+      }
+    }
+
+    // Get filtered waiting list entries
+    const { entries } = await waitingListService.getWaitingListEntriesAdmin({
+      type: exportConfig.type,
+      status: 'active',
+      limit: 100000, // Large limit to get all entries
+      offset: 0
+    });
+
+    // Record access for analytics
+    await waitingListPublicExportsService.recordExportAccess(exportConfig.name, req, authMethod);
+
+    // Export in requested format
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="waiting-list-${exportConfig.type}-${new Date().toISOString().split('T')[0]}.json"`);
+      
+      const exportData = {
+        export: {
+          name: exportConfig.name,
+          type: exportConfig.type,
+          exportedAt: new Date().toISOString(),
+          totalEntries: entries.length,
+          authMethod
+        },
+        entries: entries.map(entry => ({
+          email: entry.email,
+          type: entry.type,
+          status: entry.status,
+          referralSource: entry.referralSource,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt
+        }))
+      };
+      
+      return res.json(exportData);
+    } else {
+      // CSV format
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="waiting-list-${exportConfig.type}-${new Date().toISOString().split('T')[0]}.csv"`);
+
+      // CSV header row
+      const csvRows = [
+        ['Email', 'Type', 'Status', 'Referral Source', 'Created At', 'Updated At']
+      ];
+
+      // Data rows
+      entries.forEach(entry => {
+        csvRows.push([
+          entry.email || '',
+          entry.type || '',
+          entry.status || '',
+          entry.referralSource || '',
+          entry.createdAt ? new Date(entry.createdAt).toISOString() : '',
+          entry.updatedAt ? new Date(entry.updatedAt).toISOString() : ''
+        ]);
+      });
+
+      // Convert to CSV string with proper escaping
+      const csvContent = csvRows.map(row => 
+        row.map(cell => {
+          const str = String(cell || '');
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        }).join(',')
+      ).join('\n');
+
+      return res.send(csvContent);
+    }
+  } catch (error) {
+    console.error('Public export error:', error);
+    return res.status(500).json({ error: 'Failed to export data' });
+  }
+};
+
+// Admin: Get all public exports
+exports.getPublicExports = async (req, res) => {
+  try {
+    const result = await waitingListPublicExportsService.getPublicExports();
+    res.json(result);
+  } catch (error) {
+    console.error('Get public exports error:', error);
+    return res.status(500).json({ error: 'Failed to get public exports' });
+  }
+};
+
+// Admin: Create public export
+exports.createPublicExport = async (req, res) => {
+  try {
+    const { name, type, password, format = 'csv' } = req.body;
+
+    // Validate required fields
+    if (!name) {
+      return res.status(400).json({ 
+        error: 'Name is required',
+        field: 'name'
+      });
+    }
+
+    if (!type) {
+      return res.status(400).json({ 
+        error: 'Type is required',
+        field: 'type'
+      });
+    }
+
+    // Hash password if provided
+    let hashedPassword = null;
+    if (password) {
+      hashedPassword = await waitingListPublicExportsService.hashPassword(password);
+    }
+
+    const exportConfig = await waitingListPublicExportsService.createPublicExport({
+      name: name.trim(),
+      type: type.trim(),
+      password: hashedPassword,
+      format
+    }, req.user?.username || 'admin');
+
+    // Don't return password hash in response
+    const response = { ...exportConfig };
+    delete response.password;
+    response.hasPassword = !!password;
+
+    res.status(201).json({
+      message: 'Public export created successfully',
+      data: response
+    });
+  } catch (error) {
+    console.error('Create public export error:', error);
+    
+    if (error.code === 'VALIDATION') {
+      return res.status(400).json({ 
+        error: error.message,
+        field: 'general'
+      });
+    }
+    
+    if (error.code === 'DUPLICATE_NAME') {
+      return res.status(409).json({ 
+        error: error.message,
+        field: 'name'
+      });
+    }
+
+    return res.status(500).json({ error: 'Failed to create public export' });
+  }
+};
+
+// Admin: Update public export
+exports.updatePublicExport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, type, password, format } = req.body;
+
+    const updates = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (type !== undefined) updates.type = type.trim();
+    if (format !== undefined) updates.format = format;
+    if (password !== undefined) {
+      updates.password = password ? await waitingListPublicExportsService.hashPassword(password) : null;
+    }
+
+    const result = await waitingListPublicExportsService.updatePublicExport(id, updates, req.user?.username || 'admin');
+    
+    // Don't return password hash in response
+    const updatedExport = result.exports.find(e => e.id === id);
+    const response = { ...updatedExport };
+    delete response.password;
+    response.hasPassword = !!updatedExport.password;
+
+    res.json({
+      message: 'Public export updated successfully',
+      data: response
+    });
+  } catch (error) {
+    console.error('Update public export error:', error);
+    
+    if (error.code === 'VALIDATION') {
+      return res.status(400).json({ 
+        error: error.message,
+        field: 'general'
+      });
+    }
+    
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ 
+        error: 'Public export not found',
+        field: 'id'
+      });
+    }
+
+    return res.status(500).json({ error: 'Failed to update public export' });
+  }
+};
+
+// Admin: Delete public export
+exports.deletePublicExport = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await waitingListPublicExportsService.deletePublicExport(id, req.user?.username || 'admin');
+
+    res.json({
+      message: 'Public export deleted successfully'
+    });
+  } catch (error) {
+    console.error('Delete public export error:', error);
+    
+    if (error.code === 'NOT_FOUND') {
+      return res.status(404).json({ 
+        error: 'Public export not found',
+        field: 'id'
+      });
+    }
+
+    return res.status(500).json({ error: 'Failed to delete public export' });
   }
 };
