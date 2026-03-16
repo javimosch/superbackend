@@ -228,7 +228,6 @@ function createMiddleware(options = {}) {
   // Database connection
   const mongoUri =
     options.mongodbUri ||
-    options.dbConnection ||
     process.env.MONGODB_URI ||
     process.env.MONGO_URI;
 
@@ -539,15 +538,8 @@ function createMiddleware(options = {}) {
     router.use(express.urlencoded({ extended: true }));
   }
 
-  // Session middleware for admin authentication
-  const sessionMongoUrl = options.mongodbUri || process.env.MONGODB_URI || process.env.MONGO_URI;
-  const sessionStore = !isJest && sessionMongoUrl
-    ? MongoStore.create({
-      mongoUrl: sessionMongoUrl,
-      collectionName: 'admin_sessions',
-      ttl: 24 * 60 * 60 // 24 hours in seconds
-    })
-    : undefined;
+  // Session middleware - disabled for now (MongoDB at 27018 requires auth for writes)
+  const sessionStore = undefined;
 
   const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || 'superbackend-session-secret-fallback',
@@ -2289,6 +2281,9 @@ res.status(500).send("Error rendering page");
     }
     next();
   });
+
+  // Public export pages
+  router.use("/share/export", require("./routes/publicExport.routes"));
 
   // Public pages router (catch-all, must be last before error handler)
   router.use(require("./routes/pages.routes"));
