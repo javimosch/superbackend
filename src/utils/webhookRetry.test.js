@@ -67,6 +67,37 @@ describe('WebhookRetry Utils', () => {
       expect(mockEvents[1].save).toHaveBeenCalled();
     });
 
+    test('should treat unhandled event types as succeeded during retries', async () => {
+      const mockEvent = {
+        stripeEventId: 'evt_unhandled',
+        eventType: 'customer.created',
+        data: { id: 'cus_test' },
+        status: 'failed',
+        retryCount: 0,
+        processingErrors: [],
+        save: jest.fn().mockResolvedValue()
+      };
+
+      StripeWebhookEvent.find.mockReturnValue({
+        sort: jest.fn().mockReturnValue({
+          limit: jest.fn().mockResolvedValue([mockEvent])
+        })
+      });
+
+      const result = await retryFailedWebhooks();
+
+      expect(result).toEqual({
+        total: 1,
+        succeeded: 1,
+        failed: 0,
+        errors: []
+      });
+      expect(mockEvent.status).toBe('processed');
+      expect(mockEvent.processedAt).toBeInstanceOf(Date);
+      expect(mockEvent.save).toHaveBeenCalled();
+      expect(mockConsoleLog).toHaveBeenCalledWith('Unhandled event type: customer.created');
+    });
+
     test('should handle retry failures and increment retry count', async () => {
       const mockEvent = {
         stripeEventId: 'evt_789',
