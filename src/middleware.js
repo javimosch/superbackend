@@ -557,6 +557,15 @@ function createMiddleware(options = {}) {
 
   router.use(sessionMiddleware);
 
+  // Attach admin credentials to res.locals for use by basicAuth middleware
+  router.use((req, res, next) => {
+    res.locals.adminCredentials = {
+      adminUsername: options.adminUsername || process.env.ADMIN_USERNAME,
+      adminPassword: options.adminPassword || process.env.ADMIN_PASSWORD,
+    };
+    next();
+  });
+
   router.use(requestIdMiddleware);
 
   router.use("/api", rateLimiter.limit("globalApiLimiter"));

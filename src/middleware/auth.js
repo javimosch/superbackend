@@ -26,7 +26,7 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-// Basic auth middleware for admin routes
+// Basic auth middleware for admin routes - uses res.locals.adminCredentials when available
 const basicAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -40,18 +40,22 @@ const basicAuth = (req, res, next) => {
   );
   const [username, password] = credentials.split(":");
 
-  const adminUsername = process.env.ADMIN_USERNAME || "admin";
-  const adminPassword = process.env.ADMIN_PASSWORD || "admin";
+  // Use res.locals.adminCredentials (set by middleware), then fall back to process.env
+  const adminUsername = res.locals.adminCredentials?.adminUsername || process.env.ADMIN_USERNAME;
+  const adminPassword = res.locals.adminCredentials?.adminPassword || process.env.ADMIN_PASSWORD;
+
+  // No defaults when used as middleware (no process.env fallback for middleware mode)
+  if (!adminUsername || !adminPassword) {
+    console.error("api basicAuth error: No admin credentials configured");
+    res.setHeader("WWW-Authenticate", 'Basic realm="Admin Area"');
+    return res.status(401).json({ error: "Admin not configured" });
+  }
 
   if (username === adminUsername && password === adminPassword) {
+    req.adminAuth = true;
     next();
   } else {
-    console.error("api basicAuth error:", {
-      username,
-      password,
-      adminUsername,
-      adminPassword,
-    });
+    console.error("api basicAuth error: Invalid credentials");
     res.setHeader("WWW-Authenticate", 'Basic realm="Admin Area"');
     return res.status(401).json({ error: "Invalid credentials" });
   }
@@ -71,23 +75,12 @@ const requireAdmin = (req, res, next) => {
 };
 
 // Admin session authentication middleware - checks session for authenticated admin user
+// Falls back to basic auth when session is not present
 const adminSessionAuth = (req, res, next) => {
   // Check if session exists and user is authenticated
   if (!req.session || !req.session.authenticated) {
-    // Store the originally requested URL for redirect after login
-    req.session = req.session || {};
-    req.session.returnTo = req.originalUrl;
-    
-    // For API routes, return JSON error
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(401).json({ 
-        error: "Authentication required", 
-        redirectTo: `${req.adminPath || '/admin'}/login` 
-      });
-    }
-    
-    // For web routes, redirect to login page
-    return res.redirect(`${req.adminPath || '/admin'}/login`);
+    // No valid session - fall back to basic auth
+    return basicAuth(req, res, next);
   }
 
   // Verify session is still valid (check login time)
@@ -101,14 +94,8 @@ const adminSessionAuth = (req, res, next) => {
       if (err) console.error('Error destroying expired session:', err);
     });
     
-    if (req.xhr || req.headers.accept?.includes('application/json')) {
-      return res.status(401).json({ 
-        error: "Session expired", 
-        redirectTo: `${req.adminPath || '/admin'}/login` 
-      });
-    }
-    
-    return res.redirect(`${req.adminPath || '/admin'}/login?error=Session expired`);
+    // Expired session - fall back to basic auth
+    return basicAuth(req, res, next);
   }
 
   // Attach user info to request for consistency with other auth middleware
