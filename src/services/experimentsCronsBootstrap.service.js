@@ -105,7 +105,7 @@ async function bootstrap() {
   // CronScheduler HTTP jobs need an absolute base URL.
   const baseUrl =
     String(process.env.SUPERBACKEND_BASE_URL || process.env.PUBLIC_URL || '').trim() ||
-    'http://localhost:3000';
+    `http://localhost:${process.env.PORT || 3000}`;
 
   await ensureCronJobs({ baseUrl: baseUrl.replace(/\/+$/, '') });
 }
