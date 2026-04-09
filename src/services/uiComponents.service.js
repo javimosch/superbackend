@@ -1,4 +1,7 @@
 const UiComponent = require('../models/UiComponent');
+const UiComponentVersion = require('../models/UiComponentVersion');
+
+const MAX_VERSIONS_PER_COMPONENT = 20;
 
 /**
  * UI Components Service
@@ -50,6 +53,35 @@ class UiComponentsService {
       const existing = await UiComponent.findOne({ code: normalizedCode });
 
       if (existing) {
+        // Snapshot current state before update
+        try {
+          await UiComponentVersion.create({
+            componentCode: normalizedCode,
+            version: existing.version || 1,
+            name: existing.name,
+            html: existing.html || '',
+            js: existing.js || '',
+            css: existing.css || '',
+            api: existing.api,
+            usageMarkdown: existing.usageMarkdown || '',
+            previewExample: existing.previewExample || null,
+            savedAt: existing.updatedAt || new Date(),
+          });
+
+          // Prune old versions beyond the max
+          const count = await UiComponentVersion.countDocuments({ componentCode: normalizedCode });
+          if (count > MAX_VERSIONS_PER_COMPONENT) {
+            const oldest = await UiComponentVersion.find({ componentCode: normalizedCode })
+              .sort({ savedAt: 1 })
+              .limit(count - MAX_VERSIONS_PER_COMPONENT)
+              .select('_id');
+            const idsToRemove = oldest.map((d) => d._id);
+            await UiComponentVersion.deleteMany({ _id: { $in: idsToRemove } });
+          }
+        } catch (versionErr) {
+          console.error(`[uiComponents] Failed to snapshot version for ${normalizedCode}:`, versionErr);
+        }
+
         // Update existing component
         const updateData = {
           name: String(name).trim(),
@@ -174,6 +206,105 @@ class UiComponentsService {
       console.error(`[uiComponents] Failed to check component existence ${code}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Get version history for a component
+   * @param {string} code - Component code
+   * @param {number} limit - Max versions to return
+   * @returns {Promise<Array>} Array of version snapshots
+   */
+  async getVersionHistory(code, limit = 20) {
+    const normalizedCode = String(code).trim().toLowerCase();
+    const versions = await UiComponentVersion.find({ componentCode: normalizedCode })
+      .sort({ savedAt: -1 })
+      .limit(limit)
+      .lean();
+    return versions;
+  }
+
+  /**
+   * Restore a component to a previous version
+   * @param {string} code - Component code
+   * @param {string} versionId - Version document ID to restore
+   * @returns {Promise<Object>} Updated component
+   */
+  async restoreVersion(code, versionId) {
+    const normalizedCode = String(code).trim().toLowerCase();
+    const versionDoc = await UiComponentVersion.findById(versionId).lean();
+    if (!versionDoc) throw Object.assign(new Error('Version not found'), { code: 'NOT_FOUND' });
+    if (versionDoc.componentCode !== normalizedCode) {
+      throw Object.assign(new Error('Version does not belong to this component'), { code: 'VALIDATION' });
+    }
+
+    // Use upsert to restore (which also snapshots current state)
+    return this.upsertComponent({
+      code: normalizedCode,
+      name: versionDoc.name,
+      html: versionDoc.html,
+      css: versionDoc.css,
+      js: versionDoc.js,
+      usageMarkdown: versionDoc.usageMarkdown,
+      api: versionDoc.api,
+      version: versionDoc.version,
+      previewExample: versionDoc.previewExample,
+    });
+  }
+
+  /**
+   * Export all (or active-only) components as a JSON-serializable array
+   * @param {Object} options
+   * @param {boolean} options.activeOnly - Only export active components
+   * @returns {Promise<Array>} Array of component data
+   */
+  async exportComponents({ activeOnly = false } = {}) {
+    const filter = activeOnly ? { isActive: true } : {};
+    const docs = await UiComponent.find(filter).sort({ code: 1 }).lean();
+    return docs.map((d) => ({
+      code: d.code,
+      name: d.name,
+      html: d.html || '',
+      css: d.css || '',
+      js: d.js || '',
+      usageMarkdown: d.usageMarkdown || '',
+      api: d.api || null,
+      version: d.version || 1,
+      isActive: d.isActive !== false,
+      previewExample: d.previewExample || null,
+    }));
+  }
+
+  /**
+   * Import components from a JSON array (upsert each)
+   * @param {Array} components - Array of component data objects
+   * @returns {Promise<Object>} Summary of import results
+   */
+  async importComponents(components) {
+    if (!Array.isArray(components)) {
+      throw Object.assign(new Error('components must be an array'), { code: 'VALIDATION' });
+    }
+
+    const results = { created: 0, updated: 0, errors: [] };
+
+    for (const comp of components) {
+      try {
+        if (!comp || !comp.code || !comp.name) {
+          results.errors.push({ code: comp?.code || 'unknown', error: 'Missing code or name' });
+          continue;
+        }
+        const existing = await UiComponent.findOne({ code: String(comp.code).trim().toLowerCase() });
+        await this.upsertComponent(comp);
+        if (existing) {
+          results.updated += 1;
+        } else {
+          results.created += 1;
+        }
+      } catch (err) {
+        results.errors.push({ code: comp?.code || 'unknown', error: err.message });
+      }
+    }
+
+    return results;
   }
 }
 

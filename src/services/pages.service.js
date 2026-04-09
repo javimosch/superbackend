@@ -4,6 +4,7 @@ const BlockDefinition = require('../models/BlockDefinition');
 const ejsVirtualService = require('./ejsVirtual.service');
 const pagesContextService = require('./pagesContext.service');
 const { getJsonConfigValueBySlug } = require('./jsonConfigs.service');
+const pluginsService = require('./plugins.service');
 
 const RESERVED_SEGMENTS = new Set(['api', 'public', 'w', 'admin']);
 
@@ -148,9 +149,8 @@ async function getBlocksSchema({ bypassCache = false } = {}) {
       defs = [];
     }
 
-    if (!defs.length) return schema;
-
     const mergedBlocks = { ...(schema.blocks || {}) };
+
     for (const d of defs) {
       const code = String(d.code || '').trim();
       if (!code) continue;
@@ -161,6 +161,25 @@ async function getBlocksSchema({ bypassCache = false } = {}) {
         version: Number(d.version || 1) || 1,
         source: 'db',
       };
+    }
+
+    // Merge plugin-contributed block types (lowest priority — won't override DB or config blocks)
+    try {
+      const pluginBlocks = pluginsService.getPluginPageBlocks();
+      for (const pb of pluginBlocks) {
+        const code = String(pb.code || '').trim();
+        if (!code || mergedBlocks[code]) continue;
+        mergedBlocks[code] = {
+          label: String(pb.label || code),
+          description: String(pb.description || ''),
+          fields: (pb.fields && typeof pb.fields === 'object' && !Array.isArray(pb.fields)) ? pb.fields : {},
+          version: Number(pb.version || 1) || 1,
+          source: 'plugin',
+          pluginId: pb.pluginId || null,
+        };
+      }
+    } catch (_pluginErr) {
+      // Non-fatal: plugin blocks not available
     }
 
     return { ...schema, blocks: mergedBlocks };
@@ -174,8 +193,6 @@ async function getBlocksSchema({ bypassCache = false } = {}) {
         defs = [];
       }
 
-      if (!defs.length) return base;
-
       const mergedBlocks = { ...(base.blocks || {}) };
       for (const d of defs) {
         const code = String(d.code || '').trim();
@@ -187,6 +204,25 @@ async function getBlocksSchema({ bypassCache = false } = {}) {
           version: Number(d.version || 1) || 1,
           source: 'db',
         };
+      }
+
+      // Merge plugin-contributed block types
+      try {
+        const pluginBlocks = pluginsService.getPluginPageBlocks();
+        for (const pb of pluginBlocks) {
+          const code = String(pb.code || '').trim();
+          if (!code || mergedBlocks[code]) continue;
+          mergedBlocks[code] = {
+            label: String(pb.label || code),
+            description: String(pb.description || ''),
+            fields: (pb.fields && typeof pb.fields === 'object' && !Array.isArray(pb.fields)) ? pb.fields : {},
+            version: Number(pb.version || 1) || 1,
+            source: 'plugin',
+            pluginId: pb.pluginId || null,
+          };
+        }
+      } catch (_pluginErr) {
+        // Non-fatal
       }
 
       return { ...base, blocks: mergedBlocks };

@@ -313,3 +313,56 @@ exports.listProjectAssignments = async (req, res) => {
     return res.status(500).json({ error: 'Failed to list assignments' });
   }
 };
+
+const uiComponentsService = require('../services/uiComponents.service');
+
+exports.getComponentVersionHistory = async (req, res) => {
+  try {
+    const { code } = req.params;
+    const limit = parseInt(req.query.limit, 10) || 20;
+    const versions = await uiComponentsService.getVersionHistory(code, limit);
+    return res.json({ items: versions });
+  } catch (error) {
+    console.error('UI Components getComponentVersionHistory error:', error);
+    return res.status(500).json({ error: 'Failed to load version history' });
+  }
+};
+
+exports.restoreComponentVersion = async (req, res) => {
+  try {
+    const { code, versionId } = req.params;
+    const result = await uiComponentsService.restoreVersion(code, versionId);
+    return res.json({ item: result });
+  } catch (error) {
+    if (error?.code === 'NOT_FOUND') return res.status(404).json({ error: error.message });
+    if (error?.code === 'VALIDATION') return res.status(400).json({ error: error.message });
+    console.error('UI Components restoreComponentVersion error:', error);
+    return res.status(500).json({ error: 'Failed to restore version' });
+  }
+};
+
+exports.exportComponents = async (req, res) => {
+  try {
+    const activeOnly = req.query.activeOnly === 'true';
+    const components = await uiComponentsService.exportComponents({ activeOnly });
+    return res.json({ components });
+  } catch (error) {
+    console.error('UI Components exportComponents error:', error);
+    return res.status(500).json({ error: 'Failed to export components' });
+  }
+};
+
+exports.importComponents = async (req, res) => {
+  try {
+    const { components } = req.body;
+    if (!Array.isArray(components)) {
+      return res.status(400).json({ error: 'components array is required in body' });
+    }
+    const result = await uiComponentsService.importComponents(components);
+    return res.json(result);
+  } catch (error) {
+    if (error?.code === 'VALIDATION') return res.status(400).json({ error: error.message });
+    console.error('UI Components importComponents error:', error);
+    return res.status(500).json({ error: 'Failed to import components' });
+  }
+};

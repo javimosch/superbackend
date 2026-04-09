@@ -100,9 +100,10 @@ function createMiddleware(options = {}) {
 
   const bootstrapPluginsRuntime = async () => {
     try {
+      const pluginRoots = Array.isArray(options.plugins?.extraRoots) ? options.plugins.extraRoots : [];
+      
       if (options.plugins?.extraRoots) {
-        const roots = Array.isArray(options.plugins.extraRoots) ? options.plugins.extraRoots : [];
-        for (const root of roots) {
+        for (const root of pluginRoots) {
           await pluginsService.loadAllPluginsFromFolder(root, { context: { app: router } });
         }
       }
@@ -123,7 +124,26 @@ function createMiddleware(options = {}) {
         superbackend.helpers.pluginsRuntime = pluginHelpers;
       }
 
+      if (options.plugins?.autoDiscover) {
+        for (const root of pluginRoots) {
+          try {
+            await pluginsService.autoDiscoverPluginsFromPath(root, { context: { app: router } });
+          } catch (e) {
+            console.error('[Middleware] autoDiscoverPluginsFromPath failed:', e.message);
+          }
+        }
+      }
+
       const pluginAssets = pluginsService.collectPluginAssets();
+
+      router.use((req, res, next) => {
+        res.resolvePluginView = (viewName) => {
+          const viewPath = pluginAssets.views[viewName];
+          return viewPath || null;
+        };
+        next();
+      });
+
       for (const asset of pluginAssets.routes) {
         router.use(asset.prefix, asset.router);
         for (const alias of asset.aliases) {
@@ -135,14 +155,6 @@ function createMiddleware(options = {}) {
       for (const staticAsset of pluginAssets.staticPaths) {
         router.use(`/plugin-static${staticAsset.prefix}`, express.static(staticAsset.path));
       }
-
-      router.use((req, res, next) => {
-        res.resolvePluginView = (viewName) => {
-          const viewPath = pluginAssets.views[viewName];
-          return viewPath || null;
-        };
-        next();
-      });
     } catch (error) {
       console.error("Failed to bootstrap plugins runtime:", error);
     }
@@ -660,6 +672,9 @@ function createMiddleware(options = {}) {
     }
   });
 
+  // Sitemap & robots.txt
+  router.use(require("./routes/sitemap.routes"));
+
   // API Routes
   router.use("/api/auth", require("./routes/auth.routes"));
   router.use("/api/billing", require("./routes/billing.routes"));
@@ -1169,6 +1184,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   router.use("/api/admin/agents", require("./routes/adminAgents.routes"));
   router.use("/api/admin/registries", require("./routes/adminRegistry.routes"));
   router.use("/api/admin/plugins", require("./routes/adminPlugins.routes"));
+  router.use("/api/admin/page-redirects", require("./routes/adminPageRedirects.routes"));
   router.use(
     "/api/admin/ejs-virtual",
     require("./routes/adminEjsVirtual.routes"),

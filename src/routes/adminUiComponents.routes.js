@@ -25,6 +25,12 @@ router.get('/projects/:projectId/components', adminUiComponentsController.listPr
 router.post('/projects/:projectId/components/:code', adminUiComponentsController.setAssignment);
 router.delete('/projects/:projectId/components/:code', adminUiComponentsController.deleteAssignment);
 
+router.get('/components/:code/versions', adminUiComponentsController.getComponentVersionHistory);
+router.post('/components/:code/versions/:versionId/restore', adminUiComponentsController.restoreComponentVersion);
+
+router.get('/export', adminUiComponentsController.exportComponents);
+router.post('/import', adminUiComponentsController.importComponents);
+
 router.post('/ai/components/:code/propose', rateLimiter.limit('aiOperationsLimiter'), adminUiComponentsAiController.propose);
 
 module.exports = router;

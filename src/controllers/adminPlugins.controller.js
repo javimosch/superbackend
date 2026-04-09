@@ -21,7 +21,14 @@ function runtimeContext(req) {
 exports.list = async (req, res) => {
   try {
     const items = await pluginsService.listPlugins();
-    return res.json({ items });
+    const bootstrapStatus = pluginsService.getBootstrapStatus();
+
+    const enriched = items.map((plugin) => ({
+      ...plugin,
+      lastBootstrap: bootstrapStatus[plugin.id] || null,
+    }));
+
+    return res.json({ items: enriched });
   } catch (error) {
     return handleError(res, error);
   }
@@ -49,6 +56,15 @@ exports.install = async (req, res) => {
   try {
     const result = await pluginsService.installPlugin(req.params.id, { context: runtimeContext(req) });
     return res.json(result);
+  } catch (error) {
+    return handleError(res, error);
+  }
+};
+
+exports.nav = async (req, res) => {
+  try {
+    const items = pluginsService.getAdminNavItems();
+    return res.json({ items });
   } catch (error) {
     return handleError(res, error);
   }

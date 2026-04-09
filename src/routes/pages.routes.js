@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pagesService = require('../services/pages.service');
+const pageRedirectsService = require('../services/pageRedirects.service');
 const { adminSessionAuth } = require('../middleware/auth');
 
 router.get('*', async (req, res, next) => {
@@ -27,6 +28,16 @@ router.get('*', async (req, res, next) => {
     const firstSegment = routePath.replace(/^\//, '').split('/')[0];
     if (pagesService.isReservedSegment(firstSegment, adminPath)) {
       return next();
+    }
+
+    // Check page redirects before page lookup
+    try {
+      const redirect = await pageRedirectsService.checkRedirect(routePath);
+      if (redirect) {
+        return res.redirect(redirect.type || 301, redirect.to);
+      }
+    } catch (_redirectErr) {
+      // Non-fatal: continue to page lookup on redirect check failure
     }
 
     const page = await pagesService.findPageByRoutePath(routePath, {

@@ -429,6 +429,68 @@ exports.deletePage = async (req, res) => {
   }
 };
 
+exports.clonePage = async (req, res) => {
+  try {
+    const actor = getBasicAuthActor(req);
+    const { id } = req.params;
+
+    const source = await Page.findById(id).lean();
+    if (!source) {
+      return res.status(404).json({ error: 'Page not found' });
+    }
+
+    // Generate a unique clone slug: <slug>--copy, <slug>--copy-2, etc.
+    let baseSlug = String(source.slug).replace(/--copy(-\d+)?$/, '');
+    let cloneSlug = `${baseSlug}--copy`;
+    let attempt = 1;
+    const maxAttempts = 20;
+
+    while (attempt <= maxAttempts) {
+      const exists = await Page.findOne({
+        slug: cloneSlug,
+        collectionId: source.collectionId || null,
+        tenantId: source.tenantId || null,
+      }).lean();
+      if (!exists) break;
+      attempt += 1;
+      cloneSlug = `${baseSlug}--copy-${attempt}`;
+    }
+
+    const cloneData = {
+      slug: cloneSlug,
+      collectionId: source.collectionId || null,
+      title: `${source.title} (Copy)`,
+      templateKey: source.templateKey || 'default',
+      layoutKey: source.layoutKey || 'default',
+      blocks: source.blocks || [],
+      repeat: source.repeat || null,
+      customCss: source.customCss || '',
+      customJs: source.customJs || '',
+      seoMeta: source.seoMeta || {},
+      tenantId: source.tenantId || null,
+      isGlobal: source.isGlobal !== undefined ? source.isGlobal : true,
+      status: 'draft',
+    };
+
+    const page = await Page.create(cloneData);
+
+    await createAuditEvent({
+      ...actor,
+      action: 'page.clone',
+      entityType: 'Page',
+      entityId: String(page._id),
+      before: null,
+      after: page.toObject(),
+      meta: { sourceId: String(id), sourceSlug: source.slug },
+    });
+
+    res.status(201).json({ page: page.toObject() });
+  } catch (err) {
+    console.error('[adminPages] clonePage error:', err);
+    res.status(500).json({ error: 'Failed to clone page' });
+  }
+};
+
 exports.publishPage = async (req, res) => {
   try {
     const actor = getBasicAuthActor(req);

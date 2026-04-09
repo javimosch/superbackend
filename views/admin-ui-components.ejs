@@ -145,7 +145,66 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Import / Export & Gallery toggle (C2, C4) -->
+        <div class="bg-white rounded-lg shadow p-4">
+          <div class="flex items-center justify-between flex-wrap gap-3">
+            <div class="flex items-center gap-2">
+              <button @click="activeTab = 'manage'" :class="['text-sm px-3 py-1.5 rounded', activeTab === 'manage' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
+                Manage
+              </button>
+              <button @click="activeTab = 'gallery'; loadGalleryComponents()" :class="['text-sm px-3 py-1.5 rounded', activeTab === 'gallery' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200']">
+                Gallery
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="exportComponents" class="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-800 text-white">Export JSON</button>
+              <label class="text-xs px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-800 text-white cursor-pointer">
+                Import JSON
+                <input type="file" accept=".json" class="hidden" @change="importComponents" />
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gallery tab (C4) -->
+        <div v-if="activeTab === 'gallery'" class="bg-white rounded-lg shadow p-4 space-y-4">
+          <h2 class="font-semibold text-gray-800">Component Gallery</h2>
+          <p class="text-xs text-gray-500">Visual preview of all components using their <code>previewExample</code> HTML or default HTML.</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div v-for="c in galleryComponents" :key="c.code" class="border border-gray-200 rounded-lg overflow-hidden">
+              <div class="bg-gray-50 border-b border-gray-200 px-3 py-2 flex items-center justify-between">
+                <div>
+                  <div class="font-medium text-sm text-gray-900">{{ c.name }}</div>
+                  <div class="text-xs text-gray-500">{{ c.code }} · v{{ c.version || 1 }}</div>
+                </div>
+                <button @click="loadComponentIntoEditor(c.code); activeTab = 'manage'" class="text-xs px-2 py-1 rounded bg-blue-100 hover:bg-blue-200 text-blue-700">Edit</button>
+              </div>
+              <div class="h-48 bg-white">
+                <iframe :srcdoc="buildGalleryPreviewHtml(c)" class="w-full h-full border-0" sandbox="allow-scripts"></iframe>
+              </div>
+            </div>
+          </div>
+          <div v-if="galleryComponents.length === 0" class="text-sm text-gray-500 p-4 text-center bg-gray-50 rounded">No components found.</div>
+        </div>
+
+        <!-- Version history panel (C1) -->
+        <div v-if="versionHistory.length > 0" class="bg-white rounded-lg shadow p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="font-semibold text-gray-800">Version History — {{ componentEditor.code }}</h2>
+            <button @click="versionHistory = []" class="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200">Close</button>
+          </div>
+          <div class="max-h-60 overflow-auto space-y-1">
+            <div v-for="v in versionHistory" :key="v._id" class="flex items-center justify-between text-sm border border-gray-200 rounded px-3 py-2 bg-gray-50">
+              <div>
+                <span class="font-mono text-xs text-gray-700">v{{ v.version }}</span>
+                <span class="text-xs text-gray-500 ml-2">{{ new Date(v.savedAt).toLocaleString() }}</span>
+              </div>
+              <button @click="restoreVersion(v._id)" class="text-xs px-2 py-1 rounded bg-amber-100 hover:bg-amber-200 text-amber-700">Restore</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-show="activeTab === 'manage'" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="bg-white rounded-lg shadow p-4 space-y-4">
             <div class="flex items-center justify-between">
               <h2 class="font-semibold text-gray-800">Projects</h2>
@@ -262,8 +321,15 @@ curl "{{ baseUrl }}/api/ui-components/manifest/prj_yourproject" \
               </div>
             </div>
 
+                </div>
+              </div>
+            </div>
+
             <div class="border-t pt-3">
-              <div class="text-xs text-gray-500 mb-2">Existing components:</div>
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-xs text-gray-500">Existing components:</div>
+                <button v-if="componentEditor.code" @click="loadVersionHistory(componentEditor.code)" class="text-[11px] px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700">History</button>
+              </div>
               <div class="space-y-1 max-h-[320px] overflow-auto">
                 <button
                   v-for="c in components"

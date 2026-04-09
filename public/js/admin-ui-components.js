@@ -57,6 +57,10 @@
       const newProject = ref({ name: '', projectId: '', isPublic: true });
       const componentEditor = ref({ code: '', name: '', html: '', js: '', css: '', usageMarkdown: '' });
 
+      const activeTab = ref('manage');
+      const galleryComponents = ref([]);
+      const versionHistory = ref([]);
+
       const ai = ref({
         providerKey: localStorage.getItem(STORAGE_KEYS.providerKey) || '',
         model: localStorage.getItem(STORAGE_KEYS.model) || '',
@@ -335,6 +339,62 @@
         }
       };
 
+      // C4: Gallery
+      const loadGalleryComponents = withToast(async () => {
+        await refreshComponents();
+        galleryComponents.value = components.value.filter((c) => c.isActive !== false);
+      }, showToast);
+
+      const buildGalleryPreviewHtml = (c) => {
+        const html = c.previewExample || c.html || '<div style="padding:16px;color:#888">No preview</div>';
+        const css = c.css || '';
+        return '<!doctype html><html><head><style>' + css + '</style></head><body>' + html + '</body></html>';
+      };
+
+      // C1: Version history
+      const loadVersionHistory = withToast(async (code) => {
+        const data = await api('/api/admin/ui-components/components/' + encodeURIComponent(code) + '/versions');
+        versionHistory.value = data && data.items ? data.items : [];
+        if (!versionHistory.value.length) showToast('No version history for this component', 'success');
+      }, showToast);
+
+      const restoreVersion = withToast(async (versionId) => {
+        const code = String(componentEditor.value.code || '').trim().toLowerCase();
+        if (!code) throw new Error('No component selected');
+        await api('/api/admin/ui-components/components/' + encodeURIComponent(code) + '/versions/' + encodeURIComponent(versionId) + '/restore', { method: 'POST' });
+        await loadComponentIntoEditor(code);
+        await loadVersionHistory(code);
+        showToast('Version restored', 'success');
+      }, showToast);
+
+      // C2: Export / Import
+      const exportComponents = withToast(async () => {
+        const data = await api('/api/admin/ui-components/export');
+        const json = JSON.stringify(data && data.components ? data.components : [], null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'ui-components-export.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Export downloaded', 'success');
+      }, showToast);
+
+      const importComponents = withToast(async (event) => {
+        const file = event.target && event.target.files && event.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        let parsed;
+        try { parsed = JSON.parse(text); } catch { throw new Error('Invalid JSON file'); }
+        const components = Array.isArray(parsed) ? parsed : (parsed.components || []);
+        const data = await api('/api/admin/ui-components/import', { method: 'POST', body: { components } });
+        await refreshAllCore();
+        showToast(`Import done: ${data.created || 0} created, ${data.updated || 0} updated, ${(data.errors || []).length} errors`, 'success');
+        event.target.value = '';
+      }, showToast);
+
+
       const onFullscreenChange = () => {
         previewFullscreen.value = Boolean(document.fullscreenElement && document.fullscreenElement === previewContainerRef.value);
       };
@@ -402,6 +462,15 @@
         clearPreviewLogs,
         setPreviewCommandExample,
         togglePreviewFullscreen,
+        activeTab,
+        galleryComponents,
+        versionHistory,
+        loadGalleryComponents,
+        buildGalleryPreviewHtml,
+        loadVersionHistory,
+        restoreVersion,
+        exportComponents,
+        importComponents,
       };
     },
   }).mount('#app');

@@ -16,8 +16,20 @@
           <i class="ti ti-puzzle text-blue-600"></i>
           Plugins system
         </h1>
-        <p class="text-gray-600 mt-2">Enable, disable, and install local CommonJS plugins from <code class="text-sm bg-gray-100 px-1.5 py-0.5 rounded">cwd/plugins/*</code>.</p>
+        <p class="text-gray-600 mt-2">Enable, disable, and install local plugins from <code class="text-sm bg-gray-100 px-1.5 py-0.5 rounded">cwd/plugins/*</code>. Each plugin folder needs an <code>index.js</code> or <code>plugin.json</code> manifest.</p>
       </header>
+
+      <!-- Restart required banner (A1) -->
+      <div v-if="restartRequired" class="bg-amber-50 border border-amber-300 rounded-xl p-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <i class="ti ti-alert-triangle text-amber-600 text-xl"></i>
+          <div>
+            <p class="font-semibold text-amber-900">Server restart required</p>
+            <p class="text-sm text-amber-700">Plugin routes and middleware have changed. Restart the server to apply new routes.</p>
+          </div>
+        </div>
+        <button @click="restartRequired = false" class="text-amber-600 hover:text-amber-800 text-sm">&times; Dismiss</button>
+      </div>
 
       <section class="bg-white rounded-xl border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
@@ -48,6 +60,22 @@
                   <span class="px-2 py-1 rounded" :class="plugin.enabled ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-gray-200 text-gray-700 border border-gray-300'">
                     {{ plugin.enabled ? 'enabled' : 'disabled' }}
                   </span>
+                  <!-- Bootstrap status badge -->
+                  <span v-if="plugin.lastBootstrap" class="px-2 py-1 rounded" :class="{
+                    'bg-green-50 text-green-700 border border-green-200': plugin.lastBootstrap.ok && !plugin.lastBootstrap.skipped,
+                    'bg-yellow-50 text-yellow-700 border border-yellow-200': plugin.lastBootstrap.skipped,
+                    'bg-red-50 text-red-700 border border-red-200': !plugin.lastBootstrap.ok && !plugin.lastBootstrap.skipped
+                  }">
+                    bootstrap: {{ plugin.lastBootstrap.ok ? (plugin.lastBootstrap.skipped ? 'skipped' : 'ok') : 'error' }}
+                  </span>
+                </div>
+                <!-- Bootstrap error detail -->
+                <div v-if="plugin.lastBootstrap && !plugin.lastBootstrap.ok && plugin.lastBootstrap.error" class="mt-2 text-xs bg-red-50 border border-red-200 text-red-700 rounded p-2 font-mono">
+                  {{ plugin.lastBootstrap.error }}
+                </div>
+                <!-- Bootstrap timestamp -->
+                <div v-if="plugin.lastBootstrap && plugin.lastBootstrap.timestamp" class="mt-1 text-xs text-gray-400">
+                  Last bootstrap: {{ new Date(plugin.lastBootstrap.timestamp).toLocaleString() }}
                 </div>
               </div>
 
@@ -145,6 +173,7 @@ module.exports = {
         const plugins = ref([]);
         const loading = ref(false);
         const error = ref('');
+        const restartRequired = ref(false);
 
         const loadPlugins = async () => {
           loading.value = true;
@@ -170,6 +199,7 @@ module.exports = {
             });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.error || 'Enable failed');
+            restartRequired.value = true;
             await loadPlugins();
           } catch (err) {
             error.value = err.message || 'Enable failed';
@@ -185,6 +215,7 @@ module.exports = {
             });
             const payload = await response.json();
             if (!response.ok) throw new Error(payload.error || 'Disable failed');
+            restartRequired.value = true;
             await loadPlugins();
           } catch (err) {
             error.value = err.message || 'Disable failed';
@@ -211,6 +242,7 @@ module.exports = {
           plugins,
           loading,
           error,
+          restartRequired,
           loadPlugins,
           enablePlugin,
           disablePlugin,

@@ -24,6 +24,7 @@ router.delete('/pages/:id', controller.deletePage);
 
 router.post('/pages/:id/publish', controller.publishPage);
 router.post('/pages/:id/unpublish', controller.unpublishPage);
+router.post('/pages/:id/clone', controller.clonePage);
 
 router.post('/pages/:id/test-context', controller.testPageContextPhase);
 router.post('/pages/:id/test-block', controller.testPageContextBlock);
