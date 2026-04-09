@@ -14,6 +14,12 @@ const exposedHelpers = {};
 
 const additionalPluginsRoots = new Set();
 
+let enabledPluginsAssets = {
+  routes: [],
+  views: {},
+  staticPaths: []
+};
+
 function sha256(value) {
   return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex');
 }
@@ -52,6 +58,12 @@ function normalizePlugin(rawModule, pluginId, absoluteDir) {
 
   const meta = candidate.meta && typeof candidate.meta === 'object' ? candidate.meta : {};
 
+  const aliases = Array.isArray(meta.aliases || candidate.aliases)
+    ? (meta.aliases || candidate.aliases).map((a) => String(a).trim()).filter(Boolean)
+    : [];
+
+  const routePrefix = String(meta.routePrefix || candidate.routePrefix || `/${pluginId}`).trim();
+
   return {
     id: String(meta.id || candidate.id || pluginId || '').trim(),
     name: String(meta.name || candidate.name || pluginId || '').trim(),
@@ -64,6 +76,11 @@ function normalizePlugin(rawModule, pluginId, absoluteDir) {
     install: typeof hooks.install === 'function' ? hooks.install : topLevelInstall,
     services: candidate.services && typeof candidate.services === 'object' ? candidate.services : {},
     helpers: candidate.helpers && typeof candidate.helpers === 'object' ? candidate.helpers : {},
+    routes: candidate.routes || null,
+    views: candidate.views && typeof candidate.views === 'object' ? candidate.views : {},
+    staticPath: candidate.staticPath ? path.resolve(absoluteDir, candidate.staticPath) : null,
+    aliases,
+    routePrefix,
     path: absoluteDir,
   };
 }
@@ -214,12 +231,23 @@ function applyExposedContracts(plugin) {
 }
 
 function createPluginContext(plugin, externalContext = {}) {
+  const viewsBase = plugin.path;
   return {
     plugin,
     services: externalContext.services || {},
     helpers: externalContext.helpers || {},
     logger: console,
     cwd: process.cwd(),
+    app: externalContext.app || null,
+    router: externalContext.router || null,
+    routerPrefix: plugin.routePrefix,
+    viewsBase,
+    resolvePluginView(viewName) {
+      const viewPath = plugin.views[viewName];
+      if (!viewPath) return null;
+      if (path.isAbsolute(viewPath)) return viewPath;
+      return path.resolve(viewsBase, viewPath);
+    },
   };
 }
 
@@ -265,6 +293,8 @@ async function bootstrap({ pluginsRoot, context } = {}) {
     const hookResult = await runHook(plugin, 'bootstrap', context || {});
     results.push({ pluginId: plugin.id, hook: 'bootstrap', ...hookResult });
   }
+
+  await collectEnabledPluginsAssets({ pluginsRoot, context });
 
   return {
     plugins: discovered,
@@ -320,6 +350,8 @@ async function enablePlugin(pluginId, { pluginsRoot, context } = {}) {
   data.plugins[plugin.id].updatedAt = nowIso();
   await savePluginState(doc, data);
 
+  await collectEnabledPluginsAssets({ pluginsRoot, context });
+
   return {
     pluginId: plugin.id,
     enabled: true,
@@ -365,6 +397,53 @@ function getExposedHelpers() {
   return exposedHelpers;
 }
 
+function collectPluginAssets() {
+  return enabledPluginsAssets;
+}
+
+async function collectEnabledPluginsAssets({ pluginsRoot, context } = {}) {
+  const discovered = await discoverPlugins({ pluginsRoot });
+  const { data } = await getPluginState();
+  
+  const assets = {
+    routes: [],
+    views: {},
+    staticPaths: []
+  };
+
+  for (const plugin of discovered) {
+    const state = data.plugins?.[plugin.id];
+    if (!state || state.enabled !== true) continue;
+
+    if (plugin.routes) {
+      assets.routes.push({
+        prefix: plugin.routePrefix,
+        router: plugin.routes,
+        aliases: plugin.aliases,
+        pluginId: plugin.id
+      });
+    }
+
+    for (const [viewName, viewPath] of Object.entries(plugin.views)) {
+      const resolvedPath = path.isAbsolute(viewPath) 
+        ? viewPath 
+        : path.resolve(plugin.path, viewPath);
+      assets.views[viewName] = resolvedPath;
+    }
+
+    if (plugin.staticPath && fs.existsSync(plugin.staticPath)) {
+      assets.staticPaths.push({
+        prefix: plugin.routePrefix,
+        path: plugin.staticPath,
+        pluginId: plugin.id
+      });
+    }
+  }
+
+  enabledPluginsAssets = assets;
+  return assets;
+}
+
 module.exports = {
   PLUGINS_STATE_KEY,
   DEFAULT_REGISTRY_ID,
@@ -379,4 +458,6 @@ module.exports = {
   installPlugin,
   getExposedServices,
   getExposedHelpers,
+  collectPluginAssets,
+  collectEnabledPluginsAssets,
 };
