@@ -103,7 +103,7 @@ function createMiddleware(options = {}) {
       if (options.plugins?.extraRoots) {
         const roots = Array.isArray(options.plugins.extraRoots) ? options.plugins.extraRoots : [];
         for (const root of roots) {
-          await pluginsService.loadAllPluginsFromFolder(root, { context: {} });
+          await pluginsService.loadAllPluginsFromFolder(root, { context: { app: router } });
         }
       }
       const superbackend = globalThis.superbackend || globalThis.saasbackend || {};
@@ -111,6 +111,7 @@ function createMiddleware(options = {}) {
         context: {
           services: superbackend.services || {},
           helpers: superbackend.helpers || {},
+          app: router,
         },
       });
       const pluginServices = pluginsService.getExposedServices();
@@ -121,6 +122,27 @@ function createMiddleware(options = {}) {
       if (superbackend.helpers && typeof superbackend.helpers === "object") {
         superbackend.helpers.pluginsRuntime = pluginHelpers;
       }
+
+      const pluginAssets = pluginsService.collectPluginAssets();
+      for (const asset of pluginAssets.routes) {
+        router.use(asset.prefix, asset.router);
+        for (const alias of asset.aliases) {
+          router.use(alias, (req, res, next) => {
+            res.redirect(asset.prefix + req.path);
+          });
+        }
+      }
+      for (const staticAsset of pluginAssets.staticPaths) {
+        router.use(`/plugin-static${staticAsset.prefix}`, express.static(staticAsset.path));
+      }
+
+      router.use((req, res, next) => {
+        res.resolvePluginView = (viewName) => {
+          const viewPath = pluginAssets.views[viewName];
+          return viewPath || null;
+        };
+        next();
+      });
     } catch (error) {
       console.error("Failed to bootstrap plugins runtime:", error);
     }
