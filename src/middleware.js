@@ -19,7 +19,10 @@ if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
 
 const express = require("express");
 const path = require("path");
-const mongoose = require("mongoose");
+// Use parent app's mongoose if already connected, otherwise require our own
+const mongoose = (globalThis.mongoose && globalThis.mongoose.connection && globalThis.mongoose.connection.readyState === 1)
+  ? globalThis.mongoose
+  : require("mongoose");
 const cors = require("cors");
 const fs = require("fs");
 const ejs = require("ejs");
