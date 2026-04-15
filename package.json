@@ -1,6 +1,6 @@
 {
   "name": "@intranefr/superbackend",
-  "version": "1.7.11",
+  "version": "1.8.0",
   "description": "Node.js middleware that gives your project backend superpowers",
   "main": "index.js",
   "bin": {
@@ -42,7 +42,6 @@
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
-    "@intranefr/superbackend": "^1.7.7",
     "axios": "^1.13.2",
     "basic-auth": "^2.0.1",
     "bcryptjs": "^2.4.3",
