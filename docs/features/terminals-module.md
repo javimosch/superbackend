@@ -2,11 +2,29 @@
 
 ## What it is
 
-The Terminals module provides interactive shell sessions in the admin UI using a WebSocket bridge to backend PTY processes.
+The Terminals module provides interactive shell sessions in the admin UI using a WebSocket bridge to backend shell processes.
 
 - Browser terminal: xterm.js
-- Backend shell: PTY (`node-pty`)
+- Backend shell: PTY abstraction (auto-selects best available backend)
 - Transport: WebSocket (`ws`)
+
+## PTY Backend Modes
+
+The backend is selected automatically at startup. The selection priority is:
+
+1. **`node-pty`** — full PTY, requires `node-pty` to be installed (optional)
+2. **`std-pty`** — uses Node.js `stdio: 'pty'` (Node.js 22+ on Linux)
+3. **`basic-spawn`** — `child_process.spawn`, always available fallback
+
+| Backend | PTY | Write | Resize | Platforms |
+|---------|-----|-------|--------|-----------|
+| `node-pty` | ✓ | ✓ | ✓ | All (optional dep) |
+| `std-pty` | ✓ | ✓ | ✓ (SIGWINCH) | Linux, Node 22+ |
+| `basic-spawn` | ✗ | ✓ | ✗ | All |
+
+The active backend is logged at startup: `[terminals] PTY backend: <type>`
+
+Each session exposes a `backendType` field in the session list API response.
 
 ## Admin UI
 
