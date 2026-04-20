@@ -1,10 +1,118 @@
 const crypto = require('crypto');
-const pty = require('node-pty');
+const childProcess = require('child_process');
 
 const sessions = new Map();
 
 const MAX_SESSIONS = 20;
 const IDLE_TTL_MS = 15 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// PTY Backend implementations
+// ---------------------------------------------------------------------------
+
+class NodePtyBackend {
+  constructor(shell, cols, rows) {
+    const nodePty = require('node-pty');
+    this._pty = nodePty.spawn(shell, [], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd: process.cwd(),
+      env: process.env,
+    });
+    this.backendType = 'node-pty';
+  }
+
+  write(data) { this._pty.write(String(data || '')); }
+  resize(cols, rows) { this._pty.resize(cols, rows); }
+  kill() { this._pty.kill(); }
+  onData(cb) { this._pty.onData(cb); }
+  offData(cb) { try { this._pty.offData(cb); } catch {} }
+  onExit(cb) { this._pty.onExit(cb); }
+}
+
+class StdPtyBackend {
+  constructor(shell, cols, rows) {
+    this._proc = childProcess.spawn(shell, [], {
+      stdio: ['pipe', 'pipe', 'pipe', 'pty'],
+      cwd: process.cwd(),
+      env: { ...process.env, TERM: 'xterm-256color', COLUMNS: String(cols), LINES: String(rows) },
+    });
+    this._dataCallbacks = [];
+    this._exitCallbacks = [];
+    this.backendType = 'std-pty';
+
+    const emitData = (chunk) => this._dataCallbacks.forEach((cb) => cb(chunk.toString()));
+    this._proc.stdout.on('data', emitData);
+    this._proc.stderr.on('data', emitData);
+    this._proc.on('exit', (code) => this._exitCallbacks.forEach((cb) => cb({ exitCode: code })));
+  }
+
+  write(data) { try { this._proc.stdin.write(String(data || '')); } catch {} }
+
+  resize(cols, rows) {
+    try {
+      process.kill(this._proc.pid, 'SIGWINCH');
+      this._proc.env = { ...this._proc.env, COLUMNS: String(cols), LINES: String(rows) };
+    } catch {}
+  }
+
+  kill() { try { this._proc.kill(); } catch {} }
+  onData(cb) { this._dataCallbacks.push(cb); }
+  offData(cb) { this._dataCallbacks = this._dataCallbacks.filter((f) => f !== cb); }
+  onExit(cb) { this._exitCallbacks.push(cb); }
+}
+
+class BasicSpawnBackend {
+  constructor(shell, cols, rows) {
+    this._proc = childProcess.spawn('script', ['-q', '-f', '-c', shell, '/dev/null'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: process.cwd(),
+      env: { ...process.env, TERM: 'xterm-256color', COLUMNS: String(cols), LINES: String(rows) },
+    });
+    this._dataCallbacks = [];
+    this._exitCallbacks = [];
+    this.backendType = 'basic-spawn';
+
+    const emitData = (chunk) => this._dataCallbacks.forEach((cb) => cb(chunk.toString()));
+    this._proc.stdout.on('data', emitData);
+    this._proc.stderr.on('data', emitData);
+    this._proc.on('exit', (code) => this._exitCallbacks.forEach((cb) => cb({ exitCode: code })));
+  }
+
+  write(data) { try { this._proc.stdin.write(String(data || '')); } catch {} }
+  resize() {}
+  kill() { try { this._proc.kill(); } catch {} }
+  onData(cb) { this._dataCallbacks.push(cb); }
+  offData(cb) { this._dataCallbacks = this._dataCallbacks.filter((f) => f !== cb); }
+  onExit(cb) { this._exitCallbacks.push(cb); }
+}
+
+// ---------------------------------------------------------------------------
+// Backend selection
+// ---------------------------------------------------------------------------
+
+function _detectBackendType() {
+  try {
+    require('node-pty');
+    return 'node-pty';
+  } catch {}
+  return 'basic-spawn';
+}
+
+const _selectedBackendType = _detectBackendType();
+console.log(`[terminals] PTY backend: ${_selectedBackendType}`);
+
+function _createBackend(shell, cols, rows, backendType) {
+  const type = backendType || _selectedBackendType;
+  if (type === 'node-pty') return new NodePtyBackend(shell, cols, rows);
+  if (type === 'std-pty') return new StdPtyBackend(shell, cols, rows);
+  return new BasicSpawnBackend(shell, cols, rows);
+}
+
+// ---------------------------------------------------------------------------
+// Session management
+// ---------------------------------------------------------------------------
 
 function now() {
   return Date.now();
@@ -23,6 +131,7 @@ function listSessions() {
       lastActivityAt: s.lastActivityAt,
       cols: s.cols,
       rows: s.rows,
+      backendType: s.backendType,
     }))
     .sort((a, b) => b.createdAt - a.createdAt);
 }
@@ -40,21 +149,16 @@ function createSession(options = {}) {
 
   const cols = Number(options.cols || 120);
   const rows = Number(options.rows || 30);
-
   const shell = process.env.SHELL || 'bash';
 
-  const p = pty.spawn(shell, [], {
-    name: 'xterm-256color',
-    cols,
-    rows,
-    cwd: process.cwd(),
-    env: process.env,
-  });
-
+  const backend = module.exports._createBackend(shell, cols, rows);
   const sessionId = newId();
+
   const s = {
     sessionId,
-    pty: p,
+    backend,
+    get pty() { return this.backend; },
+    backendType: backend.backendType,
     status: 'running',
     createdAt: now(),
     lastActivityAt: now(),
@@ -62,7 +166,7 @@ function createSession(options = {}) {
     rows,
   };
 
-  p.onExit(() => {
+  backend.onExit(() => {
     const cur = sessions.get(sessionId);
     if (cur) {
       cur.status = 'closed';
@@ -91,7 +195,7 @@ function resizeSession(sessionId, cols, rows) {
   s.rows = r;
   s.lastActivityAt = now();
   try {
-    s.pty.resize(c, r);
+    s.backend.resize(c, r);
   } catch {}
 }
 
@@ -100,7 +204,7 @@ function writeSession(sessionId, data) {
   if (!s || s.status !== 'running') return;
   s.lastActivityAt = now();
   try {
-    s.pty.write(String(data || ''));
+    s.backend.write(String(data || ''));
   } catch {}
 }
 
@@ -113,7 +217,7 @@ function killSession(sessionId) {
   }
 
   try {
-    s.pty.kill();
+    s.backend.kill();
   } catch {}
 
   sessions.delete(String(sessionId));
@@ -125,7 +229,7 @@ function cleanupIdleSessions() {
   for (const [id, s] of sessions.entries()) {
     if (s.lastActivityAt < cutoff) {
       try {
-        s.pty.kill();
+        s.backend.kill();
       } catch {}
       sessions.delete(id);
     }
@@ -149,4 +253,6 @@ module.exports = {
   writeSession,
   resizeSession,
   touch,
+  _createBackend,
+  _detectBackendType,
 };
