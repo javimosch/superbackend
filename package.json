@@ -59,7 +59,6 @@
     "multer": "^1.4.5-lts.1",
     "mysql2": "^3.16.1",
     "node-cron": "^4.2.1",
-    "node-pty": "^1.1.0",
     "node-telegram-bot-api": "^0.67.0",
     "openai": "^4.0.0",
     "redis": "^4.7.1",
@@ -79,6 +78,7 @@
   "jest": {
     "testEnvironment": "node",
     "testTimeout": 15000,
+    "forceExit": true,
     "collectCoverageFrom": [
       "src/**/*.js",
       "!src/**/*.test.js"
