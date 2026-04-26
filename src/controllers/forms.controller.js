@@ -141,12 +141,17 @@ exports.submit = async (req, res) => {
 
     if (formKey === 'contact') {
       const email = normalizeEmail(fields.email);
+      /*
       const message = String(fields.message || '').trim();
       if (!isValidEmail(email)) {
         return res.status(400).json({ error: 'Email invalide', field: 'email' });
       }
       if (!message || message.length < 5) {
         return res.status(400).json({ error: 'Message trop court', field: 'message' });
+      }
+      */
+      if (!isValidEmail(email)) {
+        return res.status(400).json({ error: 'Email invalide', field: 'email' });
       }
     }
 
