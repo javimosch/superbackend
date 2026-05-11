@@ -163,6 +163,13 @@ function createMiddleware(options = {}) {
     }
   };
 
+  // Set req.adminPath on every request (mount-aware: includes req.baseUrl prefix)
+  // Must be registered before any admin routes so they can use req.adminPath
+  router.use((req, res, next) => {
+    req.adminPath = req.baseUrl + adminPath;
+    next();
+  });
+
   // Debug: Log received options
   console.log("[Middleware Debug] Received options:", {
     telegramEnabled: options.telegram?.enabled,
@@ -186,7 +193,7 @@ function createMiddleware(options = {}) {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -346,7 +353,7 @@ function createMiddleware(options = {}) {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -378,7 +385,7 @@ function createMiddleware(options = {}) {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -410,7 +417,7 @@ function createMiddleware(options = {}) {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -823,7 +830,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           { 
             baseUrl: req.baseUrl, 
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           { filename: templatePath },
@@ -853,7 +860,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -880,7 +887,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -912,7 +919,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
             serverPort: process.env.PORT || 3000
@@ -946,7 +953,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -974,7 +981,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1001,7 +1008,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1033,7 +1040,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -1065,7 +1072,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -1097,7 +1104,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
             template,
             {
               baseUrl: req.baseUrl,
-              adminPath,
+              adminPath: req.adminPath,
               isIframe: req.isIframe || false
             },
             {
@@ -1238,10 +1245,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   router.use("/public/assets", require("./routes/publicAssets.routes"));
 
   // Admin login routes (no authentication required)
-  router.use(`${adminPath}`, (req, res, next) => {
-    req.adminPath = adminPath;
-    next();
-  }, require("./routes/adminLogin.routes"));
+  router.use(`${adminPath}`, require("./routes/adminLogin.routes"));
 
   // Admin dashboard (redirect to login if not authenticated)
   router.get(adminPath, adminSessionAuth, async (req, res) => {
@@ -1284,7 +1288,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           { 
             baseUrl: req.baseUrl, 
-            adminPath, 
+            adminPath: req.adminPath, 
             isIframe: req.isIframe || false,
             maxTabs
           },
@@ -1311,7 +1315,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1344,7 +1348,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1372,7 +1376,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1402,7 +1406,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1425,7 +1429,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1450,7 +1454,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1476,7 +1480,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1502,7 +1506,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, postId: "", mode: "new", isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, postId: "", mode: "new", isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1530,7 +1534,7 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             postId: String(req.params.id || ""),
             mode: "edit",
             isIframe: req.isIframe || false,
@@ -1562,7 +1566,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
         template,
         {
           baseUrl: req.baseUrl,
-          adminPath,
+          adminPath: req.adminPath,
           isIframe: req.isIframe || false
         },
         {
@@ -1594,7 +1598,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           {
@@ -1626,7 +1630,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1652,7 +1656,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1678,7 +1682,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath, isIframe: req.isIframe || false },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
           { filename: templatePath },
         );
         res.send(html);
@@ -1702,7 +1706,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -1736,7 +1740,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -1770,7 +1774,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1804,7 +1808,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl || '',
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -1838,7 +1842,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl || '',
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1872,7 +1876,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1906,7 +1910,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1940,7 +1944,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false,
           },
@@ -1972,7 +1976,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
       try {
         const html = ejs.render(template, {
           baseUrl: req.baseUrl,
-          adminPath,
+          adminPath: req.adminPath,
           endpointRegistry,
           isIframe: req.isIframe || false
         });
@@ -2002,7 +2006,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -2031,7 +2035,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl, 
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           { filename: templatePath },
@@ -2062,7 +2066,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
             isIframe: req.isIframe || false
           },
@@ -2096,7 +2100,7 @@ router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-mana
           template,
           {
             baseUrl: req.baseUrl,
-            adminPath,
+            adminPath: req.adminPath,
             endpointRegistry,
           },
           {
@@ -2123,7 +2127,7 @@ return res.status(500).send("Error loading page");
 try {
 const html = ejs.render(template, {
 baseUrl: req.baseUrl,
-adminPath,
+adminPath: req.adminPath,
 endpointRegistry,
 });
 res.send(html);
@@ -2152,7 +2156,7 @@ res.status(500).send("Error rendering page");
       try {
         const html = ejs.render(template, {
           baseUrl: req.baseUrl,
-          adminPath,
+          adminPath: req.adminPath,
         });
         res.send(html);
       } catch (renderErr) {
@@ -2176,7 +2180,7 @@ res.status(500).send("Error rendering page");
         return res.status(500).send("Error loading page");
       }
       try {
-        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath });
+        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath: req.adminPath });
         res.send(html);
       } catch (renderErr) {
         console.error("Error rendering template:", renderErr);
@@ -2200,7 +2204,7 @@ res.status(500).send("Error rendering page");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath },
           { filename: templatePath },
         );
         res.send(html);
@@ -2223,7 +2227,7 @@ res.status(500).send("Error rendering page");
           template,
           { 
             baseUrl: req.baseUrl, 
-            adminPath,
+            adminPath: req.adminPath,
             isIframe: req.isIframe || false
           },
           { filename: templatePath },
@@ -2251,7 +2255,7 @@ res.status(500).send("Error rendering page");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath },
           { filename: templatePath },
         );
         res.send(html);
@@ -2272,7 +2276,7 @@ res.status(500).send("Error rendering page");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath },
           { filename: templatePath },
         );
         res.send(html);
@@ -2298,7 +2302,7 @@ res.status(500).send("Error rendering page");
       try {
         const html = ejs.render(
           template,
-          { baseUrl: req.baseUrl, adminPath },
+          { baseUrl: req.baseUrl, adminPath: req.adminPath },
           { filename: templatePath },
         );
         res.send(html);

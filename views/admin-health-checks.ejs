@@ -363,6 +363,7 @@
   </div>
 
   <script>
+    const baseUrl = '<%= baseUrl %>';
     const { createApp } = Vue;
 
     createApp({
@@ -425,7 +426,7 @@
 
         async loadChecks() {
           try {
-            const res = await fetch('/api/admin/health-checks');
+            const res = await fetch(baseUrl + '/api/admin/health-checks');
             const data = await res.json();
             this.healthChecks = data.items || [];
             this.publicStatusEnabled = Boolean(data.publicStatusEnabled);
@@ -436,7 +437,7 @@
 
         async loadScripts() {
           try {
-            const res = await fetch('/api/admin/scripts');
+            const res = await fetch(baseUrl + '/api/admin/scripts');
             const data = await res.json();
             this.scripts = data.items || [];
           } catch (e) {
@@ -618,7 +619,7 @@
               payload.scriptId = this.form.scriptId;
             }
 
-            const url = this.editingCheck ? `/api/admin/health-checks/${this.editingCheck._id}` : '/api/admin/health-checks';
+            const url = this.editingCheck ? `${baseUrl}/api/admin/health-checks/${this.editingCheck._id}` : baseUrl + '/api/admin/health-checks';
             const method = this.editingCheck ? 'PUT' : 'POST';
 
             const res = await fetch(url, {
@@ -644,7 +645,7 @@
         async toggleCheck(hc) {
           try {
             const endpoint = hc.enabled ? 'disable' : 'enable';
-            const res = await fetch(`/api/admin/health-checks/${hc._id}/${endpoint}`, { method: 'POST' });
+            const res = await fetch(`${baseUrl}/api/admin/health-checks/${hc._id}/${endpoint}`, { method: 'POST' });
             if (!res.ok) {
               alert('Failed to toggle check');
               return;
@@ -658,7 +659,7 @@
 
         async triggerCheck(id) {
           try {
-            const res = await fetch(`/api/admin/health-checks/${id}/trigger`, { method: 'POST' });
+            const res = await fetch(`${baseUrl}/api/admin/health-checks/${id}/trigger`, { method: 'POST' });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) {
               alert(data.error || 'Failed to trigger');
@@ -675,7 +676,7 @@
         async deleteCheck(hc) {
           if (!confirm(`Delete health check "${hc.name}"?`)) return;
           try {
-            const res = await fetch(`/api/admin/health-checks/${hc._id}`, { method: 'DELETE' });
+            const res = await fetch(`${baseUrl}/api/admin/health-checks/${hc._id}`, { method: 'DELETE' });
             if (!res.ok) {
               alert('Failed to delete');
               return;
@@ -691,7 +692,7 @@
           this.selectedCheck = hc;
           this.showRunsModal = true;
           try {
-            const res = await fetch(`/api/admin/health-checks/${hc._id}/runs`);
+            const res = await fetch(`${baseUrl}/api/admin/health-checks/${hc._id}/runs`);
             const data = await res.json();
             this.runs = data.items || [];
           } catch (e) {
@@ -703,7 +704,7 @@
         async togglePublicStatus() {
           try {
             const next = !this.publicStatusEnabled;
-            const res = await fetch('/api/admin/health-checks/config', {
+            const res = await fetch(baseUrl + '/api/admin/health-checks/config', {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ publicStatusEnabled: next }),

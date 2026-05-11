@@ -105,7 +105,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
   <script>
     const API_BASE = window.location.origin + "<%= baseUrl %>";
-    const ADMIN_BASE = API_BASE + "/admin";
+    const ADMIN_BASE = API_BASE + "<%= adminPath %>";
     const ENDPOINT_REGISTRY = <%- JSON.stringify(endpointRegistry || []) %>;
     
     let history = JSON.parse(localStorage.getItem('api_history') || '[]');

@@ -302,6 +302,7 @@
   </div>
 
   <script>
+    const baseUrl = '<%= baseUrl %>';
     const { createApp } = Vue;
 
     createApp({
@@ -369,7 +370,7 @@
         },
         async loadAll() {
           this.error = '';
-          const res = await fetch('/api/admin/proxy/entries', { headers: { 'Accept': 'application/json' } });
+          const res = await fetch(baseUrl + '/api/admin/proxy/entries', { headers: { 'Accept': 'application/json' } });
           if (!res.ok) {
             this.error = 'Failed to load proxy entries';
             return;
@@ -431,7 +432,7 @@
           }
 
           const isUpdate = Boolean(payload._id);
-          const url = isUpdate ? `/api/admin/proxy/entries/${payload._id}` : '/api/admin/proxy/entries';
+          const url = isUpdate ? `${baseUrl}/api/admin/proxy/entries/${payload._id}` : baseUrl + '/api/admin/proxy/entries';
           const method = isUpdate ? 'PUT' : 'POST';
 
           const res = await fetch(url, {
@@ -458,7 +459,7 @@
           this.error = '';
           if (!this.selected || !this.selected._id) return;
 
-          const res = await fetch(`/api/admin/proxy/entries/${this.selected._id}`, { method: 'DELETE' });
+          const res = await fetch(`${baseUrl}/api/admin/proxy/entries/${this.selected._id}`, { method: 'DELETE' });
           if (!res.ok) {
             this.error = 'Delete failed';
             return;
@@ -471,7 +472,7 @@
         async loadAudit() {
           this.error = '';
           const params = new URLSearchParams({ page: String(this.auditPage || 1), pageSize: '50', action: 'proxy\.' });
-          const res = await fetch(`/api/admin/audit?${params.toString()}`);
+          const res = await fetch(`${baseUrl}/api/admin/audit?${params.toString()}`);
           if (!res.ok) {
             this.error = 'Failed to load audit';
             return;

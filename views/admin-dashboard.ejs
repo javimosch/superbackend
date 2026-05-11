@@ -181,11 +181,11 @@
                                     typeof tab.path === 'string'
                                 );
                                 
-                                // Ensure tabs still exist in available modules
-                                const availableModuleIds = allModules.value.map(m => m.id);
-                                const existingTabs = validTabs.filter(tab => 
-                                    availableModuleIds.includes(tab.id)
-                                );
+                                // Ensure tabs still exist in available modules and refresh paths
+                                const availableModulesMap = Object.fromEntries(allModules.value.map(m => [m.id, m]));
+                                const existingTabs = validTabs
+                                    .filter(tab => availableModulesMap[tab.id])
+                                    .map(tab => ({ ...tab, path: availableModulesMap[tab.id].path }));
                                 
                                 // Enforce tab limit - keep only the first maxTabs tabs
                                 const limitedTabs = existingTabs.slice(0, maxTabs);

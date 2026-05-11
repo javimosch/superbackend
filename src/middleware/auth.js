@@ -75,12 +75,22 @@ const requireAdmin = (req, res, next) => {
 };
 
 // Admin session authentication middleware - checks session for authenticated admin user
-// Falls back to basic auth when session is not present
+// Falls back to basic auth for API requests, redirects browsers to login page
 const adminSessionAuth = (req, res, next) => {
+  // Helper: redirect browsers to login, fall back to basic auth for API/curl
+  const handleUnauthenticated = (query) => {
+    const hasAuthHeader = req.headers.authorization && req.headers.authorization.startsWith('Basic ');
+    const isApiRequest = req.xhr || req.headers.accept?.includes('application/json');
+    if (hasAuthHeader || isApiRequest) {
+      return basicAuth(req, res, next);
+    }
+    const loginUrl = `${req.adminPath || '/admin'}/login${query || ''}`;
+    return res.redirect(loginUrl);
+  };
+
   // Check if session exists and user is authenticated
   if (!req.session || !req.session.authenticated) {
-    // No valid session - fall back to basic auth
-    return basicAuth(req, res, next);
+    return handleUnauthenticated();
   }
 
   // Verify session is still valid (check login time)
@@ -94,8 +104,7 @@ const adminSessionAuth = (req, res, next) => {
       if (err) console.error('Error destroying expired session:', err);
     });
     
-    // Expired session - fall back to basic auth
-    return basicAuth(req, res, next);
+    return handleUnauthenticated('?error=Session expired');
   }
 
   // Attach user info to request for consistency with other auth middleware

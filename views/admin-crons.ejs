@@ -374,6 +374,7 @@
   </div>
 
   <script>
+    const baseUrl = '<%= baseUrl %>';
     const { createApp } = Vue;
 
     createApp({
@@ -422,7 +423,7 @@
       methods: {
         async loadCrons() {
           try {
-            const response = await fetch('/api/admin/crons');
+            const response = await fetch(baseUrl + '/api/admin/crons');
             const data = await response.json();
             this.crons = data.items || [];
           } catch (error) {
@@ -432,7 +433,7 @@
         
         async loadScripts() {
           try {
-            const response = await fetch('/api/admin/scripts');
+            const response = await fetch(baseUrl + '/api/admin/scripts');
             const data = await response.json();
             this.scripts = data.items || [];
           } catch (error) {
@@ -442,7 +443,7 @@
         
         async loadPresets() {
           try {
-            const response = await fetch('/api/admin/crons/presets');
+            const response = await fetch(baseUrl + '/api/admin/crons/presets');
             const data = await response.json();
             this.presets = data.presets || [];
           } catch (error) {
@@ -457,7 +458,7 @@
               this.form.scriptId = undefined;
             }
             
-            const url = this.editingCron ? `/api/admin/crons/${this.editingCron._id}` : '/api/admin/crons';
+            const url = this.editingCron ? `${baseUrl}/api/admin/crons/${this.editingCron._id}` : baseUrl + '/api/admin/crons';
             const method = this.editingCron ? 'PUT' : 'POST';
             
             const response = await fetch(url, {
@@ -482,7 +483,7 @@
         async toggleCron(cron) {
           try {
             const endpoint = cron.enabled ? 'disable' : 'enable';
-            const response = await fetch(`/api/admin/crons/${cron._id}/${endpoint}`, { method: 'POST' });
+            const response = await fetch(`${baseUrl}/api/admin/crons/${cron._id}/${endpoint}`, { method: 'POST' });
             
             if (response.ok) {
               await this.loadCrons();
@@ -497,7 +498,7 @@
         
         async triggerCron(cronId) {
           try {
-            const response = await fetch(`/api/admin/crons/${cronId}/trigger`, { method: 'POST' });
+            const response = await fetch(`${baseUrl}/api/admin/crons/${cronId}/trigger`, { method: 'POST' });
             
             if (response.ok) {
               const data = await response.json();
@@ -520,7 +521,7 @@
           if (!confirm(`Are you sure you want to delete "${cron.name}"?`)) return;
           
           try {
-            const response = await fetch(`/api/admin/crons/${cron._id}`, { method: 'DELETE' });
+            const response = await fetch(`${baseUrl}/api/admin/crons/${cron._id}`, { method: 'DELETE' });
             
             if (response.ok) {
               await this.loadCrons();
@@ -538,7 +539,7 @@
           this.showHistoryModal = true;
           
           try {
-            const response = await fetch(`/api/admin/crons/${cron._id}/executions`);
+            const response = await fetch(`${baseUrl}/api/admin/crons/${cron._id}/executions`);
             const data = await response.json();
             this.executions = data.items || [];
           } catch (error) {
@@ -548,7 +549,7 @@
         
         async viewExecution(execution) {
           try {
-            const response = await fetch(`/api/admin/crons/${this.selectedCron._id}/executions/${execution._id}`);
+            const response = await fetch(`${baseUrl}/api/admin/crons/${this.selectedCron._id}/executions/${execution._id}`);
             const data = await response.json();
             this.selectedExecution = data.item;
             this.showExecutionModal = true;
