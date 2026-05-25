@@ -38,6 +38,7 @@ const mockAdminController = {
   retrySingleWebhookEvent: jest.fn((req, res) => res.json({ message: 'webhook retried' })),
   getWebhookStats: jest.fn((req, res) => res.json({ message: 'webhook stats' })),
   provisionCoolifyDeploy: jest.fn((req, res) => res.json({ message: 'coolify deploy provisioned' })),
+  testSmtp: jest.fn((req, res) => res.json({ message: 'smtp tested' })),
 };
 
 const mockBillingController = {
