@@ -1,17 +1,11 @@
 const consoleOverride = require("./services/consoleOverride.service");
 const { consoleManager } = require("./services/consoleManager.service");
 
-// Initialize console override service early to capture all logs
-// Avoid keeping timers/streams alive during Jest runs.
 if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
   consoleOverride.init()
-  
-  // Initialize console manager after a short delay to ensure consoleOverride is fully set up
+
   setTimeout(() => {
-    // Set module prefix for this middleware
     consoleManager.setModulePrefix('middleware');
-    
-    // Initialize console manager early to enable prefixing for all subsequent logs
     consoleManager.init();
     console.log("[Console Manager] Initialized - prefixing enabled");
   }, 20);
@@ -19,7 +13,6 @@ if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
 
 const express = require("express");
 const path = require("path");
-// Use parent app's mongoose if already connected, otherwise require our own
 const mongoose = (globalThis.mongoose && globalThis.mongoose.connection && globalThis.mongoose.connection.readyState === 1)
   ? globalThis.mongoose
   : require("mongoose");
@@ -27,7 +20,6 @@ const cors = require("cors");
 const fs = require("fs");
 const ejs = require("ejs");
 const session = require("express-session");
-const MongoStore = require("connect-mongo");
 const { adminSessionAuth } = require("./middleware/auth");
 const { requireModuleAccess, isBasicAuthSuperAdmin } = require("./middleware/rbac");
 const endpointRegistry = require("./admin/endpointRegistry");
@@ -48,24 +40,18 @@ const {
 const rateLimiter = require("./services/rateLimiter.service");
 const pluginsService = require("./services/plugins.service");
 const telegramService = require("./services/telegram.service");
+const { renderAdminPage } = require("./helpers/renderAdminPage");
+const { createAdminPageRoutes, requireModuleAccessWithIframe } = require("./routes/adminPageRoutes");
 
 let errorCaptureInitialized = false;
 
-/**
- * Check if console manager should be enabled based on environment variable and global settings
- * Priority: Environment Variable > Global Settings > Default (true)
- * @returns {Promise<boolean>} Whether console manager should be enabled
- */
 async function isConsoleManagerEnabled() {
-  // Environment variable takes highest priority
   const envEnabled = process.env.CONSOLE_MANAGER_ENABLED;
   if (envEnabled !== undefined) {
     const enabled = String(envEnabled).toLowerCase() !== 'false';
     console.log(`[Console Manager] Environment variable CONSOLE_MANAGER_ENABLED=${envEnabled}, ${enabled ? 'enabled' : 'disabled'}`);
     return enabled;
   }
-
-  // Check global settings if environment variable not set
   try {
     const enabledRaw = await globalSettingsService.getSettingValue(
       "CONSOLE_MANAGER_ENABLED",
@@ -77,24 +63,10 @@ async function isConsoleManagerEnabled() {
   } catch (error) {
     console.error("[Console Manager] Error loading global setting:", error);
     console.log("[Console Manager] Fallback to enabled due to error");
-    return true; // Fallback to enabled on error
+    return true;
   }
 }
 
-/**
- * Creates and configures the SaaS backend middleware
- * @param {Object} options - Configuration options
- * @param {string} options.mongodbUri - MongoDB connection string
- * @param {string} options.corsOrigin - CORS origin(s)
- * @param {string} options.jwtSecret - JWT secret for authentication
- * @param {Object} options.dbConnection - Existing Mongoose connection
- * @param {boolean} options.skipBodyParser - Skip adding body parser middleware (default: false)
- * @param {Object} options.telegram - Telegram configuration
- * @param {boolean} options.telegram.enabled - Whether to enable Telegram bots (default: true)
- * @param {Object} options.cron - Cron scheduler configuration
- * @param {boolean} options.cron.enabled - Whether to enable cron scheduler (default: true)
- * @returns {express.Router} Configured Express router
- */
 function createMiddleware(options = {}) {
   const router = express.Router();
   const adminPath = options.adminPath || "/admin";
@@ -104,7 +76,7 @@ function createMiddleware(options = {}) {
   const bootstrapPluginsRuntime = async () => {
     try {
       const pluginRoots = Array.isArray(options.plugins?.extraRoots) ? options.plugins.extraRoots : [];
-      
+
       if (options.plugins?.extraRoots) {
         for (const root of pluginRoots) {
           await pluginsService.loadAllPluginsFromFolder(root, { context: { app: router } });
@@ -163,51 +135,6 @@ function createMiddleware(options = {}) {
     }
   };
 
-  // Set req.adminPath on every request (mount-aware: includes req.baseUrl prefix)
-  // Must be registered before any admin routes so they can use req.adminPath
-  router.use((req, res, next) => {
-    req.adminPath = req.baseUrl + adminPath;
-    next();
-  });
-
-  // Debug: Log received options
-  console.log("[Middleware Debug] Received options:", {
-    telegramEnabled: options.telegram?.enabled,
-    cronEnabled: options.cron?.enabled
-  });
-
-  router.get(`${adminPath}/plugins-system`, requireModuleAccessWithIframe('plugins', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-plugins-system.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
   const normalizeBasePath = (value) => {
     const v = String(value || "").trim();
     if (!v) return "/files";
@@ -220,7 +147,6 @@ function createMiddleware(options = {}) {
     loaded: false,
   };
 
-  // Restart-required behavior: we load settings once and keep the values in memory.
   (async () => {
     try {
       const enabledRaw = await globalSettingsService.getSettingValue(
@@ -231,7 +157,6 @@ function createMiddleware(options = {}) {
         "FILE_MANAGER_BASE_PATH",
         "/files",
       );
-
       fileManagerPublicConfig.enabled = String(enabledRaw) === "true";
       fileManagerPublicConfig.basePath = normalizeBasePath(basePathRaw);
       fileManagerPublicConfig.loaded = true;
@@ -241,23 +166,14 @@ function createMiddleware(options = {}) {
     }
   })();
 
-  // Expose adminPath, pagesPrefix and WS attachment helper
   router.adminPath = adminPath;
   router.pagesPrefix = pagesPrefix;
   router.attachWs = (server) => {
-    const {
-      attachTerminalWebsocketServer,
-    } = require("./services/terminalsWs.service");
+    const { attachTerminalWebsocketServer } = require("./services/terminalsWs.service");
     attachTerminalWebsocketServer(server, { basePathPrefix: adminPath });
-
-    const {
-      attachExperimentsWebsocketServer,
-    } = require("./services/experimentsWs.service");
+    const { attachExperimentsWebsocketServer } = require("./services/experimentsWs.service");
     attachExperimentsWebsocketServer(server);
-
-    const {
-      attachSuperDemosWebsocketServer,
-    } = require("./services/superDemosWs.service");
+    const { attachSuperDemosWebsocketServer } = require("./services/superDemosWs.service");
     attachSuperDemosWebsocketServer(server);
   };
 
@@ -267,13 +183,17 @@ function createMiddleware(options = {}) {
     setupProcessHandlers();
   }
 
-  // Console manager will be initialized after database connection
+  router.use((req, res, next) => {
+    req.adminPath = req.baseUrl + adminPath;
+    next();
+  });
 
-  // Database connection
-  const mongoUri =
-    options.mongodbUri ||
-    process.env.MONGODB_URI ||
-    process.env.MONGO_URI;
+  console.log("[Middleware Debug] Received options:", {
+    telegramEnabled: options.telegram?.enabled,
+    cronEnabled: options.cron?.enabled
+  });
+
+  const mongoUri = options.mongodbUri || process.env.MONGODB_URI || process.env.MONGO_URI;
 
   if (!mongoUri && mongoose.connection.readyState !== 1) {
     console.warn(
@@ -285,13 +205,11 @@ function createMiddleware(options = {}) {
       maxPoolSize: 10,
     };
 
-    // Return a promise that resolves when connection is established
     const connectionPromise = mongoose
       .connect(mongoUri, connectionOptions)
       .then(async () => {
         console.log("✅ Middleware: Connected to MongoDB");
-        
-        // Start cron scheduler after DB connection (only if enabled)
+
         if (!isJest && options.cron?.enabled !== false) {
           await cronScheduler.start();
           await healthChecksScheduler.start();
@@ -301,8 +219,7 @@ function createMiddleware(options = {}) {
         } else {
           console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, isJest ? '(jest)' : '');
         }
-        
-        // Initialize Telegram bots (check telegram config)
+
         const telegramEnabled = options.telegram?.enabled !== false;
         if (!isJest && telegramEnabled) {
           const telegramInitializer =
@@ -326,9 +243,7 @@ function createMiddleware(options = {}) {
           await bootstrapPluginsRuntime();
         }
 
-        // Console manager is already initialized early in the middleware
         console.log("[Console Manager] MongoDB connection established");
-        
         return true;
       })
       .catch((err) => {
@@ -336,108 +251,10 @@ function createMiddleware(options = {}) {
         return false;
       });
 
-    router.get(`${adminPath}/health-checks`, requireModuleAccessWithIframe('health-checks', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-health-checks.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
-
-    router.get(`${adminPath}/data-cleanup`, requireModuleAccessWithIframe('data-cleanup', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-data-cleanup.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
-
-    router.get(`${adminPath}/console-manager`, requireModuleAccessWithIframe('console-manager', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-console-manager.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
-
-    // Store the promise so it can be awaited if needed
     router.connectionPromise = connectionPromise;
   } else if (mongoose.connection.readyState === 1) {
     console.log("✅ Middleware: Using existing MongoDB connection");
-    
-    // Start cron scheduler for existing connection (only if enabled)
+
     if (!isJest && options.cron?.enabled !== false) {
       cronScheduler.start().catch((err) => {
         console.error("Failed to start cron scheduler:", err);
@@ -451,7 +268,6 @@ function createMiddleware(options = {}) {
       blogCronsBootstrap.bootstrap().catch((err) => {
         console.error("Failed to bootstrap blog crons:", err);
       });
-
       require("./services/experimentsCronsBootstrap.service")
         .bootstrap()
         .catch((err) => {
@@ -460,8 +276,7 @@ function createMiddleware(options = {}) {
     } else {
       console.log("🔍 Cron scheduler disabled - cron.enabled:", options.cron?.enabled, "(existing connection)", isJest ? '(jest)' : '');
     }
-    
-    // Initialize Telegram bots for existing connection (check telegram config)
+
     const telegramEnabled = options.telegram?.enabled !== false;
     if (!isJest && telegramEnabled) {
       const telegramInitializer =
@@ -476,7 +291,7 @@ function createMiddleware(options = {}) {
         console.warn("⚠️ Telegram service has no initialize/init method; skipping startup (existing connection)");
       } else {
         telegramInitializer().catch(err => {
-        console.error("Failed to initialize Telegram service (existing connection):", err);
+          console.error("Failed to initialize Telegram service (existing connection):", err);
         });
       }
     } else {
@@ -488,13 +303,11 @@ function createMiddleware(options = {}) {
         console.error("Failed to bootstrap plugins runtime (existing connection):", err);
       });
     }
-    
-    // Initialize console manager AFTER database is already connected
+
     if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
       isConsoleManagerEnabled().then(consoleManagerEnabled => {
         if (consoleManagerEnabled) {
           consoleManager.init();
-          // Set module prefix after initialization
           consoleManager.setModulePrefix('middleware');
           console.log("[Console Manager] Initialized");
         } else {
@@ -504,104 +317,65 @@ function createMiddleware(options = {}) {
         console.error("[Console Manager] Error checking enabled status:", error);
         console.log("[Console Manager] Fallback to enabled due to error");
         consoleManager.init();
-        // Set module prefix after initialization
         consoleManager.setModulePrefix('middleware');
         console.log("[Console Manager] Initialized (fallback)");
       });
     }
   }
 
-  // CORS configuration
   const configureCORS = () => {
     const corsOrigin = options.corsOrigin || process.env.CORS_ORIGIN || "*";
-
-    // If corsOrigin is *, allow all origins
     if (corsOrigin === "*") {
-      return {
-        origin: "*",
-        credentials: true,
-        optionsSuccessStatus: 200,
-      };
+      return { origin: "*", credentials: true, optionsSuccessStatus: 200 };
     }
-
-    // If corsOrigin contains comma, split into array
     if (corsOrigin.includes(",")) {
       const origins = corsOrigin.split(",").map((o) => o.trim());
-      return {
-        origin: origins,
-        credentials: true,
-        optionsSuccessStatus: 200,
-      };
+      return { origin: origins, credentials: true, optionsSuccessStatus: 200 };
     }
-
-    // Single origin
-    return {
-      origin: corsOrigin,
-      credentials: true,
-      optionsSuccessStatus: 200,
-    };
+    return { origin: corsOrigin, credentials: true, optionsSuccessStatus: 200 };
   };
 
   const isCorsDisabled = options.corsOrigin === false || options.cors === false;
-
   if (!isCorsDisabled) {
     const corsOptions = configureCORS();
-
     console.log("🌐 Middleware CORS Configuration:", {
       origin: corsOptions.origin,
       credentials: corsOptions.credentials,
     });
-
-    // Middleware
     router.use(cors(corsOptions));
   }
 
-  // Stripe webhook needs raw body (support both routes)
-  const webhookHandler =
-    require("./controllers/billing.controller").handleWebhook;
-  router.post(
-    "/api/stripe-webhook",
-    express.raw({ type: "application/json" }),
-    webhookHandler,
-  );
-  router.post(
-    "/api/stripe/webhook",
-    express.raw({ type: "application/json" }),
-    webhookHandler,
-  );
+  const webhookHandler = require("./controllers/billing.controller").handleWebhook;
+  router.post("/api/stripe-webhook", express.raw({ type: "application/json" }), webhookHandler);
+  router.post("/api/stripe/webhook", express.raw({ type: "application/json" }), webhookHandler);
 
-  router.use(
-    "/proxy",
-    express.raw({ type: "*/*", limit: "10mb" }),
-    require("./routes/proxy.routes"),
-  );
+  router.use("/proxy", express.raw({ type: "*/*", limit: "10mb" }), require("./routes/proxy.routes"));
 
-  // Regular JSON parsing for other routes (skip if parent app already handles it)
   if (!options.skipBodyParser) {
     router.use(express.json());
     router.use(express.urlencoded({ extended: true }));
   }
 
-  // Session middleware - disabled for now (MongoDB at 27018 requires auth for writes)
-  const sessionStore = undefined;
+  const sessionSecret = process.env.SESSION_SECRET;
+  if (!sessionSecret) {
+    console.warn('[Middleware] WARNING: SESSION_SECRET not set. Using insecure fallback. Set SESSION_SECRET in environment for production.');
+  }
 
   const sessionMiddleware = session({
-    secret: process.env.SESSION_SECRET || 'superbackend-session-secret-fallback',
+    secret: sessionSecret || 'superbackend-session-secret-fallback',
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
       sameSite: 'lax'
     },
-    store: sessionStore,
     name: 'superbackend.admin.session'
   });
 
   router.use(sessionMiddleware);
 
-  // Attach admin credentials to res.locals for use by basicAuth middleware
   router.use((req, res, next) => {
     res.locals.adminCredentials = {
       adminUsername: options.adminUsername || process.env.ADMIN_USERNAME,
@@ -611,65 +385,31 @@ function createMiddleware(options = {}) {
   });
 
   router.use(requestIdMiddleware);
-
   router.use("/api", rateLimiter.limit("globalApiLimiter"));
 
-  // Serve public static files with /public prefix (for admin UI components)
   router.use("/public", express.static(path.join(__dirname, "..", "public")));
-
-  // Serve public static files (e.g. /og/og-default.png)
   router.use(express.static(path.join(__dirname, "..", "public")));
+  router.use("/public/sdk", express.static(path.join(__dirname, "..", "public", "sdk")));
+  router.use(`${adminPath}/assets`, express.static(path.join(__dirname, "..", "public")));
 
-  // Serve browser SDK bundles
-  router.use(
-    "/public/sdk",
-    express.static(path.join(__dirname, "..", "public", "sdk")),
-  );
-
-  // Serve static files for admin views
-  router.use(
-    `${adminPath}/assets`,
-    express.static(path.join(__dirname, "..", "public")),
-  );
-
-  // EJS locals: feature flags for server-rendered pages
   router.use(createFeatureFlagsEjsMiddleware());
 
-  // Public File Manager SPA (gated by global settings; restart required)
   router.get("*", (req, res, next) => {
     try {
       if (!fileManagerPublicConfig.enabled) return next();
-
       const basePath = fileManagerPublicConfig.basePath || "/files";
       const reqPath = req.path;
-      const matches =
-        reqPath === basePath ||
-        reqPath === `${basePath}/` ||
-        reqPath.startsWith(`${basePath}/`);
-
+      const matches = reqPath === basePath || reqPath === `${basePath}/` || reqPath.startsWith(`${basePath}/`);
       if (!matches) return next();
       if (req.method !== "GET") return next();
-
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "file-manager.ejs",
-      );
+      const templatePath = path.join(__dirname, "..", "views", "file-manager.ejs");
       fs.readFile(templatePath, "utf8", (err, template) => {
         if (err) {
           console.error("Error reading template:", err);
           return res.status(500).send("Error loading page");
         }
         try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              fileManagerBasePath: basePath,
-            },
-            { filename: templatePath },
-          );
+          const html = ejs.render(template, { baseUrl: req.baseUrl, fileManagerBasePath: basePath }, { filename: templatePath });
           res.send(html);
         } catch (renderErr) {
           console.error("Error rendering template:", renderErr);
@@ -682,523 +422,57 @@ function createMiddleware(options = {}) {
     }
   });
 
-  // Sitemap & robots.txt
   router.use(require("./routes/sitemap.routes"));
 
-  // API Routes
   router.use("/api/auth", require("./routes/auth.routes"));
   router.use("/api/billing", require("./routes/billing.routes"));
   router.use("/api/waiting-list", require("./routes/waitingList.routes"));
   router.use("/api/metrics", require("./routes/metrics.routes"));
   router.use("/api/forms", require("./routes/forms.routes"));
   router.use("/api/admin/forms", require("./routes/formsAdmin.routes"));
-  router.use(
-    "/api/admin/waiting-list",
-    require("./routes/waitingListAdmin.routes"),
-  );
+  router.use("/api/admin/waiting-list", require("./routes/waitingListAdmin.routes"));
   router.use("/api/admin/orgs", require("./routes/orgAdmin.routes"));
   router.use("/api/admin/users", requireModuleAccessWithIframe('users', 'read'), require("./routes/userAdmin.routes"));
   router.use("/api/admin/rbac", require("./routes/adminRbac.routes"));
-  router.use(
-    "/api/admin/notifications",
-    require("./routes/notificationAdmin.routes"),
-  );
+  router.use("/api/admin/notifications", require("./routes/notificationAdmin.routes"));
   router.use("/api/admin/stripe", require("./routes/stripeAdmin.routes"));
 
-  // Stats Routes
   const adminStatsController = require("./controllers/adminStats.controller");
-  router.get(
-    "/api/admin/stats/overview",
-    adminSessionAuth,
-    adminStatsController.getOverviewStats,
-  );
-
-  // Middleware to check if request is from authenticated parent iframe
-function checkIframeAuth(req, res, next) {
-  const referer = req.get('Referer');
-  const origin = req.get('Origin');
-  const adminPath = req.adminPath || '/admin';
-  
-  // Check for iframe token parameter (more reliable than referer)
-  const iframeToken = req.query.iframe_token;
-  if (iframeToken && iframeToken === 'authenticated') {
-    req.isIframe = true;
-    return next();
-  }
-  
-  // Fallback to referer/origin check
-  const isValidReferer = referer && referer.includes(adminPath);
-  const isValidOrigin = origin && origin.includes(req.hostname);
-  
-  if (isValidReferer || isValidOrigin) {
-    req.isIframe = true;
-    return next();
-  }
-  
-  // If not from iframe, require normal authentication
-  return adminSessionAuth(req, res, next);
-}
-
-// Combined middleware for iframe authentication + module access
-function requireModuleAccessWithIframe(moduleId, action = 'read') {
-  return async (req, res, next) => {
-    try {
-      // Check for iframe authentication first
-      const referer = req.get('Referer');
-      const origin = req.get('Origin');
-      const adminPath = req.adminPath || '/admin';
-      const iframeToken = req.query.iframe_token;
-      
-      const isValidIframe = (iframeToken && iframeToken === 'authenticated') ||
-                          (referer && referer.includes(adminPath)) ||
-                          (origin && origin.includes(req.hostname));
-      
-      if (isValidIframe) {
-        req.isIframe = true;
-        // For iframe requests, we'll allow access but mark it as iframe context
-        return next();
-      }
-      
-      // Check for basic auth superadmin bypass
-      if (isBasicAuthSuperAdmin(req)) {
-        return next();
-      }
-
-      // Get user ID from session
-      const userId = req.session?.authData?.userId;
-      if (!userId) {
-        return res.redirect(`${req.adminPath || '/admin'}/login`);
-      }
-
-      // Check RBAC permission for specific module
-      const hasAccess = await rbacService.checkRight({
-        userId,
-        orgId: null, // Global admin permissions
-        right: `admin_panel__${moduleId}:${action}`
-      });
-
-      if (!hasAccess.allowed) {
-        // For API routes, return JSON error
-        if (req.path.startsWith('/api/')) {
-          return res.status(403).json({
-            error: 'Access denied',
-            reason: hasAccess.reason,
-            required: `admin_panel__${moduleId}:${action}`,
-            moduleId,
-            action
-          });
-        }
-
-        // For page routes, render 403 page
-        return res.status(403).render('admin-403', {
-          moduleId,
-          action,
-          required: `admin_panel__${moduleId}:${action}`,
-          reason: hasAccess.reason,
-          user: req.session.authData,
-          adminPath: req.adminPath || '/admin'
-        });
-      }
-
-      next();
-    } catch (error) {
-      console.error('Module access check error:', error);
-      
-      if (req.path.startsWith('/api/')) {
-        return res.status(500).json({ error: 'Access check failed' });
-      } else {
-        return res.status(500).send('Access check failed');
-      }
-    }
-  };
-}
-
-router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-dashboard-home.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { 
-            baseUrl: req.baseUrl, 
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/experiments`, requireModuleAccessWithIframe('experiments', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-experiments.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/rbac`, requireModuleAccessWithIframe('rbac', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-rbac.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/terminals`, requireModuleAccessWithIframe('terminals', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-terminals.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-            serverPort: process.env.PORT || 3000
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/scripts`, requireModuleAccessWithIframe('scripts', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-scripts.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/crons`, requireModuleAccessWithIframe('crons', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-crons.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/cache`, requireModuleAccessWithIframe('cache', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-cache.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-    router.get(`${adminPath}/db-browser`, requireModuleAccessWithIframe('db-browser', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-db-browser.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
-
-    router.get(`${adminPath}/telegram`, requireModuleAccessWithIframe('telegram', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-telegram.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
-
-    router.get(`${adminPath}/agents`, requireModuleAccessWithIframe('agents', 'read'), (req, res) => {
-      const templatePath = path.join(
-        __dirname,
-        "..",
-        "views",
-        "admin-agents.ejs",
-      );
-      fs.readFile(templatePath, "utf8", (err, template) => {
-        if (err) {
-          console.error("Error reading template:", err);
-          return res.status(500).send("Error loading page");
-        }
-        try {
-          const html = ejs.render(
-            template,
-            {
-              baseUrl: req.baseUrl,
-              adminPath: req.adminPath,
-              isIframe: req.isIframe || false
-            },
-            {
-              filename: templatePath,
-            },
-          );
-          res.send(html);
-        } catch (renderErr) {
-          console.error("Error rendering template:", renderErr);
-          res.status(500).send("Error rendering page");
-        }
-      });
-    });
+  router.get("/api/admin/stats/overview", adminSessionAuth, adminStatsController.getOverviewStats);
 
   router.use("/api/admin", require("./routes/admin.routes"));
   router.use("/api/admin/settings", require("./routes/globalSettings.routes"));
-  router.use(
-    "/api/admin/feature-flags",
-    require("./routes/adminFeatureFlags.routes"),
-  );
-  router.use(
-    "/api/admin/json-configs",
-    require("./routes/adminJsonConfigs.routes"),
-  );
-  router.use(
-    "/api/admin/markdowns",
-    require("./routes/adminMarkdowns.routes"),
-  );
-  router.use(
-    "/api/admin/rate-limits",
-    require("./routes/adminRateLimits.routes"),
-  );
+  router.use("/api/admin/feature-flags", require("./routes/adminFeatureFlags.routes"));
+  router.use("/api/admin/json-configs", require("./routes/adminJsonConfigs.routes"));
+  router.use("/api/admin/markdowns", require("./routes/adminMarkdowns.routes"));
+  router.use("/api/admin/rate-limits", require("./routes/adminRateLimits.routes"));
   router.use("/api/admin/proxy", require("./routes/adminProxy.routes"));
-  router.use(
-    "/api/admin/seo-config",
-    require("./routes/adminSeoConfig.routes"),
-  );
+  router.use("/api/admin/seo-config", require("./routes/adminSeoConfig.routes"));
   router.use("/api/admin/i18n", require("./routes/adminI18n.routes"));
   router.use("/api/admin/headless", require("./routes/adminHeadless.routes"));
   router.use("/api/admin/scripts", require("./routes/adminScripts.routes"));
   router.use("/api/admin/crons", require("./routes/adminCrons.routes"));
-  router.use(
-    "/api/admin/health-checks",
-    require("./routes/adminHealthChecks.routes"),
-  );
+  router.use("/api/admin/health-checks", require("./routes/adminHealthChecks.routes"));
   router.use("/api/admin/cache", require("./routes/adminCache.routes"));
-  router.use(
-    "/api/admin/console-manager",
-    require("./routes/adminConsoleManager.routes"),
-  );
-  router.use(
-    "/api/admin/db-browser",
-    require("./routes/adminDbBrowser.routes"),
-  );
-  router.use(
-    "/api/admin/data-cleanup",
-    require("./routes/adminDataCleanup.routes"),
-  );
+  router.use("/api/admin/console-manager", require("./routes/adminConsoleManager.routes"));
+  router.use("/api/admin/db-browser", require("./routes/adminDbBrowser.routes"));
+  router.use("/api/admin/data-cleanup", require("./routes/adminDataCleanup.routes"));
   router.use("/api/admin/terminals", require("./routes/adminTerminals.routes"));
   router.use("/api/admin/experiments", require("./routes/adminExperiments.routes"));
   router.use("/api/admin/assets", require("./routes/adminAssets.routes"));
-  router.use(
-    "/api/admin/upload-namespaces",
-    require("./routes/adminUploadNamespaces.routes"),
-  );
-  router.use(
-    "/api/admin/ui-components",
-    require("./routes/adminUiComponents.routes"),
-  );
-  router.use(
-    "/api/admin/superdemos",
-    require("./routes/adminSuperDemos.routes"),
-  );
+  router.use("/api/admin/upload-namespaces", require("./routes/adminUploadNamespaces.routes"));
+  router.use("/api/admin/ui-components", require("./routes/adminUiComponents.routes"));
+  router.use("/api/admin/superdemos", require("./routes/adminSuperDemos.routes"));
   router.use("/api/admin/migration", require("./routes/adminMigration.routes"));
-  router.use(
-    "/api/admin/errors",
-    adminSessionAuth,
-    require("./routes/adminErrors.routes"),
-  );
-  router.use(
-    "/api/admin/audit",
-    requireModuleAccessWithIframe('audit', 'read'),
-    require("./routes/adminAudit.routes"),
-  );
+  router.use("/api/admin/errors", adminSessionAuth, require("./routes/adminErrors.routes"));
+  router.use("/api/admin/audit", requireModuleAccessWithIframe('audit', 'read'), require("./routes/adminAudit.routes"));
   router.use("/api/admin/llm", require("./routes/adminLlm.routes"));
   router.use("/api/admin/telegram", require("./routes/adminTelegram.routes"));
   router.use("/api/admin/agents", require("./routes/adminAgents.routes"));
   router.use("/api/admin/registries", require("./routes/adminRegistry.routes"));
   router.use("/api/admin/plugins", require("./routes/adminPlugins.routes"));
   router.use("/api/admin/page-redirects", require("./routes/adminPageRedirects.routes"));
-  router.use(
-    "/api/admin/ejs-virtual",
-    require("./routes/adminEjsVirtual.routes"),
-  );
+  router.use("/api/admin/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
   router.use("/api/admin/pages", require("./routes/adminPages.routes"));
   router.use("/api/admin", require("./routes/adminBlog.routes"));
   router.use("/api/admin", require("./routes/adminBlogAi.routes"));
@@ -1225,48 +499,26 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
   router.use("/registry", require("./routes/registry.routes"));
   router.use("/api/file-manager", require("./routes/fileManager.routes"));
   router.use("/api/experiments", require("./routes/experiments.routes"));
-
-  // Public blog APIs (headless)
   router.use("/api", require("./routes/blogPublic.routes"));
-
-  // Internal blog endpoints (used by HTTP CronJobs)
   router.use("/api/internal", require("./routes/blogInternal.routes"));
-
-  // Internal experiments endpoints (used by HTTP CronJobs)
   router.use("/api/internal", require("./routes/internalExperiments.routes"));
-
-  // Public health checks status (gated by global setting)
-  router.use(
-    "/api/health-checks",
-    require("./routes/healthChecksPublic.routes"),
-  );
-
-  // Public assets proxy
+  router.use("/api/health-checks", require("./routes/healthChecksPublic.routes"));
   router.use("/public/assets", require("./routes/publicAssets.routes"));
 
-  // Admin login routes (no authentication required)
   router.use(`${adminPath}`, require("./routes/adminLogin.routes"));
 
-  // Admin dashboard (redirect to login if not authenticated)
+  const adminPageRoutes = createAdminPageRoutes();
+  router.use(adminPath, adminPageRoutes);
+
   router.get(adminPath, adminSessionAuth, async (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-dashboard.ejs",
-    );
-    
-    // Get max tabs configuration
-    let maxTabs = 5; // default
+    let maxTabs = 5;
     try {
-      // Environment variable takes priority
       if (process.env.ADMIN_MAX_TABS) {
         const envValue = parseInt(process.env.ADMIN_MAX_TABS, 10);
         if (!isNaN(envValue) && envValue > 0) {
           maxTabs = envValue;
         }
       } else {
-        // Fallback to global settings
         const settingValue = await globalSettingsService.getSettingValue("ADMIN_MAX_TABS", "5");
         const parsedValue = parseInt(settingValue, 10);
         if (!isNaN(parsedValue) && parsedValue > 0) {
@@ -1275,1057 +527,13 @@ router.get(`${adminPath}/stats/dashboard-home`, checkIframeAuth, (req, res) => {
       }
     } catch (error) {
       console.error("Error fetching max tabs configuration:", error);
-      // Use default value
     }
-    
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { 
-            baseUrl: req.baseUrl, 
-            adminPath: req.adminPath, 
-            isIframe: req.isIframe || false,
-            maxTabs
-          },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin technical API test page (protected by session auth)
-  router.get(`${adminPath}/api/test`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-test.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/migration`, requireModuleAccessWithIframe('migration', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-migration.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin LLM/AI page (protected by basic auth)
-  router.get(`${adminPath}/admin-llm`, requireModuleAccessWithIframe('admin-llm', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-llm.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/workflows/:id`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-workflows.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/pages`, requireModuleAccessWithIframe('pages', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-pages.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/blog`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-blog.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/blog-automation`, requireModuleAccessWithIframe('blog-automation', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-blog-automation.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/blog/new`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-blog-edit.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, postId: "", mode: "new", isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/blog/edit/:id`, requireModuleAccessWithIframe('blog', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-blog-edit.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            postId: String(req.params.id || ""),
-            mode: "edit",
-            isIframe: req.isIframe || false,
-          },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-router.get(`${adminPath}/file-manager`, requireModuleAccessWithIframe('file-manager', 'read'), (req, res) => {
-  const templatePath = path.join(
-    __dirname,
-    "..",
-    "views",
-    "admin-file-manager.ejs",
-  );
-  fs.readFile(templatePath, "utf8", (err, template) => {
-    if (err) {
-      console.error("Error reading template:", err);
-      return res.status(500).send("Error loading page");
-    }
-    try {
-      const html = ejs.render(
-        template,
-        {
-          baseUrl: req.baseUrl,
-          adminPath: req.adminPath,
-          isIframe: req.isIframe || false
-        },
-        {
-          filename: templatePath,
-        },
-      );
-      res.send(html);
-    } catch (renderErr) {
-      console.error("Error rendering template:", renderErr);
-      res.status(500).send("Error rendering page");
-    }
-    });
-  });
-
-  router.get(`${adminPath}/ejs-virtual`, requireModuleAccessWithIframe('ejs-virtual', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-ejs-virtual.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/seo-config`, requireModuleAccessWithIframe('seo-config', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-seo-config.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/i18n`, requireModuleAccessWithIframe('i18n', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-i18n.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/i18n/locales`, requireModuleAccessWithIframe('i18n', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-i18n-locales.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath, isIframe: req.isIframe || false },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin forms page (protected by basic auth)
-  router.get(`${adminPath}/forms`, requireModuleAccessWithIframe('forms', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-forms.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin feature flags page (protected by basic auth)
-  router.get(`${adminPath}/feature-flags`, requireModuleAccessWithIframe('feature-flags', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-feature-flags.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin headless CMS page (protected by basic auth)
-  router.get(`${adminPath}/headless`, requireModuleAccessWithIframe('headless', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-headless.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin UI Components page (protected by basic auth)
-  router.get(`${adminPath}/ui-components`, requireModuleAccessWithIframe('ui-components', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-ui-components.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl || '',
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin SuperDemos page
-  router.get(`${adminPath}/superdemos`, requireModuleAccessWithIframe('superdemos', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-superdemos.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl || '',
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin JSON configs page (protected by basic auth)
-  router.get(`${adminPath}/json-configs`, requireModuleAccessWithIframe('json-configs', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-json-configs.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin markdowns page (protected by basic auth)
-  router.get(`${adminPath}/markdowns`, requireModuleAccessWithIframe('markdowns', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-markdowns.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin assets page (protected by basic auth)
-  router.get(`${adminPath}/assets`, requireModuleAccessWithIframe('assets', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-assets.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin waiting list page (protected by basic auth)
-  router.get(`${adminPath}/waiting-list`, requireModuleAccessWithIframe('waiting-list', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-waiting-list.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(template, {
-          baseUrl: req.baseUrl,
-          adminPath: req.adminPath,
-          endpointRegistry,
-          isIframe: req.isIframe || false
-        });
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin organizations page (protected by basic auth)
-  router.get(`${adminPath}/organizations`, requireModuleAccessWithIframe('organizations', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-organizations.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin users page (protected by session auth)
-  router.get(`${adminPath}/users`, requireModuleAccessWithIframe('users', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-users.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl, 
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin notifications page (protected by session auth)
-  router.get(`${adminPath}/notifications`, requireModuleAccessWithIframe('notifications', 'read'), (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-notifications.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-            isIframe: req.isIframe || false
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin Stripe pricing page (protected by session auth)
-  router.get(`${adminPath}/stripe-pricing`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-stripe-pricing.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          {
-            baseUrl: req.baseUrl,
-            adminPath: req.adminPath,
-            endpointRegistry,
-          },
-          {
-            filename: templatePath,
-          },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-
-// Admin metrics page (protected by session auth)
-router.get(`${adminPath}/metrics`, adminSessionAuth, (req, res) => {
-const templatePath = path.join(
-__dirname,
-"..",
-"views",
-"admin-metrics.ejs",
-);
-fs.readFile(templatePath, "utf8", (err, template) => {
-if (err) {
-console.error("Error reading template:", err);
-return res.status(500).send("Error loading page");
-}
-try {
-const html = ejs.render(template, {
-baseUrl: req.baseUrl,
-adminPath: req.adminPath,
-endpointRegistry,
-});
-res.send(html);
-} catch (renderErr) {
-console.error("Error rendering template:", renderErr);
-res.status(500).send("Error rendering page");
-}
-});
-});
-      }
-    });
-  });
-
-  router.get(`${adminPath}/rate-limiter`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-rate-limiter.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(template, {
-          baseUrl: req.baseUrl,
-          adminPath: req.adminPath,
-        });
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  // Admin global settings page (protected by session auth) - render manually
-  router.get(`${adminPath}/global-settings`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-global-settings.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(template, { baseUrl: req.baseUrl, adminPath: req.adminPath });
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/errors`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-errors.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/audit`, requireModuleAccessWithIframe('audit', 'read'), (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-audit.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { 
-            baseUrl: req.baseUrl, 
-            adminPath: req.adminPath,
-            isIframe: req.isIframe || false
-          },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/coolify-deploy`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-coolify-deploy.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/proxy`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(__dirname, "..", "views", "admin-proxy.ejs");
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get(`${adminPath}/webhooks`, adminSessionAuth, (req, res) => {
-    const templatePath = path.join(
-      __dirname,
-      "..",
-      "views",
-      "admin-webhooks.ejs",
-    );
-    fs.readFile(templatePath, "utf8", (err, template) => {
-      if (err) {
-        console.error("Error reading template:", err);
-        return res.status(500).send("Error loading page");
-      }
-      try {
-        const html = ejs.render(
-          template,
-          { baseUrl: req.baseUrl, adminPath: req.adminPath },
-          { filename: templatePath },
-        );
-        res.send(html);
-      } catch (renderErr) {
-        console.error("Error rendering template:", renderErr);
-        res.status(500).send("Error rendering page");
-      }
-    });
-  });
-
-  router.get("/health", rateLimiter.limit("healthRateLimiter"), (req, res) => {
-    res.json({
-      status: "ok",
-      mode: "middleware",
-      database:
-        mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-    });
+    renderAdminPage(req, res, 'admin-dashboard.ejs', { maxTabs });
   });
 
   router.use("/api/ejs-virtual", require("./routes/adminEjsVirtual.routes"));
   router.use("/api/webhooks", require("./routes/webhook.routes"));
 
-  // Store pagesPrefix and adminPath on app for pages router
   router.use((req, res, next) => {
     if (!req.app.get("pagesPrefix")) {
       req.app.set("pagesPrefix", pagesPrefix);
@@ -2336,13 +544,8 @@ res.status(500).send("Error rendering page");
     next();
   });
 
-  // Public export pages
   router.use("/share/export", require("./routes/publicExport.routes"));
-
-  // Public pages router (catch-all, must be last before error handler)
   router.use(require("./routes/pages.routes"));
-
-  // Error handling middleware
   router.use(expressErrorMiddleware);
 
   return router;

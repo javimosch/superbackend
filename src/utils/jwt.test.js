@@ -187,4 +187,32 @@ describe('JWT Utilities', () => {
       expect(jwt.verify).toHaveBeenCalledWith('token', 'refresh-secret-change-me');
     });
   });
+
+  describe('security warnings', () => {
+    let warnSpy;
+
+    beforeEach(() => {
+      warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      delete process.env.JWT_ACCESS_SECRET;
+      delete process.env.JWT_REFRESH_SECRET;
+    });
+
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    test('generateAccessToken warns when access secret not set', () => {
+      generateAccessToken('u1');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('JWT_ACCESS_SECRET not set')
+      );
+    });
+
+    test('generateRefreshToken warns when refresh secret not set', () => {
+      generateRefreshToken('u1');
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('JWT_REFRESH_SECRET not set')
+      );
+    });
+  });
 });

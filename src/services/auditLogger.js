@@ -156,7 +156,7 @@ async function logAudit(event) {
     return auditEvent;
   } catch (err) {
     try {
-      console.log("[AuditLogger] Failed to log audit:", err.message);
+      console.error("[AuditLogger] Failed to log audit:", err.message);
     } catch (e) {
       // ignore
     }

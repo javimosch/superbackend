@@ -73,7 +73,8 @@ const mockWaitingListController = {
 const mockAuth = {
   basicAuth: jest.fn((req, res, next) => next()),
   authenticate: jest.fn((req, res, next) => next()),
-  adminSessionAuth: jest.fn((req, res, next) => next())
+  adminSessionAuth: jest.fn((req, res, next) => next()),
+  adminAuth: jest.fn((req, res, next) => next())
 };
 
 jest.mock('../middleware/auth', () => mockAuth);

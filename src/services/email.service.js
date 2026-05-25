@@ -96,15 +96,7 @@ const sendEmail = async ({
 
   // If Resend is not configured, simulate email sending (for development)
   if (!resendClient) {
-    console.log("📧 [SIMULATED EMAIL]");
-    console.log("   To:", toArray.join(", "));
-    console.log("   From:", defaultFrom);
-    console.log("   Subject:", subject);
-    console.log(
-      "   Body Preview:",
-      html ? html.substring(0, 100) + "..." : "No HTML",
-    );
-    console.log("   [Email would be sent in production with Resend API key]");
+    console.log(`📧 [SIMULATED EMAIL] To: ${toArray.length} recipient(s), Subject: ${subject}`);
 
     // Log simulated email
     try {

@@ -86,7 +86,7 @@ router.post('/error', async (req, res) => {
 
     return res.status(200).json({ ok: true, tracked: true });
   } catch (err) {
-    console.log('[LogRoutes] Error logging frontend error:', err.message);
+    console.error('[LogRoutes] Error logging frontend error:', err.message);
     return res.status(500).json({ error: 'Failed to log error' });
   }
 });

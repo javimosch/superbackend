@@ -13,7 +13,16 @@ const asyncHandler = require('../utils/asyncHandler');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+let stripeInstance;
+function getStripe() {
+  if (!stripeInstance) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.warn('[AdminController] STRIPE_SECRET_KEY not set. Stripe features will fail.');
+    }
+    stripeInstance = require('stripe')(process.env.STRIPE_SECRET_KEY || 'sk-missing');
+  }
+  return stripeInstance;
+}
 const { generateAccessToken, generateRefreshToken } = require('../utils/jwt');
 const { retryFailedWebhooks, processWebhookEvent } = require('../utils/webhookRetry');
 const { auditMiddleware } = require('../services/auditLogger');
@@ -192,7 +201,7 @@ const reconcileUser = asyncHandler(async (req, res) => {
     return res.json({ status: 'success', message: 'No Stripe customer found' });
   }
 
-  const subscriptions = await stripe.subscriptions.list({
+  const subscriptions = await getStripe().subscriptions.list({
     customer: user.stripeCustomerId,
     limit: 1
   });
@@ -204,7 +213,7 @@ const reconcileUser = asyncHandler(async (req, res) => {
     await user.save();
   } else {
     // No active subscription found. Check for successful one-off (payment) checkouts
-    const sessions = await stripe.checkout.sessions.list({
+    const sessions = await getStripe().checkout.sessions.list({
       customer: user.stripeCustomerId,
       limit: 10
     });

@@ -4,11 +4,9 @@ const User = require('../models/User');
 const Organization = require('../models/Organization');
 const OrganizationMember = require('../models/OrganizationMember');
 const RbacRole = require('../models/RbacRole');
-const RbacUserRole = require('../models/RbacUserRole');
 const RbacGroup = require('../models/RbacGroup');
 const RbacGroupMember = require('../models/RbacGroupMember');
 const RbacGroupRole = require('../models/RbacGroupRole');
-const RbacGrant = require('../models/RbacGrant');
 const rbacService = require('../services/rbac.service');
 const { listRights } = require('../utils/rbac/rightsRegistry');
 const { createAuditEvent, getBasicAuthActor } = require('../services/audit.service');
@@ -496,38 +494,166 @@ exports.addGroupMembersBulk = async (req, res) => {
 };
 
 exports.removeGroupMembersBulk = async (req, res) => {
-  const { id } = req.params;
-  const { memberIds } = req.body || {};
+  try {
+    const { id } = req.params;
+    const { memberIds } = req.body || {};
 
-  if (!isValidObjectId(id)) {
-    return res.status(400).json({ error: 'Invalid group id' });
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    const ids = Array.isArray(memberIds) ? memberIds.map((v) => String(v)).filter(Boolean) : [];
+    const uniqueMemberIds = Array.from(new Set(ids));
+    if (uniqueMemberIds.length === 0) {
+      return res.status(400).json({ error: 'memberIds is required' });
+    }
+
+    const validMemberIds = uniqueMemberIds.filter((mid) => isValidObjectId(mid));
+    if (validMemberIds.length !== uniqueMemberIds.length) {
+      return res.status(400).json({ error: 'Invalid memberIds' });
+    }
+
+    const actor = getBasicAuthActor(req);
+    const result = await RbacGroupMember.deleteMany({ groupId: id, _id: { $in: validMemberIds } });
+
+    await createAuditEvent({
+      ...actor,
+      action: 'admin.rbac.group_member.bulk_remove',
+      entityType: 'RbacGroup',
+      entityId: String(id),
+      before: null,
+      after: { groupId: String(id), memberIds: validMemberIds },
+      meta: { deletedCount: result?.deletedCount ?? null },
+    });
+
+    return res.json({ success: true, deletedCount: result?.deletedCount ?? 0 });
+  } catch (error) {
+    console.error('[Rbac] removeGroupMembersBulk error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to remove group members' });
   }
+};
 
-  const ids = Array.isArray(memberIds) ? memberIds.map((v) => String(v)).filter(Boolean) : [];
-  const uniqueMemberIds = Array.from(new Set(ids));
-  if (uniqueMemberIds.length === 0) {
-    return res.status(400).json({ error: 'memberIds is required' });
+exports.listGroupRoles = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!isValidObjectId(id)) {
+      return res.status(400).json({ error: 'Invalid group id' });
+    }
+
+    const links = await RbacGroupRole.find({ groupId: id }).select('roleId createdAt').lean();
+    const roleIds = links.map((l) => l.roleId);
+
+    const roles = await RbacRole.find({ _id: { $in: roleIds } })
+      .select('key name status isGlobal orgId')
+      .lean();
+    const byId = new Map(roles.map((r) => [String(r._id), r]));
+
+    return res.json({
+      roles: links.map((l) => {
+        const r = byId.get(String(l.roleId));
+        return {
+          id: String(l._id),
+          roleId: String(l.roleId),
+          key: r?.key || null,
+          name: r?.name || null,
+          status: r?.status || null,
+          isGlobal: r?.isGlobal ?? null,
+          orgId: r?.orgId ? String(r.orgId) : null,
+          createdAt: l.createdAt,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error('[Rbac] listGroupRoles error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to list group roles' });
   }
+};
 
-  const validMemberIds = uniqueMemberIds.filter((mid) => isValidObjectId(mid));
-  if (validMemberIds.length !== uniqueMemberIds.length) {
-    return res.status(400).json({ error: 'Invalid memberIds' });
+exports.addGroupRole = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { roleId } = req.body || {};
+    if (!isValidObjectId(id) || !isValidObjectId(roleId)) {
+      return res.status(400).json({ error: 'group id and roleId are required' });
+    }
+
+    const group = await RbacGroup.findById(id).select('isGlobal orgId status').lean();
+    if (!group) {
+      return res.status(404).json({ error: 'Group not found' });
+    }
+    if (group.status !== 'active') {
+      return res.status(400).json({ error: 'Group is not active' });
+    }
+
+    const role = await RbacRole.findById(roleId).select('isGlobal orgId status').lean();
+    if (!role) {
+      return res.status(404).json({ error: 'Role not found' });
+    }
+    if (role.status !== 'active') {
+      return res.status(400).json({ error: 'Role is not active' });
+    }
+
+    if (group.isGlobal && !role.isGlobal) {
+      return res.status(400).json({ error: 'Global groups cannot include org-scoped roles' });
+    }
+
+    if (!group.isGlobal && !role.isGlobal) {
+      if (!group.orgId || !role.orgId || String(group.orgId) !== String(role.orgId)) {
+        return res.status(400).json({ error: 'Org-scoped roles must match the group orgId' });
+      }
+    }
+
+    const actor = getBasicAuthActor(req);
+    const link = await RbacGroupRole.create({ groupId: id, roleId });
+
+    await createAuditEvent({
+      ...actor,
+      action: 'admin.rbac.group_role.add',
+      entityType: 'RbacGroup',
+      entityId: String(id),
+      before: null,
+      after: { groupId: String(id), roleId: String(roleId) },
+      meta: null,
+    });
+
+    return res.status(201).json({ groupRole: { ...link.toObject(), id: String(link._id) } });
+  } catch (error) {
+    console.error('[Rbac] addGroupRole error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to add group role' });
   }
+};
 
-  const actor = getBasicAuthActor(req);
-  const result = await RbacGroupMember.deleteMany({ groupId: id, _id: { $in: validMemberIds } });
+exports.removeGroupRole = async (req, res) => {
+  try {
+    const { id, groupRoleId } = req.params;
+    if (!isValidObjectId(id) || !isValidObjectId(groupRoleId)) {
+      return res.status(400).json({ error: 'Invalid ids' });
+    }
 
-  await createAuditEvent({
-    ...actor,
-    action: 'admin.rbac.group_member.bulk_remove',
-    entityType: 'RbacGroup',
-    entityId: String(id),
-    before: null,
-    after: { groupId: String(id), memberIds: validMemberIds },
-    meta: { deletedCount: result?.deletedCount ?? null },
-  });
+    const actor = getBasicAuthActor(req);
+    const link = await RbacGroupRole.findOne({ _id: groupRoleId, groupId: id });
+    if (!link) {
+      return res.status(404).json({ error: 'Group role link not found' });
+    }
 
-  return res.json({ success: true, deletedCount: result?.deletedCount ?? 0 });
+    const before = link.toObject();
+    await link.deleteOne();
+
+    await createAuditEvent({
+      ...actor,
+      action: 'admin.rbac.group_role.remove',
+      entityType: 'RbacGroup',
+      entityId: String(id),
+      before,
+      after: null,
+      meta: null,
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('[Rbac] removeGroupRole error:', error);
+    return res.status(500).json({ error: error.message || 'Failed to remove group role' });
+  }
 };
 
 exports.listGroupRoles = async (req, res) => {
@@ -641,163 +767,10 @@ exports.removeGroupRole = async (req, res) => {
   return res.json({ success: true });
 };
 
-exports.listGrants = async (req, res) => {
-  const { subjectType, subjectId, scopeType, scopeId, right } = req.query;
-  const q = {};
-  if (subjectType) q.subjectType = String(subjectType);
-  if (subjectId && isValidObjectId(subjectId)) q.subjectId = subjectId;
-  if (scopeType) q.scopeType = String(scopeType);
-  if (scopeId && isValidObjectId(scopeId)) q.scopeId = scopeId;
-  if (right) q.right = String(right);
-
-  const grants = await RbacGrant.find(q).sort({ createdAt: -1 }).lean();
-  return res.json({
-    grants: grants.map((g) => ({
-      ...g,
-      id: String(g._id),
-      subjectId: String(g.subjectId),
-      scopeId: g.scopeId ? String(g.scopeId) : null,
-    })),
-  });
-};
-
-exports.createGrant = async (req, res) => {
-  const { subjectType, subjectId, scopeType, scopeId, right, effect } = req.body || {};
-  if (!subjectType || !isValidObjectId(subjectId) || !scopeType || !right) {
-    return res.status(400).json({ error: 'subjectType, subjectId, scopeType, right are required' });
-  }
-
-  if (scopeType === 'org' && !isValidObjectId(scopeId)) {
-    return res.status(400).json({ error: 'scopeId is required when scopeType=org' });
-  }
-
-  const actor = getBasicAuthActor(req);
-
-  const grant = await RbacGrant.create({
-    subjectType: String(subjectType),
-    subjectId,
-    scopeType: String(scopeType),
-    scopeId: scopeType === 'org' ? scopeId : null,
-    right: String(right).trim(),
-    effect: effect === 'deny' ? 'deny' : 'allow',
-    createdByActorType: actor.actorType,
-    createdByActorId: actor.actorId,
-  });
-
-  await createAuditEvent({
-    ...actor,
-    action: 'admin.rbac.grant.create',
-    entityType: 'RbacGrant',
-    entityId: String(grant._id),
-    before: null,
-    after: grant.toObject(),
-    meta: null,
-  });
-
-  return res.status(201).json({ grant: { ...grant.toObject(), id: String(grant._id) } });
-};
-
-exports.deleteGrant = async (req, res) => {
-  const { id } = req.params;
-  if (!isValidObjectId(id)) {
-    return res.status(400).json({ error: 'Invalid grant id' });
-  }
-
-  const actor = getBasicAuthActor(req);
-  const grant = await RbacGrant.findById(id);
-  if (!grant) {
-    return res.status(404).json({ error: 'Grant not found' });
-  }
-
-  const before = grant.toObject();
-  await grant.deleteOne();
-
-  await createAuditEvent({
-    ...actor,
-    action: 'admin.rbac.grant.delete',
-    entityType: 'RbacGrant',
-    entityId: String(id),
-    before,
-    after: null,
-    meta: null,
-  });
-
-  return res.json({ success: true });
-};
-
-exports.listUserRoles = async (req, res) => {
-  const { userId } = req.params;
-  if (!isValidObjectId(userId)) {
-    return res.status(400).json({ error: 'Invalid userId' });
-  }
-
-  const rows = await RbacUserRole.find({ userId }).select('roleId createdAt').lean();
-  const roleIds = rows.map((r) => r.roleId);
-  const roles = await RbacRole.find({ _id: { $in: roleIds } }).select('key name status').lean();
-  const byId = new Map(roles.map((r) => [String(r._id), r]));
-
-  return res.json({
-    roles: rows.map((r) => {
-      const role = byId.get(String(r.roleId));
-      return {
-        id: String(r._id),
-        roleId: String(r.roleId),
-        key: role?.key || null,
-        name: role?.name || null,
-        status: role?.status || null,
-        createdAt: r.createdAt,
-      };
-    }),
-  });
-};
-
-exports.addUserRole = async (req, res) => {
-  const { userId } = req.params;
-  const { roleId } = req.body || {};
-  if (!isValidObjectId(userId) || !isValidObjectId(roleId)) {
-    return res.status(400).json({ error: 'userId and roleId are required' });
-  }
-
-  const actor = getBasicAuthActor(req);
-  const link = await RbacUserRole.create({ userId, roleId });
-
-  await createAuditEvent({
-    ...actor,
-    action: 'admin.rbac.user_role.add',
-    entityType: 'User',
-    entityId: String(userId),
-    before: null,
-    after: { roleId: String(roleId) },
-    meta: null,
-  });
-
-  return res.status(201).json({ userRole: { ...link.toObject(), id: String(link._id) } });
-};
-
-exports.removeUserRole = async (req, res) => {
-  const { userId, userRoleId } = req.params;
-  if (!isValidObjectId(userId) || !isValidObjectId(userRoleId)) {
-    return res.status(400).json({ error: 'Invalid ids' });
-  }
-
-  const actor = getBasicAuthActor(req);
-  const link = await RbacUserRole.findOne({ _id: userRoleId, userId });
-  if (!link) {
-    return res.status(404).json({ error: 'User role link not found' });
-  }
-
-  const before = link.toObject();
-  await link.deleteOne();
-
-  await createAuditEvent({
-    ...actor,
-    action: 'admin.rbac.user_role.remove',
-    entityType: 'User',
-    entityId: String(userId),
-    before,
-    after: null,
-    meta: null,
-  });
-
-  return res.json({ success: true });
-};
+const RbacGrantsController = require('./adminRbacGrants.controller');
+exports.listGrants = RbacGrantsController.listGrants;
+exports.createGrant = RbacGrantsController.createGrant;
+exports.deleteGrant = RbacGrantsController.deleteGrant;
+exports.listUserRoles = RbacGrantsController.listUserRoles;
+exports.addUserRole = RbacGrantsController.addUserRole;
+exports.removeUserRole = RbacGrantsController.removeUserRole;

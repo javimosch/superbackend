@@ -501,9 +501,9 @@ describe('waitingListJson.service', () => {
       expect(jsonConfigsService.createJsonConfig).toHaveBeenCalledWith({
         title: 'Waiting List Entries',
         alias: 'waiting-list-entries',
-        jsonRaw: expect.stringContaining('"entries":[]'),
+        jsonRaw: expect.stringMatching(/"entries":\[\].*"lastUpdated":/),
         publicEnabled: false,
-        cacheTtlSeconds: 300
+        cacheTtlSeconds: 0
       });
     });
 

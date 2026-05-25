@@ -77,12 +77,25 @@ exports.get = async (req, res) => {
   }
 };
 
+const ALLOWED_TOP_KEYS = new Set(['data', 'fields', 'item']);
+
+function sanitizeBody(body) {
+  if (!body || typeof body !== 'object') return {};
+  if (Array.isArray(body)) return body;
+  const safe = {};
+  for (const key of Object.keys(body)) {
+    if (key.startsWith('$') || key === '__v' || key === '_id') continue;
+    safe[key] = body[key];
+  }
+  return safe;
+}
+
 exports.create = async (req, res) => {
   try {
     const { modelCode } = req.params;
     const Model = await getDynamicModel(modelCode);
 
-    const doc = await Model.create(req.body || {});
+    const doc = await Model.create(sanitizeBody(req.body));
     return res.status(201).json({ item: doc.toObject() });
   } catch (error) {
     console.error('Error creating headless item:', error);
@@ -95,7 +108,7 @@ exports.update = async (req, res) => {
     const { modelCode, id } = req.params;
     const Model = await getDynamicModel(modelCode);
 
-    const updated = await Model.findByIdAndUpdate(id, req.body || {}, {
+    const updated = await Model.findByIdAndUpdate(id, sanitizeBody(req.body), {
       new: true,
       runValidators: false,
     });

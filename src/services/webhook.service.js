@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const Webhook = require('../models/Webhook');
+const AuditEvent = require('../models/AuditEvent');
 
 class WebhookService {
   /**
@@ -65,7 +66,6 @@ class WebhookService {
       });
 
       // Log success immediately for async
-      const AuditEvent = require('../models/AuditEvent');
       await AuditEvent.create({
         actorType: 'system',
         actorId: 'webhook-service',
@@ -99,7 +99,6 @@ class WebhookService {
       }
 
       // Log success to audit
-      const AuditEvent = require('../models/AuditEvent');
       await AuditEvent.create({
         actorType: 'system',
         actorId: 'webhook-service',
@@ -117,7 +116,6 @@ class WebhookService {
       console.error(`Failed to deliver webhook to ${webhook.targetUrl}:`, error.message);
       
       // Log failure to audit
-      const AuditEvent = require('../models/AuditEvent');
       await AuditEvent.create({
         actorType: 'system',
         actorId: 'webhook-service',

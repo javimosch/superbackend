@@ -42,6 +42,7 @@ describe('adminHeadless.controller', () => {
       query: {},
       headers: {},
       get: jest.fn(),
+      session: {},
     };
     mockRes = {
       status: jest.fn().mockReturnThis(),
@@ -57,7 +58,7 @@ describe('adminHeadless.controller', () => {
 
       await controller.listModels(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ items: mockItems });
+      expect(mockRes.json).toHaveBeenCalledWith({ models: mockItems });
     });
 
     test('getModel returns single definition', async () => {
@@ -67,7 +68,7 @@ describe('adminHeadless.controller', () => {
 
       await controller.getModel(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ item: mockItem });
+      expect(mockRes.json).toHaveBeenCalledWith({ model: mockItem });
     });
 
     test('createModel creates new definition', async () => {
@@ -78,7 +79,7 @@ describe('adminHeadless.controller', () => {
       await controller.createModel(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.json).toHaveBeenCalledWith({ item: mockItem });
+      expect(mockRes.json).toHaveBeenCalledWith({ model: mockItem });
     });
   });
 
@@ -89,7 +90,7 @@ describe('adminHeadless.controller', () => {
 
       await controller.listExternalCollections(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ items: mockItems });
+      expect(mockRes.json).toHaveBeenCalledWith({ collections: mockItems });
     });
 
     test('inferExternalCollection returns inferred schema', async () => {
@@ -139,44 +140,48 @@ describe('adminHeadless.controller', () => {
   });
 
   describe('AI Model Builder', () => {
-    test('aiModelBuilderChat returns proposal and validation', async () => {
+    test('aiModelBuilderChat returns reply and modelProposal', async () => {
       mockReq.body = { message: 'create a blog model' };
       
       headlessModelsService.listModelDefinitions.mockResolvedValue([]);
       llmDefaultsService.resolveLlmProviderModel.mockResolvedValue({ providerKey: 'openrouter', model: 'gpt-4' });
-      getSettingValue.mockResolvedValue('some-value');
+      getSettingValue.mockResolvedValue('30');
       
-      const mockLlmResponse = { 
-        content: JSON.stringify({
-          assistantMessage: 'Sure',
-          proposal: { creates: [{ codeIdentifier: 'blog', displayName: 'Blog' }], updates: [] }
-        })
-      };
-      llmService.callAdhoc.mockResolvedValue(mockLlmResponse);
+      llmService.callAdhoc.mockResolvedValue({
+        content: 'Sure thing\n```json\n{"fields":[{"key":"title","type":"string"}]}\n```',
+        usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+        model: 'gpt-4',
+        providerKey: 'openrouter',
+      });
 
       await controller.aiModelBuilderChat(mockReq, mockRes);
 
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        assistantMessage: 'Sure',
-        proposal: expect.any(Object),
-        validation: expect.objectContaining({ valid: true })
+        reply: expect.stringContaining('Sure'),
+        modelProposal: expect.objectContaining({ fields: expect.any(Array) }),
+        usage: expect.objectContaining({ total: 30 }),
       }));
     }, 10000);
 
-    test('applyModelProposal creates and updates models', async () => {
+    test('applyModelProposal creates a model', async () => {
       mockReq.body = {
-        creates: [{ codeIdentifier: 'post', displayName: 'Post', fields: [] }],
-        updates: []
+        codeIdentifier: 'post',
+        displayName: 'Post',
+        fields: [{ key: 'title', type: 'string' }],
       };
 
-      headlessModelsService.listModelDefinitions.mockResolvedValue([]);
       headlessModelsService.createModelDefinition.mockResolvedValue({ _id: 'p1', codeIdentifier: 'post' });
 
       await controller.applyModelProposal(mockReq, mockRes);
 
-      expect(headlessModelsService.createModelDefinition).toHaveBeenCalled();
+      expect(headlessModelsService.createModelDefinition).toHaveBeenCalledWith(expect.objectContaining({
+        codeIdentifier: 'post',
+        definition: { fields: expect.any(Array) },
+        source: 'ai_proposal',
+      }));
+      expect(mockRes.status).toHaveBeenCalledWith(201);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        created: expect.any(Array)
+        model: expect.objectContaining({ _id: 'p1' }),
       }));
     });
   });
@@ -188,17 +193,19 @@ describe('adminHeadless.controller', () => {
 
       await controller.listTokens(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ items: mockTokens });
+      expect(mockRes.json).toHaveBeenCalledWith({ tokens: mockTokens });
     });
 
     test('createToken creates and returns a new token', async () => {
       mockReq.body = { name: 'New Token' };
-      headlessApiTokensService.createApiToken.mockResolvedValue({ token: 'plain', item: { _id: 't1', name: 'New Token' } });
+      headlessApiTokensService.createApiToken.mockResolvedValue({ _id: 't1', name: 'New Token', token: 'plain' });
 
       await controller.createToken(mockReq, mockRes);
 
       expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ token: 'plain' }));
+      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
+        token: expect.objectContaining({ token: 'plain' }),
+      }));
     });
 
     test('getToken returns a specific token', async () => {
@@ -207,7 +214,7 @@ describe('adminHeadless.controller', () => {
 
       await controller.getToken(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ item: expect.objectContaining({ name: 'Token 1' }) });
+      expect(mockRes.json).toHaveBeenCalledWith({ token: expect.objectContaining({ name: 'Token 1' }) });
     });
 
     test('updateToken updates token metadata', async () => {
@@ -217,7 +224,7 @@ describe('adminHeadless.controller', () => {
 
       await controller.updateToken(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ item: expect.objectContaining({ name: 'Updated Name' }) });
+      expect(mockRes.json).toHaveBeenCalledWith({ token: expect.objectContaining({ name: 'Updated Name' }) });
     });
 
     test('deleteToken removes a token', async () => {
@@ -242,13 +249,15 @@ describe('adminHeadless.controller', () => {
 
       await controller.importExternalModel(mockReq, mockRes);
 
-      expect(headlessExternalModelsService.createOrUpdateExternalModel).toHaveBeenCalled();
+      expect(headlessExternalModelsService.createOrUpdateExternalModel).toHaveBeenCalledWith(
+        'users', 'ext_users', { sampleSize: undefined, isActive: undefined }
+      );
       expect(mockRes.status).toHaveBeenCalledWith(201);
     });
 
     test('syncExternalModel refreshes definition from collection', async () => {
       mockReq.params.codeIdentifier = 'ext_users';
-      const mockExisting = { codeIdentifier: 'ext_users', sourceCollectionName: 'users', isExternal: true };
+      const mockExisting = { codeIdentifier: 'ext_users', externalCollectionName: 'users' };
       headlessModelsService.getModelDefinitionByCode.mockResolvedValue(mockExisting);
       
       const mockResult = { created: false, item: { _id: 'e1' }, inference: {} };
@@ -256,10 +265,10 @@ describe('adminHeadless.controller', () => {
 
       await controller.syncExternalModel(mockReq, mockRes);
 
-      expect(headlessExternalModelsService.createOrUpdateExternalModel).toHaveBeenCalledWith(expect.objectContaining({
-        collectionName: 'users'
-      }));
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ item: mockResult.item }));
+      expect(headlessExternalModelsService.createOrUpdateExternalModel).toHaveBeenCalledWith(
+        'users', 'ext_users', { isActive: undefined }
+      );
+      expect(mockRes.json).toHaveBeenCalledWith({ model: mockResult });
     });
   });
 });

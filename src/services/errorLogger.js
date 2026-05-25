@@ -195,7 +195,7 @@ async function logError(event) {
     return result;
   } catch (err) {
     try {
-      console.log('[ErrorLogger] Failed to log error:', err.message);
+      console.error('[ErrorLogger] Failed to log error:', err.message);
     } catch (e) {
       // ignore
     }

@@ -20,7 +20,8 @@ describe('Auth Middleware', () => {
     mockRes = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
-      setHeader: jest.fn()
+      setHeader: jest.fn(),
+      locals: {}
     };
     
     mockNext = jest.fn();
@@ -141,16 +142,19 @@ describe('Auth Middleware', () => {
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid credentials' });
     });
 
-    test('should use default credentials when env vars not set', () => {
+    test('should return 401 when no credentials configured', () => {
       delete process.env.ADMIN_USERNAME;
       delete process.env.ADMIN_PASSWORD;
-      
+      delete mockRes.locals.adminCredentials;
+
       const credentials = Buffer.from('admin:admin').toString('base64');
       mockReq.headers.authorization = `Basic ${credentials}`;
 
       basicAuth(mockReq, mockRes, mockNext);
 
-      expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Admin not configured' });
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 

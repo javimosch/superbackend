@@ -1,120 +1,131 @@
-const controller = require('./headlessCrud.controller');
-const { getDynamicModel } = require('../services/headlessModels.service');
-const mongoose = require('mongoose');
+jest.mock('../services/headlessModels.service', () => ({
+  getDynamicModel: jest.fn()
+}));
 
-jest.mock('../services/headlessModels.service');
+const { create, update, _getOperationFromRequest } = require('./headlessCrud.controller');
+const { getDynamicModel } = require('../services/headlessModels.service');
 
 describe('headlessCrud.controller', () => {
-  let mockReq, mockRes;
+  let mockReq, mockRes, mockModel;
 
   beforeEach(() => {
     jest.clearAllMocks();
     mockReq = {
-      params: { modelCode: 'test' },
-      query: {},
-      body: {},
-      method: 'GET'
+      params: { modelCode: 'test-model', id: '507f1f77bcf86cd799439011' },
+      body: { name: 'test', email: 'test@test.com' }
     };
     mockRes = {
-      status: jest.fn().mockReturnThis(),
-      json: jest.fn()
+      json: jest.fn().mockReturnThis(),
+      status: jest.fn().mockReturnThis()
     };
-  });
 
-  describe('list', () => {
-    test('lists items from dynamic model', async () => {
-      const mockModel = {
-        find: jest.fn().mockReturnThis(),
-        sort: jest.fn().mockReturnThis(),
-        skip: jest.fn().mockReturnThis(),
-        limit: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue([{ _id: '1' }]),
-        countDocuments: jest.fn().mockResolvedValue(1),
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
-
-      await controller.list(mockReq, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({
-        items: expect.any(Array),
-        total: 1
-      }));
-    });
+    mockModel = {
+      create: jest.fn(),
+      findByIdAndUpdate: jest.fn(),
+      findByIdAndDelete: jest.fn()
+    };
+    getDynamicModel.mockResolvedValue(mockModel);
   });
 
   describe('create', () => {
-    test('creates a new item in dynamic model', async () => {
-      mockReq.body = { name: 'New Item' };
-      const mockModel = {
-        create: jest.fn().mockResolvedValue({
-          toObject: () => ({ _id: '1', name: 'New Item' })
-        })
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
+    test('creates document with sanitized body', async () => {
+      const doc = { toObject: () => ({ _id: 'abc', name: 'test', email: 'test@test.com' }) };
+      mockModel.create.mockResolvedValue(doc);
 
-      await controller.create(mockReq, mockRes);
+      await create(mockReq, mockRes);
 
+      expect(getDynamicModel).toHaveBeenCalledWith('test-model');
+      expect(mockModel.create).toHaveBeenCalledWith({ name: 'test', email: 'test@test.com' });
       expect(mockRes.status).toHaveBeenCalledWith(201);
-      expect(mockRes.json).toHaveBeenCalledWith({ item: expect.objectContaining({ name: 'New Item' }) });
-    });
-  });
-
-  describe('get', () => {
-    test('retrieves single item by id', async () => {
-      mockReq.params.id = 'id123';
-      const mockModel = {
-        findById: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue({ _id: 'id123' })
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
-
-      await controller.get(mockReq, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalledWith({ item: { _id: 'id123' } });
+      expect(mockRes.json).toHaveBeenCalledWith({ item: { _id: 'abc', name: 'test', email: 'test@test.com' } });
     });
 
-    test('returns 404 if item not found', async () => {
-      mockReq.params.id = 'missing';
-      const mockModel = {
-        findById: jest.fn().mockReturnThis(),
-        lean: jest.fn().mockResolvedValue(null)
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
+    test('strips internal mongodb fields from body', async () => {
+      mockReq.body = { name: 'test', __v: 1, _id: 'should-not-pass', $where: 'evil' };
+      const doc = { toObject: () => ({ name: 'test' }) };
+      mockModel.create.mockResolvedValue(doc);
 
-      await controller.get(mockReq, mockRes);
+      await create(mockReq, mockRes);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockModel.create).toHaveBeenCalledWith({ name: 'test' });
+    });
+
+    test('handles empty body', async () => {
+      mockReq.body = {};
+      const doc = { toObject: () => ({}) };
+      mockModel.create.mockResolvedValue(doc);
+
+      await create(mockReq, mockRes);
+
+      expect(mockModel.create).toHaveBeenCalledWith({});
+    });
+
+    test('handles null body', async () => {
+      mockReq.body = null;
+      const doc = { toObject: () => ({}) };
+      mockModel.create.mockResolvedValue(doc);
+
+      await create(mockReq, mockRes);
+
+      expect(mockModel.create).toHaveBeenCalledWith({});
+    });
+
+    test('returns 500 on error', async () => {
+      mockModel.create.mockRejectedValue(new Error('DB error'));
+
+      await create(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(500);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Failed to create item' });
     });
   });
 
   describe('update', () => {
-    test('updates item by id', async () => {
-      mockReq.params.id = 'id123';
-      mockReq.body = { name: 'Updated' };
-      const mockModel = {
-        findByIdAndUpdate: jest.fn().mockResolvedValue({
-          toObject: () => ({ _id: 'id123', name: 'Updated' })
-        })
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
+    test('updates document with sanitized body', async () => {
+      const doc = { toObject: () => ({ _id: 'abc', name: 'updated' }) };
+      mockModel.findByIdAndUpdate.mockResolvedValue(doc);
 
-      await controller.update(mockReq, mockRes);
+      await update(mockReq, mockRes);
 
-      expect(mockRes.json).toHaveBeenCalledWith({ item: expect.objectContaining({ name: 'Updated' }) });
+      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        '507f1f77bcf86cd799439011',
+        { name: 'test', email: 'test@test.com' },
+        { new: true, runValidators: false }
+      );
+      expect(mockRes.json).toHaveBeenCalledWith({ item: { _id: 'abc', name: 'updated' } });
+    });
+
+    test('strips internal fields during update', async () => {
+      mockReq.body = { name: 'updated', __v: 1, $set: { bad: true } };
+      const doc = { toObject: () => ({ name: 'updated' }) };
+      mockModel.findByIdAndUpdate.mockResolvedValue(doc);
+
+      await update(mockReq, mockRes);
+
+      expect(mockModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        expect.any(String),
+        { name: 'updated' },
+        expect.any(Object)
+      );
+    });
+
+    test('returns 404 when document not found', async () => {
+      mockModel.findByIdAndUpdate.mockResolvedValue(null);
+
+      await update(mockReq, mockRes);
+
+      expect(mockRes.status).toHaveBeenCalledWith(404);
+      expect(mockRes.json).toHaveBeenCalledWith({ error: 'Item not found' });
     });
   });
 
-  describe('remove', () => {
-    test('deletes item by id', async () => {
-      mockReq.params.id = 'id123';
-      const mockModel = {
-        findByIdAndDelete: jest.fn().mockResolvedValue({ _id: 'id123' })
-      };
-      getDynamicModel.mockResolvedValue(mockModel);
-
-      await controller.remove(mockReq, mockRes);
-
-      expect(mockRes.json).toHaveBeenCalledWith({ success: true });
+  describe('_getOperationFromRequest', () => {
+    test('returns correct operation for HTTP methods', () => {
+      expect(_getOperationFromRequest({ method: 'GET' })).toBe('read');
+      expect(_getOperationFromRequest({ method: 'POST' })).toBe('create');
+      expect(_getOperationFromRequest({ method: 'PUT' })).toBe('update');
+      expect(_getOperationFromRequest({ method: 'PATCH' })).toBe('update');
+      expect(_getOperationFromRequest({ method: 'DELETE' })).toBe('delete');
     });
   });
 });

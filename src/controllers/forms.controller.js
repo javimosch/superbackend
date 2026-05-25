@@ -17,7 +17,7 @@ exports.getForms = async (req, res) => {
 
 exports.saveForm = async (req, res) => {
   try {
-    console.log('[FormsController] Saving form definition:', req.body);
+    console.log('[FormsController] Saving form definition:', req.body?.name || req.body?._id || '(unnamed)');
     const saved = await formsService.saveForm(req.body);
     res.json(saved);
   } catch (error) {

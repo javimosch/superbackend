@@ -1,7 +1,16 @@
 const User = require("../models/User");
 const StripeWebhookEvent = require("../models/StripeWebhookEvent");
 const asyncHandler = require("../utils/asyncHandler");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+let stripeInstance;
+function getStripe() {
+  if (!stripeInstance) {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.warn('[BillingController] STRIPE_SECRET_KEY not set. Stripe features will fail.');
+    }
+    stripeInstance = require("stripe")(process.env.STRIPE_SECRET_KEY || "sk-missing");
+  }
+  return stripeInstance;
+}
 const stripeService = require("../services/stripe.service");
 
 // Create Stripe Checkout Session
@@ -16,7 +25,7 @@ const createCheckoutSession = asyncHandler(async (req, res) => {
   // Get or create Stripe customer
   let customerId = req.user.stripeCustomerId;
   if (!customerId) {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: req.user.email,
       metadata: { userId: userId.toString() },
     });
@@ -27,7 +36,7 @@ const createCheckoutSession = asyncHandler(async (req, res) => {
 
   const mode = billingMode === "payment" ? "payment" : "subscription";
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     customer: customerId,
     mode,
     line_items: [{ price: priceId, quantity: 1 }],
@@ -50,7 +59,7 @@ const createPortalSession = asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "No Stripe customer found" });
   }
 
-  const session = await stripe.billingPortal.sessions.create({
+  const session = await getStripe().billingPortal.sessions.create({
     customer: customerId,
     return_url: `${process.env.PUBLIC_URL || "http://localhost:3000"}${process.env.BILLING_RETURN_URL_RELATIVE || "/settings/billing"}`,
   });
@@ -65,7 +74,7 @@ const handleWebhook = async (req, res) => {
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    event = getStripe().webhooks.constructEvent(req.body, sig, webhookSecret);
   } catch (err) {
     console.error("Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -168,7 +177,7 @@ const reconcileSubscription = asyncHandler(async (req, res) => {
   }
 
   // Fetch latest subscription from Stripe
-  const subscriptions = await stripe.subscriptions.list({
+  const subscriptions = await getStripe().subscriptions.list({
     customer: user.stripeCustomerId,
     limit: 1,
   });
@@ -190,7 +199,7 @@ const reconcileSubscription = asyncHandler(async (req, res) => {
     await user.save();
   } else {
     // No active subscription found. Check for successful one-off (payment) checkouts
-    const sessions = await stripe.checkout.sessions.list({
+    const sessions = await getStripe().checkout.sessions.list({
       customer: user.stripeCustomerId,
       limit: 10,
     });
