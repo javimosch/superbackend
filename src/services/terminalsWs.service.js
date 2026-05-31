@@ -57,7 +57,9 @@ function attachTerminalWebsocketServer(server, options = {}) {
     const onData = (data) => {
       try {
         ws.send(JSON.stringify({ type: 'output', data: String(data || '') }));
-      } catch {}
+      } catch (e) {
+        console.error('[TerminalsWS] Failed to send output to WS client:', e?.message || e);
+      }
     };
 
     s.pty.onData(onData);
