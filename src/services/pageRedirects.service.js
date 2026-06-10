@@ -14,7 +14,7 @@ async function loadRedirects() {
   const docs = await PageRedirect.find({ enabled: true }).lean();
   const map = new Map();
   for (const doc of docs) {
-    const from = String(doc.from || '').trim().toLowerCase();
+    const from = String(doc.from || '').trim().toLowerCase().replace(/\/+$/, '') || '/';
     if (from) {
       map.set(from, { to: doc.to, type: doc.type || 301 });
     }
@@ -54,7 +54,7 @@ async function listRedirects({ limit = 100, offset = 0, search } = {}) {
 }
 
 async function createRedirect({ from, to, type = 301, enabled = true, note = '' }) {
-  const fromNorm = String(from || '').trim();
+  const fromNorm = String(from || '').trim().replace(/\/+$/, '') || '/';
   const toNorm = String(to || '').trim();
 
   if (!fromNorm) throw Object.assign(new Error('from path is required'), { code: 'VALIDATION' });
@@ -77,7 +77,7 @@ async function updateRedirect(id, updates) {
   const doc = await PageRedirect.findById(id);
   if (!doc) throw Object.assign(new Error('Redirect not found'), { code: 'NOT_FOUND' });
 
-  if (updates.from !== undefined) doc.from = String(updates.from).trim();
+  if (updates.from !== undefined) doc.from = String(updates.from).trim().replace(/\/+$/, '') || '/';
   if (updates.to !== undefined) doc.to = String(updates.to).trim();
   if (updates.type !== undefined) doc.type = [301, 302].includes(Number(updates.type)) ? Number(updates.type) : doc.type;
   if (updates.enabled !== undefined) doc.enabled = Boolean(updates.enabled);
