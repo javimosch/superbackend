@@ -6,7 +6,9 @@ function isBasicAuthSuperAdmin(req) {
 
   try {
     const credentials = Buffer.from(authHeader.substring(6), 'base64').toString('utf-8');
-    const [username, password] = credentials.split(':');
+    const colonIndex = credentials.indexOf(':');
+    const username = colonIndex >= 0 ? credentials.substring(0, colonIndex) : credentials;
+    const password = colonIndex >= 0 ? credentials.substring(colonIndex + 1) : '';
 
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin';

@@ -2,11 +2,15 @@ const { authenticateApiToken, tokenAllowsOperation } = require('../services/head
 
 function extractToken(req) {
   const headerToken = req.headers['x-api-token'] || req.headers['x-api-key'];
-  if (headerToken) return String(headerToken).trim();
+  if (headerToken) {
+    const trimmed = String(headerToken).trim();
+    return trimmed || null;
+  }
 
   const auth = req.headers.authorization;
   if (auth && auth.toLowerCase().startsWith('bearer ')) {
-    return String(auth.slice(7)).trim();
+    const trimmed = String(auth.slice(7)).trim();
+    return trimmed || null;
   }
 
   return null;
@@ -54,4 +58,6 @@ function requireHeadlessPermission() {
 module.exports = {
   headlessApiTokenAuth,
   requireHeadlessPermission,
+  extractToken,
+  getOperationFromMethod,
 };
