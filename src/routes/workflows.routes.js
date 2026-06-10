@@ -4,7 +4,7 @@ const { adminSessionAuth } = require('../middleware/auth');
 const Workflow = require('../models/Workflow');
 const WorkflowExecution = require('../models/WorkflowExecution');
 const workflowService = require('../services/workflow.service');
-const { asyncHandler } = require('../utils/asyncHandler');
+const asyncHandler = require('../utils/asyncHandler');
 
 router.use(adminSessionAuth);
 
