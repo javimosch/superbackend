@@ -54,11 +54,13 @@ async function listRedirects({ limit = 100, offset = 0, search } = {}) {
 }
 
 async function createRedirect({ from, to, type = 301, enabled = true, note = '' }) {
-  const fromNorm = String(from || '').trim().replace(/\/+$/, '') || '/';
+  const rawFrom = String(from || '').trim();
   const toNorm = String(to || '').trim();
 
-  if (!fromNorm) throw Object.assign(new Error('from path is required'), { code: 'VALIDATION' });
+  if (!rawFrom) throw Object.assign(new Error('from path is required'), { code: 'VALIDATION' });
   if (!toNorm) throw Object.assign(new Error('to path is required'), { code: 'VALIDATION' });
+
+  const fromNorm = rawFrom.replace(/\/+$/, '') || '/';
   if (fromNorm === toNorm) throw Object.assign(new Error('from and to must be different'), { code: 'VALIDATION' });
 
   const doc = await PageRedirect.create({
