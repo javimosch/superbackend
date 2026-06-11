@@ -16,7 +16,11 @@ const validatePassword = (password) => {
 // Sanitize input string
 const sanitizeString = (str) => {
   if (!str || typeof str !== 'string') return '';
-  return str.trim().replace(/[<>]/g, '');
+  return str.trim()
+    .replace(/&[#a-zA-Z]\w+;/g, '')
+    .replace(/[<>"'`]/g, '')
+    .replace(/javascript\s*:/gi, '')
+    .replace(/on\w+\s*=/gi, '');
 };
 
 module.exports = {
