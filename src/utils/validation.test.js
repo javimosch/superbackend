@@ -56,6 +56,20 @@ describe('validation.js', () => {
       expect(sanitizeString('&amp;')).toBe('');
     });
 
+    test('strips entity-encoded javascript protocol', () => {
+      expect(sanitizeString('javascrip&#116;:alert(1)')).toBe('javascrip:alert(1)');
+      expect(sanitizeString('&#106;avascript:alert(1)')).toBe('avascript:alert(1)');
+    });
+
+    test('strips entity-encoded event handlers', () => {
+      expect(sanitizeString('onclic&#107;=alert(1)')).toBe('alert(1)');
+      expect(sanitizeString('&#111;nclick=alert(1)')).toBe('nclick=alert(1)');
+    });
+
+    test('strips entity after bogus entity removal', () => {
+      expect(sanitizeString('&tab;javascript:alert(1)')).toBe('alert(1)');
+    });
+
     test('handles empty/null values', () => {
       expect(sanitizeString('')).toBe('');
       expect(sanitizeString(null)).toBe('');

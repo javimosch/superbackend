@@ -80,6 +80,15 @@ describe('org middleware', () => {
       expect(req.orgMember).toBeUndefined();
       expect(next).toHaveBeenCalled();
     });
+
+    test('handles findById error in catch block', async () => {
+      Organization.findById.mockRejectedValue(new Error('DB error'));
+      const { req, res, next } = mockReqRes();
+      req.params.orgId = 'org1';
+      await loadOrgContext(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Failed to load organization' });
+    });
   });
 
   describe('requireOrgMember', () => {
@@ -142,6 +151,15 @@ describe('org middleware', () => {
       await requireOrgRoleAtLeast('member')(req, res, next);
       expect(next).toHaveBeenCalled();
     });
+
+    test('handles getOrgRoleHierarchy error in catch block', async () => {
+      orgRoles.getOrgRoleHierarchy.mockRejectedValue(new Error('hierarchy error'));
+      const { req, res, next } = mockReqRes();
+      req.orgMember = { _id: 'mem1', role: 'member' };
+      await requireOrgRoleAtLeast('admin')(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Failed to evaluate organization role' });
+    });
   });
 
   describe('requireOrgRole', () => {
@@ -185,6 +203,15 @@ describe('org middleware', () => {
       req.orgMember = { _id: 'mem1', role: 'admin' };
       await requireOrgRole('admin')(req, res, next);
       expect(next).toHaveBeenCalled();
+    });
+
+    test('handles getOrgRoleHierarchy error in catch block', async () => {
+      orgRoles.getOrgRoleHierarchy.mockRejectedValue(new Error('hierarchy error'));
+      const { req, res, next } = mockReqRes();
+      req.orgMember = { _id: 'mem1', role: 'member' };
+      await requireOrgRole('admin')(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ error: 'Failed to evaluate organization role' });
     });
   });
 });
