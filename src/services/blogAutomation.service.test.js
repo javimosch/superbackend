@@ -43,22 +43,6 @@ describe('blogAutomation.service', () => {
     });
   });
 
-  describe('pickWeightedTopic', () => {
-    test('picks topic based on weight', () => {
-      const topics = [
-        { key: 'high', weight: 100 },
-        { key: 'low', weight: 1 }
-      ];
-      // Weighted random is hard to test perfectly without mocking Math.random
-      // but we can check if it returns a valid topic
-      const result = blogAutomationService.runBlogAutomation ? 
-        // This is a private function but we can test it indirectly or via exported helpers
-        null : null;
-      
-      // Let's test the logic manually if needed or skip for now if not exported
-    });
-  });
-
   describe('listRuns', () => {
     test('returns recent runs', async () => {
       const mockRuns = [{ _id: 'run1' }, { _id: 'run2' }];
@@ -72,21 +56,6 @@ describe('blogAutomation.service', () => {
 
       expect(result).toHaveLength(2);
       expect(BlogAutomationRun.find).toHaveBeenCalled();
-    });
-  });
-
-  describe('lock management', () => {
-    const BlogAutomationLock = require('../models/BlogAutomationLock');
-
-    test('acquireLock returns lock if successful', async () => {
-      const mockLock = { key: 'blog-automation', ownerId: 'uuid-123' };
-      BlogAutomationLock.findOneAndUpdate.mockResolvedValue(mockLock);
-
-      const result = await blogAutomationService.runBlogAutomation ? 
-        // Testing private functions indirectly through service exported object if they were exported,
-        // but since they are not, I will add more public API tests or skip if inaccessible.
-        // Actually, I can test acquireLock if I can access it.
-        null : null;
     });
   });
 

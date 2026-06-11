@@ -297,7 +297,7 @@ async function check(limiterId, { req, identity } = {}) {
   const id = normalizeLimiterId(limiterId);
   registerLimiter(id);
 
-  ensureLimiterOverrideExists(id);
+  await ensureLimiterOverrideExists(id);
 
   const failOpen = true;
 
