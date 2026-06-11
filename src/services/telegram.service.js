@@ -20,7 +20,7 @@ async function startBot(botId) {
     const bot = new TelegramBot(botDoc.token, { polling: true });
 
     bot.on('message', async (msg) => {
-      if (!msg.text) return;
+      if (!msg.text || !msg.from) return;
 
       // Security: check if user is allowed
       if (botDoc.allowedUserIds && botDoc.allowedUserIds.length > 0) {
@@ -58,7 +58,11 @@ async function startBot(botId) {
         await bot.sendMessage(msg.chat.id, response.text || response);
       } catch (err) {
         console.error('Error processing message:', err);
-        await bot.sendMessage(msg.chat.id, 'Sorry, I encountered an error processing your request.');
+        try {
+          await bot.sendMessage(msg.chat.id, 'Sorry, I encountered an error processing your request.');
+        } catch (sendErr) {
+          console.error('Error sending error message:', sendErr);
+        }
       }
     });
 
