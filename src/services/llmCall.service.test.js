@@ -356,16 +356,47 @@ describe('llmCall.service', () => {
       expect(result).toBe(200000);
     });
 
-    test('returns cached value when available and fresh', async () => {
-      const first = await getModelContextLength('gpt-4', 'openrouter');
-      expect(first).toBe(200000);
+    test('fetches context length from openrouter API successfully', async () => {
+      cfg.loadConfig.mockResolvedValue({ providers: { openrouter: { apiKey: 'sk-or-test' } } });
+      axios.get.mockResolvedValue({
+        data: { data: { context_length: 128000 } },
+      });
+
+      const result = await getModelContextLength('gpt-4', 'openrouter');
+      expect(result).toBe(128000);
+    });
+
+    test('caches the result and avoids duplicate API calls', async () => {
+      cfg.loadConfig.mockResolvedValue({ providers: { openrouter: { apiKey: 'sk-or-test' } } });
+      axios.get.mockResolvedValue({
+        data: { data: { context_length: 64000 } },
+      });
+
+      const uniqueModel = 'gpt-cache-test-' + Date.now();
+      const first = await getModelContextLength(uniqueModel, 'openrouter');
+      expect(first).toBe(64000);
+      expect(axios.get).toHaveBeenCalledTimes(1);
+
+      const second = await getModelContextLength(uniqueModel, 'openrouter');
+      expect(second).toBe(64000);
+      expect(axios.get).toHaveBeenCalledTimes(1);
     });
 
     test('falls back to default on API error', async () => {
+      cfg.loadConfig.mockResolvedValue({ providers: { openrouter: { apiKey: 'sk-or-test' } } });
       axios.get.mockRejectedValue(new Error('API error'));
 
       const result = await getModelContextLength('unknown-model', 'openrouter');
       expect(result).toBe(200000);
+    });
+
+    test('falls back to default when openrouter provider has no apiKey', async () => {
+      cfg.loadConfig.mockResolvedValue({ providers: { openrouter: {} } });
+      axios.get.mockReset();
+
+      const result = await getModelContextLength('no-key-model-test', 'openrouter');
+      expect(result).toBe(200000);
+      expect(axios.get).not.toHaveBeenCalled();
     });
   });
 });
