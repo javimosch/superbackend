@@ -77,7 +77,7 @@ async function call(promptKey, variables = {}, runtimeOptions = {}) {
 
   try {
     const curlHeaders = [
-      `-H "Authorization: Bearer ${provider.apiKey}"`,
+      `-H "Authorization: Bearer [REDACTED]"`,
       `-H "Content-Type: application/json"`,
       ...Object.entries(provider.extraHeaders || {}).map(([k, v]) => `-H "${k}: ${v}"`),
     ].join(' ');
