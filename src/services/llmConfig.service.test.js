@@ -116,11 +116,18 @@ describe('llmConfig.service', () => {
       expect(normalizeProviderConfig(undefined)).toEqual({});
     });
 
-    test('defaults enabled to true', () => {
+    test('respects enabled: false', () => {
       const input = {
         test: { baseUrl: 'https://example.com', enabled: false },
       };
       expect(normalizeProviderConfig(input).test.enabled).toBe(false);
+    });
+
+    test('defaults enabled to true when omitted', () => {
+      const input = {
+        test: { baseUrl: 'https://example.com' },
+      };
+      expect(normalizeProviderConfig(input).test.enabled).toBe(true);
     });
 
     test('accepts underscore-style keys', () => {
@@ -257,9 +264,31 @@ describe('llmConfig.service', () => {
       expect(normalizePrompts(undefined)).toEqual({});
     });
 
-    test('defaults enabled to true', () => {
+    test('respects enabled: false', () => {
       const input = { test: { template: 'Hello', enabled: false } };
       expect(normalizePrompts(input).test.enabled).toBe(false);
+    });
+
+    test('defaults enabled to true when omitted', () => {
+      const input = { test: { template: 'Hello' } };
+      expect(normalizePrompts(input).test.enabled).toBe(true);
+    });
+
+    test('accepts provider alias field', () => {
+      const input = { test: { template: 'Hello', provider: 'openai' } };
+      expect(normalizePrompts(input).test.providerKey).toBe('openai');
+    });
+
+    test('preserves inputSchema', () => {
+      const schema = { type: 'object', properties: { name: { type: 'string' } } };
+      const input = { test: { template: 'Hello', inputSchema: schema, type: 'manual' } };
+      expect(normalizePrompts(input).test.inputSchema).toEqual(schema);
+    });
+
+    test('preserves defaultOptions', () => {
+      const opts = { temperature: 0.7 };
+      const input = { test: { template: 'Hello', defaultOptions: opts, type: 'manual' } };
+      expect(normalizePrompts(input).test.defaultOptions).toEqual(opts);
     });
   });
 });

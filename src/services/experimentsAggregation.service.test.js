@@ -42,5 +42,17 @@ describe('experimentsAggregation.service', () => {
       expect(floorToBucket(date, 0)).toBeNull();
       expect(floorToBucket(date, -1)).toBeNull();
     });
+
+    test('returns null for null/undefined/NaN bucketMs', () => {
+      const date = new Date('2024-06-11T10:15:00.000Z');
+      expect(floorToBucket(date, null)).toBeNull();
+      expect(floorToBucket(date, undefined)).toBeNull();
+      expect(floorToBucket(date, NaN)).toBeNull();
+    });
+
+    test('handles empty string date', () => {
+      const result = floorToBucket('', 3600000);
+      expect(result).toBeNull();
+    });
   });
 });

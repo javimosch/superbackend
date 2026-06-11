@@ -35,11 +35,6 @@ describe('waitingListPublicExports.service', () => {
       const name = await generateUniqueName([]);
       expect(name).toMatch(/^[a-z]+-[a-z]+$/);
     });
-
-    test('returns a string from generateUniqueName', async () => {
-      const name = await generateUniqueName([]);
-      expect(name).toMatch(/^[a-z]+-[a-z]+$/);
-    });
   });
 
   describe('validateExportConfig', () => {
@@ -108,6 +103,10 @@ describe('waitingListPublicExports.service', () => {
   describe('validateExportPassword (mocked bcrypt)', () => {
     const bcrypt = require('bcryptjs');
 
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
     test('returns true when export has no password', async () => {
       const result = await validateExportPassword({ name: 'test' }, 'anything');
       expect(result).toBe(true);
@@ -140,6 +139,10 @@ describe('waitingListPublicExports.service', () => {
 
   describe('hashPassword (mocked bcrypt)', () => {
     const bcrypt = require('bcryptjs');
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
 
     test('returns null for empty password', async () => {
       const result = await hashPassword(null);
