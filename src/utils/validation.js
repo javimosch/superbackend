@@ -13,7 +13,7 @@ const validatePassword = (password) => {
   return password.length >= 8;
 };
 
-// Sanitize input string
+// Strip angle-bracket characters and trim whitespace
 const sanitizeString = (str) => {
   if (!str || typeof str !== 'string') return '';
   return str.trim().replace(/[<>]/g, '');
