@@ -28,7 +28,7 @@ describe('validation.js', () => {
   });
 
   describe('sanitizeString', () => {
-    test('removes HTML tags and trims', () => {
+    test('strips angle-bracket characters and trims', () => {
       expect(sanitizeString('  <script>alert(1)</script>  ')).toBe('scriptalert(1)/script');
       expect(sanitizeString('<b>Hello</b>')).toBe('bHello/b');
       expect(sanitizeString('Normal string')).toBe('Normal string');
