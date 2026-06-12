@@ -119,8 +119,7 @@ See the `docs/features/` directory for detailed guides:
 
 ## Contributing
 
-SuperBackend is open-source and welcomes contributions!  
-Please read the [CONTRIBUTING.md](#) for guidelines.
+SuperBackend is open-source and welcomes contributions!
 
 ---
 
