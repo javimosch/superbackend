@@ -170,3 +170,5 @@ exports.chatHealth = async (_req, res) => {
   const dbName = uri.split('/').pop()?.split('?')[0] || 'unknown';
   return res.json({ dbName });
 };
+
+module.exports._testHelpers = { safeParse };
