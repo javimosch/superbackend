@@ -528,3 +528,5 @@ exports.bulkMoveNamespace = async (req, res) => {
     return res.status(500).json({ error: 'Failed to bulk move assets' });
   }
 };
+
+module.exports._testHelpers = { buildPublicUrl, formatAssetResponse, normalizeTags };
