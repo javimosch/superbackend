@@ -81,7 +81,7 @@ function getSession(sessionId) {
 function validateToken(sessionId, token) {
   const s = getSession(sessionId);
   if (!s) return false;
-  return String(s.token) === String(token || '');
+  return s.token === token;
 }
 
 function attachClient(sessionId, role, ws) {

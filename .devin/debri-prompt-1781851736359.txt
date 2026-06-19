@@ -1,0 +1,174 @@
+== Architecture Context ==
+Max 300 LOC for .md files
+
+1) Add module.exports._testHelpers = { parseBool, normalizeCode, normalizeProps, normalizeType } at the bottom of src/controllers/adminContextBlockDefinitions.controller.js. 2) Create src/controllers/adminContextBlockDefinitions.helpers.test.js. 3) Test parseBool: handles boolean, string true/false/1/0/yes/no, undefined returns fallback. 4) Test normalizeCode: trims and lowercases strings. 5) Test normalizeProps: returns object, null for non-object/array. 6) Test normalizeType: trims strings. 7) Run npx jest src/controllers/adminContextBlockDefinitions.helpers.test.js to verify all pass. 8) Commit your work.
+
+----
+WORK ALREADY IN FLIGHT — do not overlap:
+These automaintainer pull requests are already open and awaiting review. Do NOT re-implement, refactor, or restructure the files they touch — pick non-overlapping work, and never recreate a change an open PR already makes. If your objective unavoidably overlaps one of these, choose a different, complementary improvement instead.
+
+- PR #35 (am/am-734fdc-tguryt): [needs work] test: add unit tests for adminUiComponentsAi.controller helpers
+    touches: .devin/debri-prompt-1781828887096.txt, .devin/debri-prompt-1781828887110.txt, src/controllers/adminUiComponentsAi.controller.js, src/controllers/adminUiComponentsAi.helpers.test.js
+- PR #14 (am/am-734fdc-tgg8fo): test: add unit tests for featureFlags.controller.js
+    touches: src/controllers/featureFlags.controller.test.js, src/controllers/fileManagerStoragePolicy.controller.test.js, src/services/experimentsWs.service.js, src/services/experimentsWs.service.test.js
+- PR #13 (am/am-734fdc-tgg6l0): test: add unit tests for jsonConfigs.controller.js
+    touches: src/controllers/jsonConfigs.controller.test.js, src/controllers/registry.controller.test.js, src/services/experimentsCronsBootstrap.service.test.js
+- PR #12 (am/am-734fdc-tgg4qb): fix: await ensureLimiterOverrideExists in rateLimiter check
+    touches: src/middleware/errorCapture.test.js, src/services/blogAutomation.service.test.js, src/services/rateLimiter.service.js
+- PR #11 (am/am-734fdc-tgg2vl): test: add unit tests for blogAutomationConfig.service pure functions
+    touches: src/services/blogAutomationConfig.service.test.js, src/services/pagesContext.service.test.js, src/services/telegram.service.js
+- PR #10 (am/am-734fdc-tgg10w): test: add unit tests for llmConfig.service.js pure functions
+    touches: src/services/experimentsAggregation.service.test.js, src/services/llmConfig.service.test.js, src/services/waitingListPublicExports.service.test.js
+- PR #9 (am/am-734fdc-tgfz68): test: add unit tests for experimentsRetention.service.js
+    touches: src/middleware/org.test.js, src/services/experimentsRetention.service.test.js, src/utils/validation.js, src/utils/validation.test.js
+- PR #8 (am/am-734fdc-tgfxbj): test: add unit tests for sitemap.service.js
+    touches: src/services/llmCall.service.js, src/services/llmCall.service.test.js, src/services/sitemap.service.test.js
+
+
+Available CLI tools: gh (GitHub), git, a2a (bus), bash, and standard Unix utilities. NOT available: webfetch, /root/candidates.json access.
+
+== Shared Memory (panel-backed, persistent across workers) ==
+AM_PANEL_URL and AM_AGENT_TOKEN are set in your environment.
+Define these functions in your shell before using memory:
+  mem_read()  { curl -sf "$AM_PANEL_URL/api/agent/memories?repo=734fdc&token=$AM_AGENT_TOKEN"; }
+  mem_save()  { curl -sf -X POST "$AM_PANEL_URL/api/agent/memories/734fdc?token=$AM_AGENT_TOKEN" \
+                     -H 'Content-Type: application/json' \
+                     -d "{\"content\":\"$1\",\"tag\":\"${2:-LESSON}\"}" > /dev/null && echo 'memory saved'; }
+Commands:
+  mem_read                              # read all memories for this repo (JSON)
+  mem_save "INVARIANT: ..." INVARIANT   # save memory with tag
+  mem_save "PATTERN: ..." PATTERN
+  mem_save "LESSON: ..."                # defaults to LESSON tag
+Tags: INVARIANT | PATTERN | LESSON | FIX | ARCHITECTURE
+
+Repo: https://github.com/javimosch/superbackend
+
+A fresh git checkout is already prepared for you at:
+  /root/.automaintainer/work/am-734fdc-tgv9li
+It sits on a dedicated branch (am/am-734fdc-tgv9li) based on the latest origin/master.
+Do NOT clone the repo. cd into that directory and make all changes there.
+
+!!! CRITICAL: git commit BEFORE marking done !!!
+The automaintainer workflow is:
+  1. cd into the worktree directory above.
+  2. Make your changes.
+  3. git add + git commit with a clear message.
+  4. THEN mark yourself as done on the a2a bus.
+If you mark done without committing, your work is LOST — the worktree is cleaned up after the run.
+Do NOT push or open a PR — automaintainer does that after the run.
+
+== Recently merged work (do NOT repeat or re-review) ==
+  [2026-06-19] [needs work] test: add unit tests for adminContextBlockDefinitions.controller helpers
+  [2026-06-19] [needs work] test: add unit tests for adminTerminals.controller helpers
+  [2026-06-18] [needs work] fix: remove debug console.log from forms.controller.saveForm
+  [2026-06-18] test: add unit tests for adminAgentsChat.controller helpers
+  [2026-06-12] test: add unit tests for orgAdminMembers.controller helpers
+  [2026-06-12] test: add unit tests for adminPlugins.controller
+  [2026-06-12] test: add unit tests for adminBlockDefinitionsAi.controller
+  [2026-06-12] test: add unit tests for adminDataCleanup.controller
+
+
+== Current top-level files/dirs in this branch ==
+  .agents
+  .commiat
+  .devin
+  .env.example
+  .gitignore
+  .manage-proxy-file.yml
+  .npmignore
+  .windsurf
+  .windsurfrules
+  AGENTS.md
+  CLAUDE.md
+  Dockerfile
+  GEMINI-flows.md
+  GEMINI.md
+  README.md
+  changelog.md
+  codebase_stats.sh
+  compose.standalone.yml
+  compose.vps.yml
+  compose.yml
+  docs
+  index.js
+  manage.js
+  package-lock.json
+  package.json
+  plugins
+  public
+  ref-microexits
+  scripts
+  sdk
+  server.js
+  src
+  views
+
+
+Goal: Review ONLY the changes dev introduces in THIS run.
+  STEP 0 — WAIT FOR DEV (do this FIRST). When you start, dev has NOT committed yet,
+    so 'git diff origin/master..HEAD' is EMPTY. An empty diff means 'dev is not ready';
+    it is NOT grounds for rejection. NEVER reject or mark done on an empty diff.
+    Block until dev signals completion — repeat up to 3 times:
+      A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a recv --as qa --wait 120   # blocks up to 120s for a team message
+    Proceed to STEP 1 as soon as EITHER you receive a message starting with 'Dev done:'
+    OR 'git diff origin/master..HEAD' becomes non-empty. If a wait times out, check whether
+    dev is still working — A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a list --json — and if so, keep waiting (recv again).
+    Only if dev has left the bus AND the diff is still empty did dev produce no changes:
+    report it (A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a send dev "QA: no changes found" --from qa) and finish — do NOT treat
+    an empty diff as a rejection.
+  STEP 1 — Review ONLY the changes introduced in THIS run:
+    git diff origin/master..HEAD
+  The run's stated OBJECTIVE was: 1) Add module.exports._testHelpers = { parseBool, normalizeCode, normalizeProps, normalizeType } at the bottom of src/controllers/adminContextBlockDefinitions.controller.js. 2) Create src/controllers/adminContextBlockDefinitions.helpers.test.js. 3) Test parseBool: handles boolean, string true/false/1/0/yes/no, undefined returns fallback. 4) Test normalizeCode: trims and lowercases strings. 5) Test normalizeProps: returns object, null for non-object/array. 6) Test normalizeType: trims strings. 7) Run npx jest src/controllers/adminContextBlockDefinitions.helpers.test.js to verify all pass. 8) Commit your work.
+
+----
+WORK ALREADY IN FLIGHT — do not overlap:
+These automaintainer pull requests are already open and awaiting review. Do NOT re-implement, refactor, or restructure the files they touch — pick non-overlapping work, and never recreate a change an open PR already makes. If your objective unavoidably overlaps one of these, choose a different, complementary improvement instead.
+
+- PR #35 (am/am-734fdc-tguryt): [needs work] test: add unit tests for adminUiComponentsAi.controller helpers
+    touches: .devin/debri-prompt-1781828887096.txt, .devin/debri-prompt-1781828887110.txt, src/controllers/adminUiComponentsAi.controller.js, src/controllers/adminUiComponentsAi.helpers.test.js
+- PR #14 (am/am-734fdc-tgg8fo): test: add unit tests for featureFlags.controller.js
+    touches: src/controllers/featureFlags.controller.test.js, src/controllers/fileManagerStoragePolicy.controller.test.js, src/services/experimentsWs.service.js, src/services/experimentsWs.service.test.js
+- PR #13 (am/am-734fdc-tgg6l0): test: add unit tests for jsonConfigs.controller.js
+    touches: src/controllers/jsonConfigs.controller.test.js, src/controllers/registry.controller.test.js, src/services/experimentsCronsBootstrap.service.test.js
+- PR #12 (am/am-734fdc-tgg4qb): fix: await ensureLimiterOverrideExists in rateLimiter check
+    touches: src/middleware/errorCapture.test.js, src/services/blogAutomation.service.test.js, src/services/rateLimiter.service.js
+- PR #11 (am/am-734fdc-tgg2vl): test: add unit tests for blogAutomationConfig.service pure functions
+    touches: src/services/blogAutomationConfig.service.test.js, src/services/pagesContext.service.test.js, src/services/telegram.service.js
+- PR #10 (am/am-734fdc-tgg10w): test: add unit tests for llmConfig.service.js pure functions
+    touches: src/services/experimentsAggregation.service.test.js, src/services/llmConfig.service.test.js, src/services/waitingListPublicExports.service.test.js
+- PR #9 (am/am-734fdc-tgfz68): test: add unit tests for experimentsRetention.service.js
+    touches: src/middleware/org.test.js, src/services/experimentsRetention.service.test.js, src/utils/validation.js, src/utils/validation.test.js
+- PR #8 (am/am-734fdc-tgfxbj): test: add unit tests for sitemap.service.js
+    touches: src/services/llmCall.service.js, src/services/llmCall.service.test.js, src/services/sitemap.service.test.js
+
+  Check whether the changes work toward this objective.
+  If dev did unrelated work, reject — do NOT approve off-objective changes.
+  STEP 2 — Post your findings: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a send dev "QA review: <findings>" --from qa
+  If issues are found: tell dev what to fix — do NOT commit fixes yourself.
+  Once dev has addressed all issues (or if no issues): a2a status done --as qa
+  IMPORTANT: An empty diff is 'not ready', never a rejection. Never commit code yourself; review only.
+
+A2A=$(command -v a2a 2>/dev/null)
+[ -z "A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a" ] && [ -x "$HOME/.local/bin/a2a" ] && A2A="$HOME/.local/bin/a2a"
+[ -z "A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a" ] && [ -x "$HOME/.agents/skills/a2a/a2a" ] && A2A="$HOME/.agents/skills/a2a/a2a"
+
+A2A_PROJECT=am-734fdc-tgv9li is already in the environment.
+The a2a bus is already initialized and you are already registered as "qa".
+
+== Peers on the bus ==
+[{"cli":"","id":"dev","pid":4024626,"role":"dev","status":"active"},{"cli":"","id":"qa","pid":null,"role":"qa","status":"active"}]
+
+== Communication Instructions ==
+Use your shell tool to execute these a2a commands:
+1. Check who else is on the bus: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a list --json
+2. Introduce yourself: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a send all "I am qa, ready to work" --from qa
+3. Check for messages (blocks up to 30s): A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a recv --as qa --wait 30
+4. Send to a peer: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a send <peer-id> "your message" --from qa
+5. Broadcast: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a send all "your message" --from qa
+6. Mark done when your goal is complete: A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a status done --as qa
+
+== Your Work Loop ==
+1. Check for messages with A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a recv --as qa --wait 30
+2. If you receive a message, respond appropriately
+3. If no messages and you have work to do, broadcast your progress
+4. When you complete your goal, run A2A_PROJECT=am-734fdc-tgv9li /root/.local/bin/a2a status done --as qa
