@@ -1,0 +1,191 @@
+== Architecture Context ==
+Max 300 LOC for .md files
+
+1) Add module.exports._testHelpers = { handleError } at the bottom of src/controllers/adminTerminals.controller.js. 2) Create src/controllers/adminTerminals.helpers.test.js. 3) Test handleError: returns 404 for NOT_FOUND code, 429 for LIMIT code, 500 for other errors, uses error message or fallback. 4) Run jest src/controllers/adminTerminals.helpers.test.js to verify all pass. 5) Commit your work.
+
+----
+WORK ALREADY IN FLIGHT — do not overlap:
+These automaintainer pull requests are already open and awaiting review. Do NOT re-implement, refactor, or restructure the files they touch — pick non-overlapping work, and never recreate a change an open PR already makes. If your objective unavoidably overlaps one of these, choose a different, complementary improvement instead.
+
+- PR #14 (am/am-734fdc-tgg8fo): test: add unit tests for featureFlags.controller.js
+    touches: src/controllers/featureFlags.controller.test.js, src/controllers/fileManagerStoragePolicy.controller.test.js, src/services/experimentsWs.service.js, src/services/experimentsWs.service.test.js
+- PR #13 (am/am-734fdc-tgg6l0): test: add unit tests for jsonConfigs.controller.js
+    touches: src/controllers/jsonConfigs.controller.test.js, src/controllers/registry.controller.test.js, src/services/experimentsCronsBootstrap.service.test.js
+- PR #12 (am/am-734fdc-tgg4qb): fix: await ensureLimiterOverrideExists in rateLimiter check
+    touches: src/middleware/errorCapture.test.js, src/services/blogAutomation.service.test.js, src/services/rateLimiter.service.js
+- PR #11 (am/am-734fdc-tgg2vl): test: add unit tests for blogAutomationConfig.service pure functions
+    touches: src/services/blogAutomationConfig.service.test.js, src/services/pagesContext.service.test.js, src/services/telegram.service.js
+- PR #10 (am/am-734fdc-tgg10w): test: add unit tests for llmConfig.service.js pure functions
+    touches: src/services/experimentsAggregation.service.test.js, src/services/llmConfig.service.test.js, src/services/waitingListPublicExports.service.test.js
+- PR #9 (am/am-734fdc-tgfz68): test: add unit tests for experimentsRetention.service.js
+    touches: src/middleware/org.test.js, src/services/experimentsRetention.service.test.js, src/utils/validation.js, src/utils/validation.test.js
+- PR #8 (am/am-734fdc-tgfxbj): test: add unit tests for sitemap.service.js
+    touches: src/services/llmCall.service.js, src/services/llmCall.service.test.js, src/services/sitemap.service.test.js
+- PR #7 (am/am-734fdc-tgfv08): fix: redact API key from LLM debug log output
+    touches: src/services/llmAdhoc.service.js, src/services/pageRedirects.service.js, src/services/pageRedirects.service.test.js
+
+
+Available CLI tools: gh (GitHub), git, a2a (bus), bash, and standard Unix utilities. NOT available: webfetch, /root/candidates.json access.
+
+== Shared Memory (panel-backed, persistent across workers) ==
+AM_PANEL_URL and AM_AGENT_TOKEN are set in your environment.
+Define these functions in your shell before using memory:
+  mem_read()  { curl -sf "$AM_PANEL_URL/api/agent/memories?repo=734fdc&token=$AM_AGENT_TOKEN"; }
+  mem_save()  { curl -sf -X POST "$AM_PANEL_URL/api/agent/memories/734fdc?token=$AM_AGENT_TOKEN" \
+                     -H 'Content-Type: application/json' \
+                     -d "{\"content\":\"$1\",\"tag\":\"${2:-LESSON}\"}" > /dev/null && echo 'memory saved'; }
+Commands:
+  mem_read                              # read all memories for this repo (JSON)
+  mem_save "INVARIANT: ..." INVARIANT   # save memory with tag
+  mem_save "PATTERN: ..." PATTERN
+  mem_save "LESSON: ..."                # defaults to LESSON tag
+Tags: INVARIANT | PATTERN | LESSON | FIX | ARCHITECTURE
+
+Repo: https://github.com/javimosch/superbackend
+
+A fresh git checkout is already prepared for you at:
+  /root/.automaintainer/work/am-734fdc-tgureu
+It sits on a dedicated branch (am/am-734fdc-tgureu) based on the latest origin/master.
+Do NOT clone the repo. cd into that directory and make all changes there.
+
+!!! CRITICAL: git commit BEFORE marking done !!!
+The automaintainer workflow is:
+  1. cd into the worktree directory above.
+  2. Make your changes.
+  3. git add + git commit with a clear message.
+  4. THEN mark yourself as done on the a2a bus.
+If you mark done without committing, your work is LOST — the worktree is cleaned up after the run.
+Do NOT push or open a PR — automaintainer does that after the run.
+
+== Recently merged work (do NOT repeat or re-review) ==
+  [2026-06-18] [needs work] fix: remove debug console.log from forms.controller.saveForm
+  [2026-06-18] test: add unit tests for adminAgentsChat.controller helpers
+  [2026-06-12] test: add unit tests for orgAdminMembers.controller helpers
+  [2026-06-12] test: add unit tests for adminPlugins.controller
+  [2026-06-12] test: add unit tests for adminBlockDefinitionsAi.controller
+  [2026-06-12] test: add unit tests for adminDataCleanup.controller
+  [2026-06-12] docs: clarify sanitizeString behavior description
+  [2026-06-12] docs: remove broken CONTRIBUTING.md link from README
+
+
+== Current top-level files/dirs in this branch ==
+  .agents
+  .commiat
+  .devin
+  .env.example
+  .gitignore
+  .manage-proxy-file.yml
+  .npmignore
+  .windsurf
+  .windsurfrules
+  AGENTS.md
+  CLAUDE.md
+  Dockerfile
+  GEMINI-flows.md
+  GEMINI.md
+  README.md
+  changelog.md
+  codebase_stats.sh
+  compose.standalone.yml
+  compose.vps.yml
+  compose.yml
+  docs
+  index.js
+  manage.js
+  package-lock.json
+  package.json
+  plugins
+  public
+  ref-microexits
+  scripts
+  sdk
+  server.js
+  src
+  views
+
+
+ASSIGNED OBJECTIVE: 1) Add module.exports._testHelpers = { handleError } at the bottom of src/controllers/adminTerminals.controller.js. 2) Create src/controllers/adminTerminals.helpers.test.js. 3) Test handleError: returns 404 for NOT_FOUND code, 429 for LIMIT code, 500 for other errors, uses error message or fallback. 4) Run jest src/controllers/adminTerminals.helpers.test.js to verify all pass. 5) Commit your work.
+
+----
+WORK ALREADY IN FLIGHT — do not overlap:
+These automaintainer pull requests are already open and awaiting review. Do NOT re-implement, refactor, or restructure the files they touch — pick non-overlapping work, and never recreate a change an open PR already makes. If your objective unavoidably overlaps one of these, choose a different, complementary improvement instead.
+
+- PR #14 (am/am-734fdc-tgg8fo): test: add unit tests for featureFlags.controller.js
+    touches: src/controllers/featureFlags.controller.test.js, src/controllers/fileManagerStoragePolicy.controller.test.js, src/services/experimentsWs.service.js, src/services/experimentsWs.service.test.js
+- PR #13 (am/am-734fdc-tgg6l0): test: add unit tests for jsonConfigs.controller.js
+    touches: src/controllers/jsonConfigs.controller.test.js, src/controllers/registry.controller.test.js, src/services/experimentsCronsBootstrap.service.test.js
+- PR #12 (am/am-734fdc-tgg4qb): fix: await ensureLimiterOverrideExists in rateLimiter check
+    touches: src/middleware/errorCapture.test.js, src/services/blogAutomation.service.test.js, src/services/rateLimiter.service.js
+- PR #11 (am/am-734fdc-tgg2vl): test: add unit tests for blogAutomationConfig.service pure functions
+    touches: src/services/blogAutomationConfig.service.test.js, src/services/pagesContext.service.test.js, src/services/telegram.service.js
+- PR #10 (am/am-734fdc-tgg10w): test: add unit tests for llmConfig.service.js pure functions
+    touches: src/services/experimentsAggregation.service.test.js, src/services/llmConfig.service.test.js, src/services/waitingListPublicExports.service.test.js
+- PR #9 (am/am-734fdc-tgfz68): test: add unit tests for experimentsRetention.service.js
+    touches: src/middleware/org.test.js, src/services/experimentsRetention.service.test.js, src/utils/validation.js, src/utils/validation.test.js
+- PR #8 (am/am-734fdc-tgfxbj): test: add unit tests for sitemap.service.js
+    touches: src/services/llmCall.service.js, src/services/llmCall.service.test.js, src/services/sitemap.service.test.js
+- PR #7 (am/am-734fdc-tgfv08): fix: redact API key from LLM debug log output
+    touches: src/services/llmAdhoc.service.js, src/services/pageRedirects.service.js, src/services/pageRedirects.service.test.js
+
+You MUST complete this objective. Do NOT do unrelated work.
+If blocked, report it — do not switch to other tasks.
+
+Goal: land 1 small, COMMITTED improvement(s). Shipping a small change beats analyzing a big one.
+
+=== CRITICAL WORKING RULES (read first) ===
+- Do NOT over-explore. Orienting is at most ~4-5 commands, then you MUST act.
+- Take the FIRST reasonable small win you find — do not hunt for the 'best' one.
+  A doc/comment clarification, a tiny fix, or one small test is a perfectly good win.
+- HARD RULE: you MUST have made your first git commit by roughly your 8th tool call.
+  If you are still exploring by then, STOP exploring and commit the simplest safe
+  improvement you can make right now.
+- Commit each change as you go (don't batch). Then optionally do one more.
+
+=== PROCEDURE ===
+  0. READ SHARED MEMORY (one call), then stop reading memory:
+     mem_read()  { curl -sf "$AM_PANEL_URL/api/agent/memories?repo=734fdc&token=$AM_AGENT_TOKEN"; }
+     mem_read   # look for INVARIANT entries — respect them
+  1. You are working solo (no architect on this team) — analyze the repo
+     and focus area yourself, then proceed directly to implementation.
+  2. Make ONE concrete change with the Edit/Write tool, then COMMIT it immediately
+     using Conventional Commits:
+     - Prefix: fix:/feat:/chore:/refactor:/docs:/test: + optional scope
+     - Summary: imperative, lowercase, no period, <=72 chars; body explains WHY.
+     - Reference issues with 'Fixes #N' when relevant.
+     Run: git add -A && git commit -m "<message>"
+  3. Write a 2-4 sentence human-facing PR summary (WHAT + WHY) to .am-summary:
+     echo "<summary>" > .am-summary   # do NOT git add it
+  4. Save any durable learning to shared memory:
+     mem_save "LESSON: <what you learned>"
+     mem_save "INVARIANT: <rule that must never be broken>" INVARIANT
+  5. Announce completion: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a send all "Dev done: <summary of commits>" --from dev
+  6. Wait for QA feedback (check: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a recv --as dev --wait 30)
+  7. If QA flags issues, fix them with a follow-up commit, then notify QA.
+  8. Only after QA is satisfied: a2a status done --as dev
+Do NOT mark done before QA has reviewed your work.
+
+
+A2A=$(command -v a2a 2>/dev/null)
+[ -z "A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a" ] && [ -x "$HOME/.local/bin/a2a" ] && A2A="$HOME/.local/bin/a2a"
+[ -z "A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a" ] && [ -x "$HOME/.agents/skills/a2a/a2a" ] && A2A="$HOME/.agents/skills/a2a/a2a"
+
+A2A_PROJECT=am-734fdc-tgureu is already in the environment.
+The a2a bus is already initialized and you are already registered as "dev".
+
+== Peers on the bus ==
+[{"cli":"","id":"dev","pid":null,"role":"dev","status":"active"},{"cli":"","id":"qa","pid":null,"role":"qa","status":"active"}]
+
+== Communication Instructions ==
+Use your shell tool to execute these a2a commands:
+1. Check who else is on the bus: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a list --json
+2. Introduce yourself: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a send all "I am dev, ready to work" --from dev
+3. Check for messages (blocks up to 30s): A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a recv --as dev --wait 30
+4. Send to a peer: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a send <peer-id> "your message" --from dev
+5. Broadcast: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a send all "your message" --from dev
+6. Mark done when your goal is complete: A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a status done --as dev
+
+== Your Work Loop ==
+1. Check for messages with A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a recv --as dev --wait 30
+2. If you receive a message, respond appropriately
+3. If no messages and you have work to do, broadcast your progress
+4. When you complete your goal, run A2A_PROJECT=am-734fdc-tgureu /root/.local/bin/a2a status done --as dev
