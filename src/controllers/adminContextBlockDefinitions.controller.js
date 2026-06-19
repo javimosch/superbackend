@@ -139,3 +139,5 @@ exports.remove = async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete context block definition' });
   }
 };
+
+module.exports._testHelpers = { parseBool, normalizeCode, normalizeProps, normalizeType };
