@@ -2,11 +2,12 @@ const { proposeComponentEdit } = require('../services/uiComponentsAi.service');
 const { getBasicAuthActor } = require('../services/audit.service');
 
 function handleError(res, err) {
-  const code = err && err.code;
-  if (code === 'VALIDATION') return res.status(400).json({ error: err.message });
-  if (code === 'NOT_FOUND') return res.status(404).json({ error: err.message });
-  if (code === 'AI_INVALID') return res.status(500).json({ error: err.message });
-  return res.status(500).json({ error: err.message || 'Operation failed' });
+  const msg = err?.message || 'Operation failed';
+  const code = err?.code;
+  if (code === 'VALIDATION') return res.status(400).json({ error: msg });
+  if (code === 'NOT_FOUND') return res.status(404).json({ error: msg });
+  if (code === 'AI_INVALID') return res.status(500).json({ error: msg });
+  return res.status(500).json({ error: msg });
 }
 
 exports.propose = async (req, res) => {
@@ -32,3 +33,5 @@ exports.propose = async (req, res) => {
     return handleError(res, err);
   }
 };
+
+module.exports._testHelpers = { handleError };
