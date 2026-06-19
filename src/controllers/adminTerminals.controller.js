@@ -37,3 +37,5 @@ exports.killSession = async (req, res) => {
     handleError(res, err);
   }
 };
+
+module.exports._testHelpers = { handleError };
