@@ -15,7 +15,7 @@ function toSafeJsonError(error) {
 }
 
 function isValidObjectId(id) {
-  return id && mongoose.Types.ObjectId.isValid(String(id));
+  return !!(id && mongoose.Types.ObjectId.isValid(String(id)));
 }
 
 function normalizeVariant(v) {
@@ -198,3 +198,5 @@ exports.getMetrics = async (req, res) => {
     return res.status(safe.status).json(safe.body);
   }
 };
+
+module.exports._testHelpers = { toSafeJsonError, isValidObjectId, normalizeVariant, normalizeMetric };
