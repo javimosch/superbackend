@@ -142,6 +142,18 @@ describe('Auth Middleware', () => {
       expect(mockRes.json).toHaveBeenCalledWith({ error: 'Invalid credentials' });
     });
 
+    test('should authenticate with password containing colon', () => {
+      process.env.ADMIN_PASSWORD = 'test:pass:with:colons';
+      const credentials = Buffer.from('testadmin:test:pass:with:colons').toString('base64');
+      mockReq.headers.authorization = `Basic ${credentials}`;
+
+      basicAuth(mockReq, mockRes, mockNext);
+
+      expect(mockNext).toHaveBeenCalled();
+      expect(mockRes.status).not.toHaveBeenCalled();
+      process.env.ADMIN_PASSWORD = 'testpass'; // restore
+    });
+
     test('should return 401 when no credentials configured', () => {
       delete process.env.ADMIN_USERNAME;
       delete process.env.ADMIN_PASSWORD;

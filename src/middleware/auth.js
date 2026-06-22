@@ -38,7 +38,9 @@ const basicAuth = (req, res, next) => {
   const credentials = Buffer.from(authHeader.substring(6), "base64").toString(
     "utf-8",
   );
-  const [username, password] = credentials.split(":");
+  const colonIndex = credentials.indexOf(":");
+  const username = colonIndex >= 0 ? credentials.substring(0, colonIndex) : credentials;
+  const password = colonIndex >= 0 ? credentials.substring(colonIndex + 1) : "";
 
   // Use res.locals.adminCredentials (set by middleware), then fall back to process.env
   const adminUsername = res.locals.adminCredentials?.adminUsername || process.env.ADMIN_USERNAME;
