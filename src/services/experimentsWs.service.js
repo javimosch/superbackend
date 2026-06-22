@@ -6,7 +6,8 @@ const subscribersByCode = new Map(); // experimentCode -> Set<ws>
 function safeSend(ws, payload) {
   try {
     ws.send(JSON.stringify(payload));
-  } catch {
+  } catch (err) {
+    console.error('[ExperimentsWS] safeSend error:', err?.message || err);
   }
 }
 
@@ -56,7 +57,8 @@ function attachExperimentsWebsocketServer(server) {
       let msg;
       try {
         msg = JSON.parse(String(raw || ''));
-      } catch {
+      } catch (err) {
+        console.error('[ExperimentsWS] invalid message:', err?.message || err);
         return;
       }
 
