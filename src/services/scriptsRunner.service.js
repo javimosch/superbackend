@@ -346,7 +346,9 @@ async function runSpawned({ runId, bus, command, args, env, cwd, timeoutMs }) {
     const killTimer = setTimeout(() => {
       try {
         child.kill('SIGKILL');
-      } catch {}
+      } catch (e) {
+        console.error('[ScriptsRunner] Failed to kill child process:', e?.message || e);
+      }
     }, timeoutMs);
     killTimer.unref();
 
