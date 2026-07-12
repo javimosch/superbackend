@@ -33,7 +33,8 @@ router.all('/*', async (req, res) => {
       if (v === undefined || v === null) continue;
       try {
         res.setHeader(k, v);
-      } catch {
+      } catch (e) {
+        console.error('[Proxy] Failed to set response header:', e?.message || e);
       }
     }
 
