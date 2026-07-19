@@ -308,7 +308,9 @@ async function streamAdhoc(
               if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('[llmStream] Error processing stream chunk:', e?.message || e);
+        }
       }
     });
 
