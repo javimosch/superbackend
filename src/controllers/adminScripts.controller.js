@@ -78,15 +78,7 @@ exports.getScript = async (req, res) => {
 exports.createScript = async (req, res) => {
   let created = null;
   try {
-    console.log('[createScript] Starting script creation...');
-    console.log('[createScript] Request body keys:', Object.keys(req.body || {}));
-    
     const payload = req.body || {};
-    console.log('[createScript] Payload name:', payload.name);
-    console.log('[createScript] Payload type:', payload.type);
-    console.log('[createScript] Payload runner:', payload.runner);
-    console.log('[createScript] Script length:', (payload.script || '').length);
-    console.log('[createScript] Script format:', payload.scriptFormat);
 
     // Handle script content encoding
     let scriptContent = String(payload.script || '');
@@ -95,16 +87,13 @@ exports.createScript = async (req, res) => {
     // Auto-detect base64 if not specified and content looks like base64
     if (scriptFormat === 'string' && isBase64(scriptContent)) {
       scriptFormat = 'base64';
-      console.log('[createScript] Auto-detected base64 format');
     }
 
     // Validate base64 content if format is base64
     if (scriptFormat === 'base64' && !isValidBase64(scriptContent)) {
-      console.log('[createScript] Invalid base64 content detected');
       throw new Error('Invalid base64 script content');
     }
 
-    console.log('[createScript] About to create ScriptDefinition...');
     const doc = await ScriptDefinition.create({
       name: String(payload.name || '').trim(),
       codeIdentifier: String(payload.codeIdentifier || '').trim(),
@@ -118,13 +107,9 @@ exports.createScript = async (req, res) => {
       timeoutMs: payload.timeoutMs === undefined ? undefined : Number(payload.timeoutMs),
       enabled: payload.enabled === undefined ? true : Boolean(payload.enabled),
     });
-    
-    console.log('[createScript] ScriptDefinition created successfully');
 
     created = doc.toObject();
-    console.log('[createScript] About to create audit entry...');
-    console.log('[createScript] Script created successfully:', { name: created.name, id: created._id });
-    
+
     logAuditSync({
       req,
       action: 'scripts.create',
@@ -133,33 +118,20 @@ exports.createScript = async (req, res) => {
       entityId: created._id,
       data: { name: created.name },
     });
-    
-    console.log('[createScript] About to send response...');
+
     res.status(201).json({ item: doc.toObject() });
-    console.log('[createScript] Response sent successfully');
   } catch (err) {
-    console.log('[createScript] ERROR occurred:', err);
-    console.log('[createScript] ERROR stack:', err.stack);
-    console.log('[createScript] ERROR message:', err.message);
-    console.log('[createScript] ERROR code:', err.code);
-    
-    console.log('[createScript] Script creation failed:', { error: err?.message || 'Operation failed' });
     const safe = toSafeJsonError(err);
-    console.log('[createScript] Safe error:', safe);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.updateScript = async (req, res) => {
-  let before = null;
-  let after = null;
   try {
     const payload = req.body || {};
 
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
-
-    before = doc.toObject();
 
     // Handle script content encoding
     if (payload.script !== undefined) {
@@ -193,52 +165,36 @@ exports.updateScript = async (req, res) => {
     if (payload.enabled !== undefined) doc.enabled = Boolean(payload.enabled);
 
     await doc.save();
-    after = doc.toObject();
-    console.log('[updateScript] Script updated successfully:', { name: after.name, id: after._id });
     res.json({ item: doc.toObject() });
   } catch (err) {
-    console.log('[updateScript] ERROR occurred:', err);
-    console.log('[updateScript] ERROR message:', err.message);
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.deleteScript = async (req, res) => {
-  let before = null;
   try {
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
-    before = doc.toObject();
     await doc.deleteOne();
 
-    console.log('[deleteScript] Script deleted successfully:', { name: before.name, id: before._id });
     res.json({ ok: true });
   } catch (err) {
-    console.log('[deleteScript] ERROR occurred:', err);
-    console.log('[deleteScript] ERROR message:', err.message);
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }
 };
 
 exports.runScript = async (req, res) => {
-  let script = null;
   try {
     const doc = await ScriptDefinition.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Not found' });
     if (!doc.enabled) return res.status(400).json({ error: 'Script is disabled' });
 
-    script = doc.toObject();
-
     const runDoc = await startRun(doc, { trigger: 'manual', meta: { actorType: 'basicAuth' } });
-
-    console.log('[runScript] Script executed successfully:', { name: script.name, runId: runDoc._id });
 
     res.json({ runId: String(runDoc._id) });
   } catch (err) {
-    console.log('[runScript] ERROR occurred:', err);
-    console.log('[runScript] ERROR message:', err.message);
     const safe = toSafeJsonError(err);
     res.status(safe.status).json(safe.body);
   }

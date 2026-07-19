@@ -104,7 +104,6 @@ const registerUser = asyncHandler(async (req, res) => {
           roleId: rbacRole._id
         });
         await userRoleAssignment.save();
-        console.log(`Assigned RBAC role '${role}' to user ${user.email}`);
       } else {
         console.warn(`RBAC role '${role}' not found, user created without RBAC role assignment`);
       }
@@ -113,9 +112,6 @@ const registerUser = asyncHandler(async (req, res) => {
       // Don't fail the user creation if RBAC assignment fails
     }
   }
-
-  // Log the admin action
-  console.log(`Admin registered new user: ${user.email} with role: ${user.role}`);
 
   res.status(201).json({
     success: true,
@@ -444,9 +440,6 @@ const deleteUser = asyncHandler(async (req, res) => {
   // 5. Delete user
   await User.findByIdAndDelete(userId);
   
-  // 6. Log action
-  console.log(`Admin deleted user: ${user.email} (${userId})`);
-  
   res.json({ message: 'User deleted successfully' });
 });
 
@@ -466,12 +459,10 @@ async function cleanupUserData(userId) {
       if (memberCount === 0) {
         // Delete organization if no other members
         await Organization.findByIdAndDelete(org._id);
-        console.log(`Deleted organization ${org.name} (${org._id}) - no other members`);
       } else {
         // Remove owner but keep organization
         org.ownerUserId = null;
         await org.save();
-        console.log(`Removed owner from organization ${org.name} (${org._id}) - has other members`);
       }
     }
     
@@ -490,8 +481,6 @@ async function cleanupUserData(userId) {
     await FormSubmission.deleteMany({ userId: userId });
     
     // Note: We keep ActivityLog and AuditEvent for audit purposes
-    
-    console.log(`Completed cleanup for user ${userId}`);
   } catch (error) {
     console.error('Error during user cleanup:', error);
     throw error;
