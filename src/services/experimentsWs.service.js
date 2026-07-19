@@ -6,7 +6,8 @@ const subscribersByCode = new Map(); // experimentCode -> Set<ws>
 function safeSend(ws, payload) {
   try {
     ws.send(JSON.stringify(payload));
-  } catch {
+  } catch (e) {
+    console.error('[experiments-ws] Failed to send WebSocket message:', e?.message || e);
   }
 }
 
@@ -56,7 +57,8 @@ function attachExperimentsWebsocketServer(server) {
       let msg;
       try {
         msg = JSON.parse(String(raw || ''));
-      } catch {
+      } catch (e) {
+        console.error('[experiments-ws] Failed to parse message frame:', e?.message || e);
         return;
       }
 
