@@ -363,9 +363,9 @@ img { display: block; width: ${safeWidth}px; height: ${safeHeight}px; }
     err.code = 'NO_CONVERTER';
     throw err;
   } finally {
-    try { fs.unlinkSync(tmpSvg); } catch {}
-    try { fs.unlinkSync(tmpHtml); } catch {}
-    try { fs.unlinkSync(tmpPng); } catch {}
+    try { fs.unlinkSync(tmpSvg); } catch (e) { console.error('[seoConfig] Failed to remove temp SVG:', e?.message || e); }
+    try { fs.unlinkSync(tmpHtml); } catch (e) { console.error('[seoConfig] Failed to remove temp HTML:', e?.message || e); }
+    try { fs.unlinkSync(tmpPng); } catch (e) { console.error('[seoConfig] Failed to remove temp PNG:', e?.message || e); }
   }
 }
 
