@@ -7,7 +7,6 @@ if (process.env.NODE_ENV !== "test" && !process.env.JEST_WORKER_ID) {
   setTimeout(() => {
     consoleManager.setModulePrefix('middleware');
     consoleManager.init();
-    console.log("[Console Manager] Initialized - prefixing enabled");
   }, 20);
 }
 
@@ -48,21 +47,16 @@ let errorCaptureInitialized = false;
 async function isConsoleManagerEnabled() {
   const envEnabled = process.env.CONSOLE_MANAGER_ENABLED;
   if (envEnabled !== undefined) {
-    const enabled = String(envEnabled).toLowerCase() !== 'false';
-    console.log(`[Console Manager] Environment variable CONSOLE_MANAGER_ENABLED=${envEnabled}, ${enabled ? 'enabled' : 'disabled'}`);
-    return enabled;
+    return String(envEnabled).toLowerCase() !== 'false';
   }
   try {
     const enabledRaw = await globalSettingsService.getSettingValue(
       "CONSOLE_MANAGER_ENABLED",
       "true"
     );
-    const enabled = String(enabledRaw) === "true";
-    console.log(`[Console Manager] Global setting CONSOLE_MANAGER_ENABLED=${enabledRaw}, ${enabled ? 'enabled' : 'disabled'}`);
-    return enabled;
+    return String(enabledRaw) === "true";
   } catch (error) {
     console.error("[Console Manager] Error loading global setting:", error);
-    console.log("[Console Manager] Fallback to enabled due to error");
     return true;
   }
 }
