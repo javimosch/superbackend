@@ -380,3 +380,5 @@ exports.deleteAuthoringSession = async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete authoring session' });
   }
 };
+
+module.exports._testHelpers = { randomLowerAlphaNum, normalizeStylePreset, normalizeStyleOverrides, generateProjectId, generateDemoId, parseBool, addQueryParam };
