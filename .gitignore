@@ -16,3 +16,4 @@ plugins/*
 !plugins/core-/
 !plugins/core-*
 .devin/
+.am-summary
