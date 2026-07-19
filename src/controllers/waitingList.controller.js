@@ -256,8 +256,6 @@ exports.bulkRemove = async (req, res) => {
     // Force clear cache after all removals
     await clearWaitingListCache();
 
-    console.log(`[BulkRemove] Removed ${removed.length} entries, ${notFound.length} not found`);
-
     res.json({
       message: `Successfully removed ${removed.length} entr${removed.length === 1 ? 'y' : 'ies'}`,
       removed: {
