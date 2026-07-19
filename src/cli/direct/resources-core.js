@@ -78,7 +78,9 @@ const settings = {
         let parsedValue = options.value;
         try {
           parsedValue = JSON.parse(options.value);
-        } catch (e) {}
+        } catch (e) {
+          console.error('[resources-core] Failed to parse value as JSON:', e?.message || e);
+        }
         const setting = await GlobalSetting.create({
           key: options.key,
           value: parsedValue,
