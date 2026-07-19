@@ -101,7 +101,6 @@ function _detectBackendType() {
 }
 
 const _selectedBackendType = _detectBackendType();
-console.log(`[terminals] PTY backend: ${_selectedBackendType}`);
 
 function _createBackend(shell, cols, rows, backendType) {
   const type = backendType || _selectedBackendType;
