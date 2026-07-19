@@ -207,13 +207,13 @@ exports.adminList = async (req, res) => {
 
     const submissions = await FormSubmission.find(query)
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit))
-      .skip(parseInt(offset))
+      .limit(parseInt(limit, 10))
+      .skip(parseInt(offset, 10))
       .lean();
 
     const total = await FormSubmission.countDocuments(query);
 
-    return res.json({ submissions, pagination: { total, limit: parseInt(limit), offset: parseInt(offset) } });
+    return res.json({ submissions, pagination: { total, limit: parseInt(limit, 10), offset: parseInt(offset, 10) } });
   } catch (error) {
     console.error('Form admin list error:', error);
     return res.status(500).json({ error: 'Failed to list submissions' });
