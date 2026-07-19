@@ -150,8 +150,6 @@ exports.createOrganization = async (req, res) => {
       settings: {}
     });
     
-    console.log(`Admin created organization: ${org.name} (${org._id}) with owner: ${ownerId}`);
-    
     res.status(201).json({ 
       message: 'Organization created successfully',
       org: org.toObject() 
@@ -220,8 +218,6 @@ exports.updateOrganization = async (req, res) => {
     
     await org.save();
     
-    console.log(`Admin updated organization: ${org.name} (${org._id})`);
-    
     res.json({ 
       message: 'Organization updated successfully',
       org: org.toObject() 
@@ -251,8 +247,6 @@ exports.disableOrganization = async (req, res) => {
     
     org.status = 'disabled';
     await org.save();
-    
-    console.log(`Admin disabled organization: ${org.name} (${org._id})`);
     
     res.json({ 
       message: 'Organization disabled successfully',
@@ -284,8 +278,6 @@ exports.enableOrganization = async (req, res) => {
     org.status = 'active';
     await org.save();
     
-    console.log(`Admin enabled organization: ${org.name} (${org._id})`);
-    
     res.json({ 
       message: 'Organization enabled successfully',
       org: org.toObject() 
@@ -312,8 +304,6 @@ exports.deleteOrganization = async (req, res) => {
     await cleanupOrganizationData(orgId);
     await Organization.findByIdAndDelete(orgId);
     
-    console.log(`Admin deleted organization: ${org.name} (${org._id})`);
-    
     res.json({ message: 'Organization deleted successfully' });
   } catch (error) {
     console.error('Delete organization error:', error);
@@ -328,7 +318,6 @@ async function cleanupOrganizationData(orgId) {
     await Asset.deleteMany({ ownerUserId: { $in: await getOrganizationUserIds(orgId) } });
     await Notification.deleteMany({ userId: { $in: await getOrganizationUserIds(orgId) } });
     
-    console.log(`Completed cleanup for organization ${orgId}`);
   } catch (error) {
     console.error('Error during organization cleanup:', error);
     throw error;
