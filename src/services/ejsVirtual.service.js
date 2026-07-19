@@ -629,7 +629,7 @@ async function renderToString(res, viewPath, data = {}, options = {}) {
           return { filename: incAbs };
         }
       } catch (e) {
-        // ignore errors
+        console.error('[ejsVirtual] Failed to resolve include from filesystem fallback:', e);
       }
       
       // If it doesn't exist anywhere, return a comment instead of crashing
