@@ -188,11 +188,6 @@ function createMiddleware(options = {}) {
     next();
   });
 
-  console.log("[Middleware Debug] Received options:", {
-    telegramEnabled: options.telegram?.enabled,
-    cronEnabled: options.cron?.enabled
-  });
-
   const mongoUri = options.mongodbUri || process.env.MONGODB_URI || process.env.MONGO_URI;
 
   if (!mongoUri && mongoose.connection.readyState !== 1) {
