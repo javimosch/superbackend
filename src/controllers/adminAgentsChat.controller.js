@@ -135,23 +135,19 @@ exports.streamMessage = async (req, res) => {
 exports.loadSessionMessages = async (req, res) => {
   try {
     const { chatId } = req.params;
-    console.log('[loadSessionMessages] Loading messages for chatId:', chatId);
     if (!chatId) return res.status(400).json({ error: 'chatId is required' });
 
-    const doc = await JsonConfig.findOne({ 
+    const doc = await JsonConfig.findOne({
       'jsonRaw.id': chatId,
       alias: { $regex: /^agent-session-/ }
     }).lean();
-    
-    console.log('[loadSessionMessages] Found document:', !!doc);
 
     if (!doc) return res.status(404).json({ error: 'Session not found' });
 
     const parsed = safeParse(doc.jsonRaw, {});
     const messages = parsed.messages || [];
-    console.log('[loadSessionMessages] Messages count:', messages.length);
 
-    return res.json({ 
+    return res.json({
       chatId: parsed.id,
       agentId: parsed.agentId,
       label: parsed.label,
