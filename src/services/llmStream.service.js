@@ -125,6 +125,7 @@ async function stream(promptKey, variables = {}, runtimeOptions = {}, { onToken 
               onToken(text, parsed);
             }
           } catch (e) {
+            console.error('[llmStream] Error parsing stream chunk:', e?.message || e);
           }
         }
       });
