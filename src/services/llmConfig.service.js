@@ -101,10 +101,12 @@ async function loadConfig() {
           }
           providers[providerKey].apiKey = apiKey;
         } catch (e) {
+          console.error('[llmConfig] Failed to load provider API key:', e);
         }
       }
     }
   } catch (e) {
+    console.error('[llmConfig] Failed to load encrypted provider API keys:', e);
   }
 
   cache = { providers, prompts, ts: now };
@@ -254,6 +256,7 @@ async function logAuditEntry({
     });
     await event.save();
   } catch (e) {
+    console.error('[llmConfig] Failed to log audit entry:', e);
   }
 }
 
