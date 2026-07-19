@@ -85,7 +85,6 @@ const handleWebhook = async (req, res) => {
     // Check if webhook event already exists
     const existingEvent = await StripeWebhookEvent.findOne({ stripeEventId: event.id });
     if (existingEvent) {
-      console.log(`Webhook event ${event.id} already processed with status: ${existingEvent.status}`);
       return res.json({ received: true, status: 'duplicate' });
     }
 
@@ -139,7 +138,6 @@ const handleWebhook = async (req, res) => {
         break;
       
       default:
-        console.log(`Unhandled event type: ${event.type}`);
     }
 
     // Update webhook event status to processed
