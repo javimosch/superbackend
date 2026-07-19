@@ -115,7 +115,7 @@ async function init() {
       try {
         await startBot(botDoc._id);
       } catch (err) {
-        // Continue with other bots
+        console.error(`Failed to start Telegram bot ${botDoc.name || botDoc._id} during init:`, err);
       }
     }
   } catch (err) {
