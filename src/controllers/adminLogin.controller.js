@@ -108,14 +108,11 @@ const postLogin = asyncHandler(async (req, res) => {
           hasAdminAccess = grants.some(grant => 
             matches('admin_panel__login', grant.right)
           );
-          
-          console.log(`RBAC check for user ${user.email}: role=${userRole.key}, grants=${grants.length}, hasAccess=${hasAdminAccess}`);
         }
       }
       
       // Phase 2: Fallback to IAM role for backward compatibility
       if (!hasAdminAccess && ['admin', 'superadmin'].includes(user.role)) {
-        console.log(`Fallback to IAM role for user ${user.email}: role=${user.role}`);
         hasAdminAccess = true; // Admin and superadmin roles get panel access
       }
       
