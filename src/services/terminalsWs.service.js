@@ -57,7 +57,9 @@ function attachTerminalWebsocketServer(server, options = {}) {
     const onData = (data) => {
       try {
         ws.send(JSON.stringify({ type: 'output', data: String(data || '') }));
-      } catch {}
+      } catch (e) {
+        console.error('[terminals-ws] Failed to send terminal output to WebSocket:', e?.message || e);
+      }
     };
 
     s.pty.onData(onData);
@@ -96,14 +98,18 @@ function attachTerminalWebsocketServer(server, options = {}) {
       console.log(`[Terminals] WebSocket closed for session ${sessionId}, code: ${code}, reason: ${reason}`);
       try {
         s.pty.offData(onData);
-      } catch {}
+      } catch (e) {
+        console.error('[terminals-ws] Failed to remove terminal data listener:', e?.message || e);
+      }
     });
 
     ws.on('error', (error) => {
       console.error(`[Terminals] WebSocket error for session ${sessionId}:`, error);
       try {
         s.pty.offData(onData);
-      } catch {}
+      } catch (e) {
+        console.error('[terminals-ws] Failed to remove terminal data listener:', e?.message || e);
+      }
     });
 
     // Set up connection timeout detection

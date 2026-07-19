@@ -27,7 +27,7 @@ class NodePtyBackend {
   resize(cols, rows) { this._pty.resize(cols, rows); }
   kill() { this._pty.kill(); }
   onData(cb) { this._pty.onData(cb); }
-  offData(cb) { try { this._pty.offData(cb); } catch {} }
+  offData(cb) { try { this._pty.offData(cb); } catch (e) { console.error('[terminals] Failed to remove PTY data listener:', e?.message || e); } }
   onExit(cb) { this._pty.onExit(cb); }
 }
 
@@ -48,16 +48,18 @@ class StdPtyBackend {
     this._proc.on('exit', (code) => this._exitCallbacks.forEach((cb) => cb({ exitCode: code })));
   }
 
-  write(data) { try { this._proc.stdin.write(String(data || '')); } catch {} }
+  write(data) { try { this._proc.stdin.write(String(data || '')); } catch (e) { console.error('[terminals] Failed to write to PTY stdin:', e?.message || e); } }
 
   resize(cols, rows) {
     try {
       process.kill(this._proc.pid, 'SIGWINCH');
       this._proc.env = { ...this._proc.env, COLUMNS: String(cols), LINES: String(rows) };
-    } catch {}
+    } catch (e) {
+      console.error('[terminals] Failed to resize PTY:', e?.message || e);
+    }
   }
 
-  kill() { try { this._proc.kill(); } catch {} }
+  kill() { try { this._proc.kill(); } catch (e) { console.error('[terminals] Failed to kill PTY process:', e?.message || e); } }
   onData(cb) { this._dataCallbacks.push(cb); }
   offData(cb) { this._dataCallbacks = this._dataCallbacks.filter((f) => f !== cb); }
   onExit(cb) { this._exitCallbacks.push(cb); }
@@ -80,9 +82,9 @@ class BasicSpawnBackend {
     this._proc.on('exit', (code) => this._exitCallbacks.forEach((cb) => cb({ exitCode: code })));
   }
 
-  write(data) { try { this._proc.stdin.write(String(data || '')); } catch {} }
+  write(data) { try { this._proc.stdin.write(String(data || '')); } catch (e) { console.error('[terminals] Failed to write to PTY stdin:', e?.message || e); } }
   resize() {}
-  kill() { try { this._proc.kill(); } catch {} }
+  kill() { try { this._proc.kill(); } catch (e) { console.error('[terminals] Failed to kill PTY process:', e?.message || e); } }
   onData(cb) { this._dataCallbacks.push(cb); }
   offData(cb) { this._dataCallbacks = this._dataCallbacks.filter((f) => f !== cb); }
   onExit(cb) { this._exitCallbacks.push(cb); }
@@ -195,7 +197,9 @@ function resizeSession(sessionId, cols, rows) {
   s.lastActivityAt = now();
   try {
     s.backend.resize(c, r);
-  } catch {}
+  } catch (e) {
+    console.error('[terminals] Failed to resize terminal session:', e?.message || e);
+  }
 }
 
 function writeSession(sessionId, data) {
@@ -204,7 +208,9 @@ function writeSession(sessionId, data) {
   s.lastActivityAt = now();
   try {
     s.backend.write(String(data || ''));
-  } catch {}
+  } catch (e) {
+    console.error('[terminals] Failed to write to terminal session:', e?.message || e);
+  }
 }
 
 function killSession(sessionId) {
@@ -217,7 +223,9 @@ function killSession(sessionId) {
 
   try {
     s.backend.kill();
-  } catch {}
+  } catch (e) {
+    console.error('[terminals] Failed to kill terminal session:', e?.message || e);
+  }
 
   sessions.delete(String(sessionId));
   return { ok: true };
@@ -229,7 +237,9 @@ function cleanupIdleSessions() {
     if (s.lastActivityAt < cutoff) {
       try {
         s.backend.kill();
-      } catch {}
+      } catch (e) {
+        console.error('[terminals] Failed to kill idle terminal session:', e?.message || e);
+      }
       sessions.delete(id);
     }
   }
