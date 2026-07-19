@@ -366,3 +366,5 @@ exports.importComponents = async (req, res) => {
     return res.status(500).json({ error: 'Failed to import components' });
   }
 };
+
+module.exports._testHelpers = { randomLowerAlphaNum, generateProjectId, parseBool };
