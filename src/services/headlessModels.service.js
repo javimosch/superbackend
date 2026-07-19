@@ -147,11 +147,11 @@ async function ensureIndexesBestEffort(Model) {
       try {
         await Model.collection.createIndex(fields, options || {});
       } catch (e) {
-        // best-effort
+        console.error('[headlessModels] Failed to create index:', e);
       }
     }
   } catch (e) {
-    // best-effort
+    console.error('[headlessModels] Failed to ensure indexes:', e);
   }
 }
 
