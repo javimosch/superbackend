@@ -36,7 +36,6 @@ class FormsService {
    * Save a form definition
    */
   async saveForm(formData) {
-    console.log('[FormsService] saveForm start', formData);
     let config = await JsonConfig.findOne({ slug: 'form-definitions' });
     
     let forms = [];
@@ -76,7 +75,6 @@ class FormsService {
       // Since createJsonConfig handles unique slug generation, we set alias to 'form-definitions'.
     }
 
-    console.log('[FormsService] Form definition saved');
     return formData;
   }
 
