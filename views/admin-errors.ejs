@@ -171,7 +171,9 @@ client.init();</code></pre>
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to copy error snippet:', e);
+      }
     }
 
     async function loadStats() {
@@ -181,7 +183,9 @@ client.init();</code></pre>
         const stats = await res.json();
         document.getElementById('stat-open').textContent = stats.open ?? 0;
         document.getElementById('stat-24h').textContent = stats.last24h ?? 0;
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to load error stats:', e);
+      }
     }
 
     async function loadErrors() {
