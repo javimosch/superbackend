@@ -30,3 +30,5 @@ exports.list = async (req, res) => {
     return handleError(res, error);
   }
 };
+
+module.exports._testHelpers = { handleError };

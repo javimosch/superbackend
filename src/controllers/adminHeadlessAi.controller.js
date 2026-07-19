@@ -184,3 +184,10 @@ function extractJsonBlock(text) {
   }
   return null;
 }
+
+module.exports._testHelpers = {
+  toSafeJsonError,
+  handleServiceError,
+  validateDefinitionShape,
+  extractJsonBlock,
+};
