@@ -137,8 +137,8 @@ async function getAdapter(connectionId) {
   if (cached?.adapter?.close) {
     try {
       await cached.adapter.close();
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('[dbBrowser] Failed to close stale adapter:', e?.message || e);
     }
   }
 
@@ -481,8 +481,8 @@ async function deleteConnection(connectionId) {
   if (cached?.adapter?.close) {
     try {
       await cached.adapter.close();
-    } catch {
-      // ignore
+    } catch (e) {
+      console.error('[dbBrowser] Failed to close deleted connection adapter:', e?.message || e);
     }
   }
   adapterCache.delete(String(connectionId));

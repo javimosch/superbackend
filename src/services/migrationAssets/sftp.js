@@ -30,8 +30,8 @@ async function createSftpEndpoint({ host, port, username, privateKeyPem, passphr
   async function end() {
     try {
       await client.end();
-    } catch (_) {
-      // ignore
+    } catch (e) {
+      console.error('[migration:sftp] Failed to close SFTP client:', e?.message || e);
     }
   }
 
