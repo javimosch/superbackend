@@ -78,7 +78,9 @@ export function createErrorTrackingClient(options) {
       try {
         const auth = getter();
         if (auth) headers.authorization = auth;
-      } catch (e) {}
+      } catch (e) {
+        console.error('[error-tracking] Failed to get auth header:', e?.message || e);
+      }
     }
 
     return headers;
@@ -94,7 +96,9 @@ export function createErrorTrackingClient(options) {
           const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
           const ok = navigator.sendBeacon(endpoint, blob);
           if (ok) return;
-        } catch (e) {}
+        } catch (e) {
+          console.error('[error-tracking] Failed to send error via sendBeacon:', e?.message || e);
+        }
       }
 
       const xhr = new XMLHttpRequest();
@@ -104,7 +108,9 @@ export function createErrorTrackingClient(options) {
         if (headers[k] != null) xhr.setRequestHeader(k, String(headers[k]));
       });
       xhr.send(JSON.stringify(payload));
-    } catch (e) {}
+    } catch (e) {
+      console.error('[error-tracking] Failed to send error via XHR:', e?.message || e);
+    }
   }
 
   function normalizeErrorReason(reason) {
@@ -183,7 +189,9 @@ export function createErrorTrackingClient(options) {
               });
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('[error-tracking] Failed to instrument fetch response:', e?.message || e);
+        }
         return response;
       }).catch((err) => {
         try {
@@ -202,7 +210,9 @@ export function createErrorTrackingClient(options) {
               runtime: getRuntime(),
             });
           }
-        } catch (e) {}
+        } catch (e) {
+          console.error('[error-tracking] Failed to instrument fetch error:', e?.message || e);
+        }
         throw err;
       });
     };
@@ -261,7 +271,9 @@ export function createErrorTrackingClient(options) {
     try {
       window.fetch = state.originalFetch || window.fetch;
       state.originalFetch = null;
-    } catch (e) {}
+    } catch (e) {
+      console.error('[error-tracking] Failed to restore original fetch:', e?.message || e);
+    }
 
     state.initialized = false;
   }

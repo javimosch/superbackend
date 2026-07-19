@@ -549,9 +549,6 @@
           showToast(`JWT for ${email} copied to clipboard!`, 'success');
         }
         
-        // Also log the token for debugging (in production, you might want to remove this)
-        console.log(`Generated JWT for ${email}:`, data.token);
-        
       } catch (e) { 
         showToast(e.message || 'Failed to generate JWT', 'error'); 
       }

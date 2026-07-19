@@ -131,8 +131,6 @@
 
         try {
           const wsUrl = baseWsUrl() + '/api/admin/terminals/ws?sessionId=' + encodeURIComponent(this.sessionId);
-          console.log(`[WS] Connecting to ${wsUrl}`);
-          
           this.ws = new WebSocket(wsUrl);
           this.setupEventHandlers();
         } catch (error) {
@@ -145,7 +143,6 @@
         if (!this.ws) return;
 
         this.ws.onopen = () => {
-          console.log(`[WS] Connected for session ${this.sessionId}`);
           this.state = ConnectionStates.CONNECTED;
           this.reconnectAttempts = 0;
           this.reconnectDelay = 1000;
@@ -173,8 +170,6 @@
                 } else {
                   this.connectionQuality = 'bad';
                 }
-                
-                console.log(`[WS] Latency: ${this.latency}ms, Quality: ${this.connectionQuality}`);
               }
               
               this.onMessage(msg);
@@ -186,7 +181,6 @@
         };
 
         this.ws.onclose = (event) => {
-          console.log(`[WS] Connection closed for session ${this.sessionId}, code: ${event.code}, reason: ${event.reason}`);
           this.stopHeartbeat();
           this.ws = null;
           
@@ -280,9 +274,6 @@
 
         this.reconnectAttempts++;
         const delay = Math.min(this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1), this.maxReconnectDelay);
-        
-        console.log(`[WS] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`);
-        
         setTimeout(() => {
           if (!this.isManualClose) {
             this._doConnect();
@@ -335,31 +326,26 @@
     function baseWsUrl() {
       // Use window.location.origin as primary source since it's always correct
       const origin = window.location.origin;
-      console.log('[WS] Using origin:', origin);
-      console.log('[WS] BASE_URL fallback:', window.BASE_URL);
-      console.log('[WS] SERVER_PORT:', window.SERVER_PORT);
-      
+
       // If BASE_URL contains a different port than SERVER_PORT, override it
       let finalOrigin = origin;
       if (window.BASE_URL && window.SERVER_PORT) {
         try {
           const baseUrlObj = new URL(window.BASE_URL);
           const serverPort = window.SERVER_PORT.toString();
-          
+
           if (baseUrlObj.port !== serverPort) {
-            console.log(`[WS] Overriding BASE_URL port ${baseUrlObj.port} with SERVER_PORT ${serverPort}`);
             finalOrigin = `${baseUrlObj.protocol}//${baseUrlObj.hostname}:${serverPort}`;
           }
         } catch (error) {
           console.warn('[WS] Failed to parse BASE_URL, using origin:', error);
         }
       }
-      
+
       const u = new URL(finalOrigin);
       const proto = u.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsUrl = proto + '//' + u.host + u.pathname.replace(/\/$/, '');
-      
-      console.log('[WS] Constructed WebSocket URL:', wsUrl);
+
       return wsUrl;
     }
 
@@ -508,7 +494,6 @@
                     term.write(msg.data || '');
                   } else if (msg.type === 'pong') {
                     // Heartbeat response received
-                    console.log('[WS] Heartbeat pong received');
                   } else if (msg.type === 'error') {
                     term.write(`\r\n[server error: ${msg.error || 'unknown'}]\r\n`);
                   }
@@ -694,7 +679,6 @@
     function reconnectActive() {
       const s = state.sessions.find((x) => x.sessionId === state.activeId);
       if (s && s.wsManager) {
-        console.log('[UI] Manual reconnect triggered');
         s.wsManager.close();
         setTimeout(() => {
           s.wsManager.connect();
