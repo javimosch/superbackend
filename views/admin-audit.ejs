@@ -110,7 +110,9 @@
         const stats = await res.json();
         document.getElementById('stat-24h').textContent = stats.last24h ?? 0;
         document.getElementById('stat-failures').textContent = stats.failures24h ?? 0;
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to load audit data:', e);
+      }
     }
 
     async function loadActions() {
@@ -125,7 +127,9 @@
           opt.textContent = action;
           select.appendChild(opt);
         });
-      } catch (e) {}
+      } catch (e) {
+        console.error('Failed to load audit data:', e);
+      }
     }
 
     async function loadEvents() {
