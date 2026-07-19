@@ -26,7 +26,7 @@ function makeFakeProc() {
 
 function clearAllSessions() {
   for (const s of terminalsService.listSessions()) {
-    try { terminalsService.killSession(s.sessionId); } catch (e) {}
+    try { terminalsService.killSession(s.sessionId); } catch (e) { console.error('[terminals.test] Failed to kill session:', e?.message || e); }
   }
 }
 
@@ -98,7 +98,7 @@ describe('terminals.service', () => {
     afterEach(() => {
       jest.restoreAllMocks();
       if (sessionId) {
-        try { terminalsService.killSession(sessionId); } catch (e) {}
+        try { terminalsService.killSession(sessionId); } catch (e) { console.error('[terminals.test] Failed to kill session:', e?.message || e); }
       }
     });
 
