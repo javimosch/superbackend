@@ -385,7 +385,12 @@ async function main() {
             );
             break;
           }
-        } catch (e2) {}
+        } catch (e2) {
+          console.error(
+            `❌ Proxy health check fallback failed for ${primaryDomain}:`,
+            e2,
+          );
+        }
       }
 
       await new Promise((resolve) => setTimeout(resolve, 5000));
