@@ -33,10 +33,14 @@ function cleanupExpired() {
       sessions.delete(id);
       try {
         if (s.adminWs && s.adminWs.close) s.adminWs.close();
-      } catch {}
+      } catch (e) {
+        console.error('[superdemos-sessions] Failed to close expired admin WebSocket:', e?.message || e);
+      }
       try {
         if (s.sdkWs && s.sdkWs.close) s.sdkWs.close();
-      } catch {}
+      } catch (e) {
+        console.error('[superdemos-sessions] Failed to close expired sdk WebSocket:', e?.message || e);
+      }
     }
   }
 }
@@ -108,10 +112,14 @@ function destroySession(sessionId) {
   if (s) {
     try {
       if (s.adminWs && s.adminWs.close) s.adminWs.close();
-    } catch {}
+    } catch (e) {
+      console.error('[superdemos-sessions] Failed to close admin WebSocket on destroy:', e?.message || e);
+    }
     try {
       if (s.sdkWs && s.sdkWs.close) s.sdkWs.close();
-    } catch {}
+    } catch (e) {
+      console.error('[superdemos-sessions] Failed to close sdk WebSocket on destroy:', e?.message || e);
+    }
   }
   return Boolean(s);
 }

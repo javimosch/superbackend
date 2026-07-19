@@ -16,7 +16,9 @@ function normalizeOrigin(o) {
 function safeSend(ws, payload) {
   try {
     ws.send(JSON.stringify(payload));
-  } catch {}
+  } catch (e) {
+    console.error('[superdemos-ws] Failed to send WebSocket message:', e?.message || e);
+  }
 }
 
 function parseAndValidateQuery(parsed) {
@@ -68,7 +70,9 @@ function attachSuperDemosWebsocketServer(server) {
     if (!validated.ok) {
       try {
         socket.destroy();
-      } catch {}
+      } catch (e) {
+        console.error('[superdemos-ws] Failed to destroy socket on validation failure:', e?.message || e);
+      }
       return;
     }
 
@@ -76,7 +80,9 @@ function attachSuperDemosWebsocketServer(server) {
     if (!session) {
       try {
         socket.destroy();
-      } catch {}
+      } catch (e) {
+        console.error('[superdemos-ws] Failed to destroy socket for missing session:', e?.message || e);
+      }
       return;
     }
 
@@ -85,7 +91,9 @@ function attachSuperDemosWebsocketServer(server) {
       if (!okOrigin) {
         try {
           socket.destroy();
-        } catch {}
+        } catch (e) {
+          console.error('[superdemos-ws] Failed to destroy socket on origin rejection:', e?.message || e);
+        }
         return;
       }
     }
@@ -138,8 +146,8 @@ function attachSuperDemosWebsocketServer(server) {
       try {
         const msg = JSON.parse(toStr(raw));
         safeSend(other, msg);
-      } catch {
-        // ignore invalid frames
+      } catch (e) {
+        console.error('[superdemos-ws] Failed to parse incoming message frame:', e?.message || e);
       }
     });
 
