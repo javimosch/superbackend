@@ -410,7 +410,7 @@
         window.__llmProviderModelPickerReady = true;
         if (window.__llmProviderModelPickerQueue && Array.isArray(window.__llmProviderModelPickerQueue)) {
           window.__llmProviderModelPickerQueue.forEach(fn => {
-            try { fn(); } catch (_) {}
+            try { fn(); } catch (err) { console.error('[admin-ui-components] Failed to run queued LLM picker initializer:', err?.message || err); }
           });
           window.__llmProviderModelPickerQueue = [];
         }
