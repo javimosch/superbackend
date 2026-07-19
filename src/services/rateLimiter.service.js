@@ -437,7 +437,8 @@ async function check(limiterId, { req, identity } = {}) {
         checked: true,
         retentionDays: effective.metrics?.retentionDays,
       });
-    } catch (_) {
+    } catch (err) {
+      console.error('[rateLimiter] Failed to record metrics:', err?.message || err);
     }
   }
 
